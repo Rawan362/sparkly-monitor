@@ -307,7 +307,7 @@ async function loadConversations() {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   renderConvoList();
-  if (activePhone) loadThread(activePhone, true);
+  if (activePhone) await loadThread(activePhone, true);
 }
 
 function renderConvoList() {
@@ -424,7 +424,7 @@ window.resumeAI = async function(phone) {
     );
     if (!res.ok) throw new Error('Supabase error ' + res.status);
     await loadConversations();
-    loadThread(phone);
+    await loadThread(phone);
   } catch (e) {
     alert('Failed to resume AI: ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = '▶ Resume AI'; }
@@ -449,7 +449,7 @@ window.sendReply = async function(phone) {
     if (data && data.success) {
       textarea.value = '';
       await loadConversations();
-      loadThread(phone);
+      await loadThread(phone);
       // loadThread rebuilds the composer area (a fresh textarea element),
       // so the old one's focus is lost — refocus the new one so typing the
       // next message doesn't require clicking back into the box.
