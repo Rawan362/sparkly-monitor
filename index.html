@@ -310,7 +310,9 @@ async function loadThread(phone, silent) {
       <span id="status-pill" class="${isActive ? '' : 'paused'}">${isActive ? '● AI active' : '○ AI paused — manual mode'}</span>
     </div>
     <div id="messages">${rows.map(renderBubble).join('')}</div>
-    <div id="resume-hint">${isActive ? '' : 'AI is paused for this customer. Resend <code>/resume ' + phone + '</code> in Telegram to hand it back to Ahmad.'}</div>
+    <div id="resume-hint">${isActive ? '' : `AI is paused for this customer. <button id="resume-btn" onclick="resumeAI('${phone}')">▶ Resume AI</button>`}</div>
+    <style>#resume-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; margin-left: 4px; }
+    #resume-btn:disabled { opacity: 0.5; cursor: not-allowed; }</style>
     <div id="composer">
       <textarea id="reply-text" placeholder="Type a manual reply..." rows="1"></textarea>
       <button id="send-btn" onclick="sendReply('${phone}')">Send</button>
@@ -327,6 +329,32 @@ function renderBubble(m) {
     <div class="bubble ${isNote ? 'private-note' : ''}">${escapeHtml(m.message)}<span class="ts">${new Date(m.timestamp).toLocaleString()}</span></div>
   </div>`;
 }
+
+window.resumeAI = async function(phone) {
+  const btn = document.getElementById('resume-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Resuming...'; }
+  try {
+    const res = await fetch(
+      SUPABASE_URL + '/rest/v1/client_status?phone_number=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ ai_active: true })
+      }
+    );
+    if (!res.ok) throw new Error('Supabase error ' + res.status);
+    await loadConversations();
+    loadThread(phone);
+  } catch (e) {
+    alert('Failed to resume AI: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Resume AI'; }
+  }
+};
 
 window.sendReply = async function(phone) {
   const textarea = document.getElementById('reply-text');
