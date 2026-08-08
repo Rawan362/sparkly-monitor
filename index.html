@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,7 +27,31 @@
     height: 100vh;
     overflow: hidden;
   }
-  #app { display: flex; height: 100vh; }
+  #app { display: flex; height: 100vh; position: relative; }
+
+  #menu-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 20;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  #main #menu-toggle { display: none; }
+  #app.sidebar-hidden #main #menu-toggle { display: flex; }
+  #app.sidebar-hidden #sidebar { margin-left: -340px; }
+  @media (max-width: 720px) {
+    #app.sidebar-hidden #sidebar { margin-left: -85vw; box-shadow: none; }
+  }
 
   /* Sidebar */
   #sidebar {
@@ -36,10 +61,19 @@
     display: flex;
     flex-direction: column;
     background: #fff;
+    transition: margin-left 0.2s ease;
+  }
+
+  @media (max-width: 720px) {
+    #sidebar { position: absolute; top: 0; left: 0; bottom: 0; width: 85vw; min-width: 0; z-index: 15; box-shadow: 0 0 0 2000px rgba(0,0,0,0.25); }
+    #main { width: 100%; }
   }
   #sidebar-header {
     padding: 20px 18px 14px;
     border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
   }
   #sidebar-header h1 {
     font-size: 17px;
@@ -52,6 +86,16 @@
     color: var(--muted);
     margin: 0;
   }
+  #sidebar-close {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 15px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  #sidebar-close:hover { background: #f0efec; }
   #convo-list { flex: 1; overflow-y: auto; }
   .convo-item {
     padding: 13px 18px;
@@ -199,12 +243,16 @@
 <div id="app">
   <div id="sidebar">
     <div id="sidebar-header">
-      <h1>Sparkly Monitor</h1>
-      <p id="seller-label">Loading...</p>
+      <div>
+        <h1>Sparkly Monitor</h1>
+        <p id="seller-label">Loading...</p>
+      </div>
+      <button id="sidebar-close" onclick="toggleSidebar()" title="Hide list">✕</button>
     </div>
     <div id="convo-list"><div id="loading">Loading conversations...</div></div>
   </div>
   <div id="main">
+    <button id="menu-toggle" onclick="toggleSidebar()" title="Show list">☰</button>
     <div id="empty-state">Select a conversation to view it</div>
   </div>
 </div>
@@ -286,13 +334,30 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+window.toggleSidebar = function() {
+  document.getElementById('app').classList.toggle('sidebar-hidden');
+};
+
 window.selectConvo = function(phone) {
+  // On mobile, auto-hide the sidebar after picking a conversation so the
+  // chat view takes over the full screen, like a normal mobile chat app.
+  if (window.innerWidth <= 720) {
+    document.getElementById('app').classList.add('sidebar-hidden');
+  }
   activePhone = phone;
   renderConvoList();
   loadThread(phone);
 };
 
 async function loadThread(phone, silent) {
+  // Preserve whatever the person is currently typing (and whether the box
+  // was focused) before rebuilding, so the 8-second auto-refresh — or a
+  // send-triggered refresh — never wipes out an in-progress draft.
+  const existingTextarea = document.getElementById('reply-text');
+  const draftText = existingTextarea ? existingTextarea.value : '';
+  const wasFocused = existingTextarea === document.activeElement;
+  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
+
   const rows = await sb(
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
     '&select=role,message,timestamp&order=timestamp.asc&limit=200'
@@ -320,6 +385,16 @@ async function loadThread(phone, silent) {
   `;
   const box = document.getElementById('messages');
   box.scrollTop = box.scrollHeight;
+
+  // Restore the draft and focus/cursor position
+  const newTextarea = document.getElementById('reply-text');
+  if (newTextarea && draftText) {
+    newTextarea.value = draftText;
+  }
+  if (newTextarea && wasFocused) {
+    newTextarea.focus();
+    if (cursorPos !== null) newTextarea.setSelectionRange(cursorPos, cursorPos);
+  }
 }
 
 function renderBubble(m) {
@@ -375,6 +450,11 @@ window.sendReply = async function(phone) {
       textarea.value = '';
       await loadConversations();
       loadThread(phone);
+      // loadThread rebuilds the composer area (a fresh textarea element),
+      // so the old one's focus is lost — refocus the new one so typing the
+      // next message doesn't require clicking back into the box.
+      const freshTextarea = document.getElementById('reply-text');
+      if (freshTextarea) freshTextarea.focus();
     } else {
       alert('Failed to send: ' + (data && data.reason ? data.reason : 'unknown error'));
     }
