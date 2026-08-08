@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sparkly Monitor</title>
+<style>
+  :root {
+    --ink: #17191c;
+    --paper: #fafaf8;
+    --line: #e4e2dd;
+    --accent: #2f6f4f;
+    --accent-soft: #e8f2ec;
+    --muted: #7a7d82;
+    --bubble-in: #ffffff;
+    --bubble-out: #2f6f4f;
+    --bubble-out-text: #ffffff;
+    --danger: #b5442e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    height: 100vh;
+    overflow: hidden;
+  }
+  #app { display: flex; height: 100vh; }
+
+  /* Sidebar */
+  #sidebar {
+    width: 340px;
+    min-width: 340px;
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+  #sidebar-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  #sidebar-header h1 {
+    font-size: 17px;
+    font-weight: 650;
+    margin: 0 0 2px;
+    letter-spacing: -0.01em;
+  }
+  #sidebar-header p {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 0;
+  }
+  #convo-list { flex: 1; overflow-y: auto; }
+  .convo-item {
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    position: relative;
+  }
+  .convo-item:hover { background: #f5f4f1; }
+  .convo-item.active { background: var(--accent-soft); }
+  .convo-top { display: flex; justify-content: space-between; align-items: center; }
+  .convo-phone { font-weight: 600; font-size: 14px; }
+  .convo-time { font-size: 11px; color: var(--muted); }
+  .convo-preview {
+    font-size: 12.5px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .paused-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  /* Main panel */
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  #chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+  }
+  #chat-header-info h2 { font-size: 16px; margin: 0 0 2px; font-weight: 650; }
+  #chat-header-info span { font-size: 12.5px; color: var(--muted); }
+  #status-pill {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 20px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  #status-pill.paused { background: #fbeae5; color: var(--danger); }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: repeating-linear-gradient(0deg, #f4f3ef, #f4f3ef 100%);
+  }
+  .msg-row { display: flex; }
+  .msg-row.out { justify-content: flex-end; }
+  .bubble {
+    max-width: 60%;
+    padding: 9px 13px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.42;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+  }
+  .msg-row.in .bubble { background: var(--bubble-in); border-bottom-left-radius: 3px; }
+  .msg-row.out .bubble { background: var(--bubble-out); color: var(--bubble-out-text); border-bottom-right-radius: 3px; }
+  .bubble .ts { display: block; font-size: 10.5px; opacity: 0.6; margin-top: 4px; }
+  .bubble.private-note { background: #fff6dd; border: 1px dashed #d9c27a; color: #6b5a1e; }
+
+  #composer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--line);
+    background: #fff;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  #composer textarea {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 13px;
+    font-size: 14px;
+    font-family: inherit;
+    max-height: 120px;
+    min-height: 42px;
+  }
+  #composer textarea:focus { outline: none; border-color: var(--accent); }
+  #send-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #resume-hint {
+    font-size: 11.5px;
+    color: var(--muted);
+    padding: 0 20px 10px;
+    background: #fff;
+  }
+  #resume-hint code {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  #loading { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>Sparkly Monitor</h1>
+      <p id="seller-label">Loading...</p>
+    </div>
+    <div id="convo-list"><div id="loading">Loading conversations...</div></div>
+  </div>
+  <div id="main">
+    <div id="empty-state">Select a conversation to view it</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG — for the SaaS version, sellerChatId and sellerPhone will come from
+// a real login system instead of being hardcoded here.
+// ═══════════════════════════════════════════════
+const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbW1vb2J3enVoaWltbWppeGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTMzNDcsImV4cCI6MjA5NDI2OTM0N30.ZC81X_-Fe3tjPDhL7s6oemlTJDuIWRnguDIq3ZklxeA';
+const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
+const SELLER_CHAT_ID = '6150148292';
+
+let conversations = [];
+let activePhone = null;
+let pollTimer = null;
+
+async function sb(path) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+  });
+  if (!res.ok) throw new Error('Supabase error ' + res.status);
+  return res.json();
+}
+
+function timeAgo(ts) {
+  const diff = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+async function loadConversations() {
+  const rows = await sb(
+    'conversations?seller_id=eq.' + SELLER_CHAT_ID +
+    '&select=phone_number,message,role,timestamp&order=timestamp.desc&limit=500'
+  );
+  const byPhone = {};
+  rows.forEach(r => {
+    if (!byPhone[r.phone_number]) byPhone[r.phone_number] = r;
+  });
+  const statuses = await sb(
+    'client_status?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ai_active'
+  );
+  const statusMap = {};
+  statuses.forEach(s => { statusMap[s.phone_number] = s.ai_active !== false; });
+
+  conversations = Object.values(byPhone)
+    .map(c => ({ ...c, aiActive: statusMap[c.phone_number] !== false }))
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  renderConvoList();
+  if (activePhone) loadThread(activePhone, true);
+}
+
+function renderConvoList() {
+  const el = document.getElementById('convo-list');
+  document.getElementById('seller-label').textContent = conversations.length + ' conversations';
+  if (conversations.length === 0) {
+    el.innerHTML = '<div id="loading">No conversations yet.</div>';
+    return;
+  }
+  el.innerHTML = conversations.map(c => `
+    <div class="convo-item ${c.phone_number === activePhone ? 'active' : ''}" onclick="selectConvo('${c.phone_number}')">
+      <div class="convo-top">
+        <span class="convo-phone">${c.aiActive ? '<span class="live-dot"></span>' : '<span class="paused-dot"></span>'}${c.phone_number}</span>
+        <span class="convo-time">${timeAgo(c.timestamp)}</span>
+      </div>
+      <div class="convo-preview">${c.role === 'user' ? '' : '↪ '}${escapeHtml(c.message).slice(0, 60)}</div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+window.selectConvo = function(phone) {
+  activePhone = phone;
+  renderConvoList();
+  loadThread(phone);
+};
+
+async function loadThread(phone, silent) {
+  const rows = await sb(
+    'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
+    '&select=role,message,timestamp&order=timestamp.asc&limit=200'
+  );
+  const convo = conversations.find(c => c.phone_number === phone);
+  const isActive = convo ? convo.aiActive : true;
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div id="chat-header">
+      <div id="chat-header-info">
+        <h2>${phone}</h2>
+        <span>${rows.length} messages</span>
+      </div>
+      <span id="status-pill" class="${isActive ? '' : 'paused'}">${isActive ? '● AI active' : '○ AI paused — manual mode'}</span>
+    </div>
+    <div id="messages">${rows.map(renderBubble).join('')}</div>
+    <div id="resume-hint">${isActive ? '' : 'AI is paused for this customer. Resend <code>/resume ' + phone + '</code> in Telegram to hand it back to Ahmad.'}</div>
+    <div id="composer">
+      <textarea id="reply-text" placeholder="Type a manual reply..." rows="1"></textarea>
+      <button id="send-btn" onclick="sendReply('${phone}')">Send</button>
+    </div>
+  `;
+  const box = document.getElementById('messages');
+  box.scrollTop = box.scrollHeight;
+}
+
+function renderBubble(m) {
+  const isOut = m.role === 'assistant';
+  const isNote = (m.message || '').startsWith('📩 Customer:');
+  return `<div class="msg-row ${isOut ? 'out' : 'in'}">
+    <div class="bubble ${isNote ? 'private-note' : ''}">${escapeHtml(m.message)}<span class="ts">${new Date(m.timestamp).toLocaleString()}</span></div>
+  </div>`;
+}
+
+window.sendReply = async function(phone) {
+  const textarea = document.getElementById('reply-text');
+  const message = textarea.value.trim();
+  if (!message) return;
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID })
+    });
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (data && data.success) {
+      textarea.value = '';
+      await loadConversations();
+      loadThread(phone);
+    } else {
+      alert('Failed to send: ' + (data && data.reason ? data.reason : 'unknown error'));
+    }
+  } catch (e) {
+    alert('Failed to send: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send';
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.id === 'reply-text' && e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (activePhone) sendReply(activePhone);
+  }
+});
+
+loadConversations();
+pollTimer = setInterval(loadConversations, 8000);
+</script>
+</body>
+</html>
