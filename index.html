@@ -155,8 +155,19 @@
     align-items: center;
     background: #fff;
   }
+  #chat-header-info { display: flex; align-items: center; gap: 10px; }
   #chat-header-info h2 { font-size: 16px; margin: 0 0 2px; font-weight: 650; }
   #chat-header-info span { font-size: 12.5px; color: var(--muted); }
+  #back-arrow {
+    display: none;
+    border: none;
+    background: none;
+    font-size: 20px;
+    color: var(--ink);
+    cursor: pointer;
+    padding: 4px 2px;
+    line-height: 1;
+  }
   #status-pill {
     font-size: 11.5px;
     font-weight: 600;
@@ -166,6 +177,10 @@
     color: var(--accent);
   }
   #status-pill.paused { background: #fbeae5; color: var(--danger); }
+
+  @media (max-width: 720px) {
+    #back-arrow { display: block; }
+  }
 
   #messages {
     flex: 1;
@@ -369,8 +384,11 @@ async function loadThread(phone, silent) {
   main.innerHTML = `
     <div id="chat-header">
       <div id="chat-header-info">
-        <h2>${phone}</h2>
-        <span>${rows.length} messages</span>
+        <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats">←</button>
+        <div>
+          <h2>${phone}</h2>
+          <span>${rows.length} messages</span>
+        </div>
       </div>
       <span id="status-pill" class="${isActive ? '' : 'paused'}">${isActive ? '● AI active' : '○ AI paused — manual mode'}</span>
     </div>
