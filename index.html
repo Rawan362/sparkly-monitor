@@ -938,10 +938,26 @@ window.toggleRecording = async function(phone) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
-    const supportedType = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
-      .find(t => MediaRecorder.isTypeSupported(t)) || '';
-    mediaRecorder = new MediaRecorder(stream, supportedType ? { mimeType: supportedType } : {});
-    window._recordedMimeType = supportedType || mediaRecorder.mimeType || 'audio/webm';
+
+    const candidates = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg'];
+    let lastError = null;
+    for (const candidate of candidates) {
+      try {
+        if (!MediaRecorder.isTypeSupported(candidate)) continue;
+        mediaRecorder = new MediaRecorder(stream, { mimeType: candidate });
+        window._recordedMimeType = candidate;
+        break;
+      } catch (eTry) {
+        lastError = eTry;
+        mediaRecorder = null;
+      }
+    }
+    if (!mediaRecorder) {
+      // Last resort: let the browser pick its own default entirely
+      mediaRecorder = new MediaRecorder(stream);
+      window._recordedMimeType = mediaRecorder.mimeType || 'audio/webm';
+    }
+
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
