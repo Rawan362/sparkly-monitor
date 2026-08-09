@@ -365,6 +365,72 @@
   #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   #loading { padding: 30px 16px; text-align: center; color: var(--wa-text-muted); font-size: 13px; }
 
+  /* ═══ CUSTOMER PROFILE PANEL ═══ */
+  #profile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 30;
+    display: none;
+  }
+  #profile-overlay.open { display: block; }
+  #profile-panel {
+    position: fixed;
+    top: 0;
+    right: -380px;
+    width: 380px;
+    max-width: 90vw;
+    height: 100vh;
+    background: #fff;
+    z-index: 31;
+    box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+    transition: right 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  #profile-overlay.open #profile-panel { right: 0; }
+  #profile-header {
+    background: var(--wa-panel);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid var(--wa-line);
+  }
+  #profile-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--wa-text); }
+  #profile-body { padding: 20px; text-align: center; }
+  #profile-avatar-lg {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 30px;
+    margin: 0 auto 12px;
+  }
+  #profile-name { font-size: 18px; font-weight: 650; margin: 0 0 2px; }
+  #profile-phone { font-size: 13px; color: var(--wa-text-muted); margin: 0 0 4px; }
+  .profile-badges { display: flex; gap: 6px; justify-content: center; margin: 10px 0 4px; flex-wrap: wrap; }
+  .profile-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .profile-badge.vip { background: #fff3c4; color: #7a6416; }
+  .profile-badge.wholesale { background: #e7f6f1; color: var(--wa-accent); }
+  .profile-section { text-align: left; padding: 14px 20px; border-top: 8px solid var(--wa-panel); }
+  .profile-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--wa-text-muted); margin: 0 0 10px; }
+  .profile-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13.5px; }
+  .profile-row .label { color: var(--wa-text-muted); }
+  .profile-row .value { font-weight: 600; text-align: right; }
+  .profile-notes { font-size: 13px; color: var(--wa-text); line-height: 1.5; background: var(--wa-panel); padding: 10px 12px; border-radius: 8px; }
+  #profile-loading { padding: 40px 20px; text-align: center; color: var(--wa-text-muted); font-size: 13px; }
+
   @media (max-width: 720px) {
     #channel-rail { display: none; }
     #sidebar { position: absolute; top: 0; left: 0; bottom: 0; width: 100vw; min-width: 0; z-index: 15; }
@@ -372,6 +438,7 @@
     #main { width: 100%; }
     #back-arrow { display: block; }
     .convo-preview { max-width: 55vw; }
+    #profile-panel { width: 100vw; max-width: 100vw; right: -100vw; }
   }
 </style>
 </head>
@@ -408,6 +475,16 @@
       <div class="icon">💬</div>
       <div>Select a conversation to view it</div>
     </div>
+  </div>
+</div>
+
+<div id="profile-overlay" onclick="if(event.target===this) closeProfile()">
+  <div id="profile-panel">
+    <div id="profile-header">
+      <button id="profile-close" onclick="closeProfile()">←</button>
+      <span style="font-weight:600;font-size:15px;">Contact info</span>
+    </div>
+    <div id="profile-content"><div id="profile-loading">Loading...</div></div>
   </div>
 </div>
 
@@ -533,6 +610,60 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+window.openProfile = async function(phone) {
+  const overlay = document.getElementById('profile-overlay');
+  const content = document.getElementById('profile-content');
+  content.innerHTML = '<div id="profile-loading">Loading...</div>';
+  overlay.classList.add('open');
+
+  try {
+    const rows = await sb(
+      'customers?phone=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1'
+    );
+    const cust = rows && rows[0] ? rows[0] : null;
+    const color = avatarColor(phone);
+    const name = (cust && cust.name) || phone;
+
+    let badgesHtml = '';
+    if (cust && cust.is_vip) badgesHtml += '<span class="profile-badge vip">⭐ VIP</span>';
+    if (cust && cust.is_wholesale) badgesHtml += '<span class="profile-badge wholesale">Wholesale</span>';
+
+    const fmt = (v) => v ? v : '—';
+    const fmtDate = (v) => v ? new Date(v).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+    const fmtMoney = (v) => (v || v === 0) ? '$' + Number(v).toLocaleString() : '—';
+
+    content.innerHTML = `
+      <div id="profile-body">
+        <div id="profile-avatar-lg" style="background:${color}">${initials(phone)}</div>
+        <h2 id="profile-name">${escapeHtml(name)}</h2>
+        <p id="profile-phone">${phone}</p>
+        <div class="profile-badges">${badgesHtml}</div>
+      </div>
+      <div class="profile-section">
+        <h3>Order history</h3>
+        <div class="profile-row"><span class="label">Total orders</span><span class="value">${cust ? fmt(cust.total_orders ?? 0) : '—'}</span></div>
+        <div class="profile-row"><span class="label">Total spent</span><span class="value">${cust ? fmtMoney(cust.total_spent) : '—'}</span></div>
+        <div class="profile-row"><span class="label">First purchase</span><span class="value">${cust ? fmtDate(cust.first_purchase_date) : '—'}</span></div>
+        <div class="profile-row"><span class="label">Last purchase</span><span class="value">${cust ? fmtDate(cust.last_purchase_date) : '—'}</span></div>
+      </div>
+      <div class="profile-section">
+        <h3>Details</h3>
+        <div class="profile-row"><span class="label">City</span><span class="value">${cust ? fmt(cust.city) : '—'}</span></div>
+        <div class="profile-row"><span class="label">Language</span><span class="value">${cust ? fmt(cust.preferred_language) : '—'}</span></div>
+        <div class="profile-row"><span class="label">Referral source</span><span class="value">${cust ? fmt(cust.referral_source) : '—'}</span></div>
+      </div>
+      ${cust && cust.notes ? `<div class="profile-section"><h3>Notes</h3><div class="profile-notes">${escapeHtml(cust.notes)}</div></div>` : ''}
+      ${!cust ? `<div class="profile-section"><div class="profile-notes">No customer record yet — this contact hasn't completed an order or been added to the customers table.</div></div>` : ''}
+    `;
+  } catch (e) {
+    content.innerHTML = '<div id="profile-loading">Failed to load profile: ' + e.message + '</div>';
+  }
+};
+
+window.closeProfile = function() {
+  document.getElementById('profile-overlay').classList.remove('open');
+};
+
 window.toggleSidebar = function() {
   document.getElementById('app').classList.toggle('sidebar-hidden');
 };
@@ -586,10 +717,12 @@ async function loadThread(phone, silent) {
       <div id="chat-header-info">
         <button id="menu-toggle" onclick="toggleSidebar()" title="Show list">☰</button>
         <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats">←</button>
-        <div class="chat-avatar" style="background:${avatarColor(phone)}">${initials(phone)}</div>
-        <div>
-          <h2>${phone}</h2>
-          <span>${rows.length} messages</span>
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openProfile('${phone}')">
+          <div class="chat-avatar" style="background:${avatarColor(phone)}">${initials(phone)}</div>
+          <div>
+            <h2>${phone}</h2>
+            <span>${rows.length} messages</span>
+          </div>
         </div>
       </div>
       <div id="ai-toggle-wrap" title="${isActive ? 'AI is handling this conversation' : 'AI is paused — manual mode'}">
