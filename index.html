@@ -412,7 +412,31 @@
     font-size: 30px;
     margin: 0 auto 12px;
   }
+  #profile-name-display { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
   #profile-name { font-size: 18px; font-weight: 650; margin: 0 0 2px; }
+  #profile-name-edit-icon { font-size: 12px; color: var(--wa-text-muted); opacity: 0.7; }
+  #profile-name-input {
+    font-size: 18px;
+    font-weight: 650;
+    border: none;
+    border-bottom: 2px solid var(--wa-accent);
+    text-align: center;
+    padding: 2px 4px;
+    width: 200px;
+    max-width: 70vw;
+  }
+  #profile-name-input:focus { outline: none; }
+  #profile-name-save {
+    border: none;
+    background: var(--wa-accent);
+    color: #fff;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 6px;
+  }
   #profile-phone { font-size: 13px; color: var(--wa-text-muted); margin: 0 0 4px; }
   .profile-badges { display: flex; gap: 6px; justify-content: center; margin: 10px 0 4px; flex-wrap: wrap; }
   .profile-badge {
@@ -558,8 +582,14 @@ async function loadConversations() {
   const statusMap = {};
   statuses.forEach(s => { statusMap[s.phone_number] = s.ai_active !== false; });
 
+  const custs = await sb(
+    'customers?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone,name'
+  );
+  const nameMap = {};
+  custs.forEach(c => { if (c.name) nameMap[c.phone] = c.name; });
+
   conversations = Object.values(byPhone)
-    .map(c => ({ ...c, aiActive: statusMap[c.phone_number] !== false }))
+    .map(c => ({ ...c, aiActive: statusMap[c.phone_number] !== false, displayName: nameMap[c.phone_number] || c.phone_number }))
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   renderConvoList();
@@ -583,7 +613,7 @@ function renderConvoList() {
       <div class="convo-avatar" style="background:${avatarColor(c.phone_number)}">${initials(c.phone_number)}</div>
       <div class="convo-body">
         <div class="convo-top">
-          <span class="convo-phone">${c.phone_number}</span>
+          <span class="convo-phone">${escapeHtml(c.displayName)}</span>
           <span class="convo-time">${timeAgo(c.timestamp)}</span>
         </div>
         <div class="convo-preview-row">
@@ -635,7 +665,10 @@ window.openProfile = async function(phone) {
     content.innerHTML = `
       <div id="profile-body">
         <div id="profile-avatar-lg" style="background:${color}">${initials(phone)}</div>
-        <h2 id="profile-name">${escapeHtml(name)}</h2>
+        <div id="profile-name-display" onclick="startEditName('${phone}')">
+          <h2 id="profile-name">${escapeHtml(name)}</h2>
+          <span id="profile-name-edit-icon">✎</span>
+        </div>
         <p id="profile-phone">${phone}</p>
         <div class="profile-badges">${badgesHtml}</div>
       </div>
@@ -662,6 +695,57 @@ window.openProfile = async function(phone) {
 
 window.closeProfile = function() {
   document.getElementById('profile-overlay').classList.remove('open');
+};
+
+window.startEditName = function(phone) {
+  const display = document.getElementById('profile-name-display');
+  const currentName = document.getElementById('profile-name').textContent;
+  const startingValue = currentName === phone ? '' : currentName;
+  display.innerHTML = `
+    <input id="profile-name-input" value="${escapeHtml(startingValue)}" placeholder="Enter a name">
+    <button id="profile-name-save" onclick="saveCustomerName('${phone}')">Save</button>
+  `;
+  const input = document.getElementById('profile-name-input');
+  input.focus();
+  input.select();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveCustomerName(phone); }
+  });
+};
+
+window.saveCustomerName = async function(phone) {
+  const input = document.getElementById('profile-name-input');
+  const newName = input.value.trim();
+  if (!newName) return;
+  const saveBtn = document.getElementById('profile-name-save');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+  try {
+    const existing = await sb('customers?phone=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=id');
+    if (existing && existing.length > 0) {
+      await fetch(
+        SUPABASE_URL + '/rest/v1/customers?phone=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID,
+        {
+          method: 'PATCH',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ name: newName, updated_at: new Date().toISOString() })
+        }
+      );
+    } else {
+      await fetch(
+        SUPABASE_URL + '/rest/v1/customers',
+        {
+          method: 'POST',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ phone, seller_id: SELLER_CHAT_ID, name: newName })
+        }
+      );
+    }
+    await openProfile(phone);
+  } catch (e) {
+    alert('Failed to save name: ' + e.message);
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+  }
 };
 
 window.toggleSidebar = function() {
@@ -698,6 +782,8 @@ async function loadThread(phone, silent) {
   );
   const convo = conversations.find(c => c.phone_number === phone);
   const isActive = convo ? convo.aiActive : true;
+  const displayName = convo ? convo.displayName : phone;
+  const hasCustomName = displayName !== phone;
 
   // Build message list with date dividers
   let lastDate = null;
@@ -720,8 +806,8 @@ async function loadThread(phone, silent) {
         <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openProfile('${phone}')">
           <div class="chat-avatar" style="background:${avatarColor(phone)}">${initials(phone)}</div>
           <div>
-            <h2>${phone}</h2>
-            <span>${rows.length} messages</span>
+            <h2>${escapeHtml(displayName)}</h2>
+            <span>${hasCustomName ? phone + ' · ' : ''}${rows.length} messages</span>
           </div>
         </div>
       </div>
