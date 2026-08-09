@@ -150,7 +150,6 @@
     height: 46px;
     min-width: 46px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #b6d5cd, #8bb8ab);
     color: #fff;
     display: flex;
     align-items: center;
@@ -224,7 +223,6 @@
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #b6d5cd, #8bb8ab);
     color: #fff;
     display: flex;
     align-items: center;
@@ -453,6 +451,21 @@ function initials(phone) {
   return digits.slice(-2) || '?';
 }
 
+// Slack/WhatsApp-style avatar palette — muted, pleasant tones that read
+// well with white text. Same phone number always maps to the same color.
+const AVATAR_PALETTE = [
+  '#6b7fd7', '#e08e45', '#4fa88c', '#c76b96', '#5aa9c9',
+  '#a67c52', '#7d8c5c', '#c96b6b', '#8577c9', '#4f9a6f'
+];
+function avatarColor(phone) {
+  const digits = (phone || '').replace(/[^0-9]/g, '');
+  let hash = 0;
+  for (let i = 0; i < digits.length; i++) {
+    hash = (hash * 31 + digits.charCodeAt(i)) % 100000;
+  }
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
+
 async function loadConversations() {
   const rows = await sb(
     'conversations?seller_id=eq.' + SELLER_CHAT_ID +
@@ -490,7 +503,7 @@ function renderConvoList() {
     const isUnread = c.role === 'user';
     return `
     <div class="convo-item ${c.phone_number === activePhone ? 'active' : ''} ${isUnread ? 'unread' : ''}" onclick="selectConvo('${c.phone_number}')">
-      <div class="convo-avatar">${initials(c.phone_number)}</div>
+      <div class="convo-avatar" style="background:${avatarColor(c.phone_number)}">${initials(c.phone_number)}</div>
       <div class="convo-body">
         <div class="convo-top">
           <span class="convo-phone">${c.phone_number}</span>
@@ -573,7 +586,7 @@ async function loadThread(phone, silent) {
       <div id="chat-header-info">
         <button id="menu-toggle" onclick="toggleSidebar()" title="Show list">☰</button>
         <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats">←</button>
-        <div class="chat-avatar">${initials(phone)}</div>
+        <div class="chat-avatar" style="background:${avatarColor(phone)}">${initials(phone)}</div>
         <div>
           <h2>${phone}</h2>
           <span>${rows.length} messages</span>
