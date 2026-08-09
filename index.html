@@ -1404,6 +1404,8 @@ function startApp() {
   loadConversations();
   pollTimer = setInterval(loadConversations, 8000);
 }
+
+document.addEventListener('DOMContentLoaded', initAuth);
 </script>
 </body>
 </html>
