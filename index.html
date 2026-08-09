@@ -938,7 +938,10 @@ window.toggleRecording = async function(phone) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/ogg;codecs=opus' });
+    const supportedType = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+      .find(t => MediaRecorder.isTypeSupported(t)) || '';
+    mediaRecorder = new MediaRecorder(stream, supportedType ? { mimeType: supportedType } : {});
+    window._recordedMimeType = supportedType || mediaRecorder.mimeType || 'audio/webm';
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
@@ -948,7 +951,7 @@ window.toggleRecording = async function(phone) {
       micBtn.classList.remove('recording');
       micBtn.textContent = '🎤';
 
-      const blob = new Blob(recordedChunks, { type: 'audio/ogg' });
+      const blob = new Blob(recordedChunks, { type: window._recordedMimeType || 'audio/webm' });
       if (blob.size < 500) return; // too short / accidental tap
 
       const reader = new FileReader();
@@ -984,7 +987,7 @@ async function sendVoiceNote(phone, dataUrl) {
     const res = await fetch(MANUAL_SEND_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, audioBase64: dataUrl, sellerChatId: SELLER_CHAT_ID })
+      body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: window._recordedMimeType || 'audio/webm', sellerChatId: SELLER_CHAT_ID })
     });
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
