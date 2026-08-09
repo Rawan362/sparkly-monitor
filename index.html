@@ -363,6 +363,31 @@
     justify-content: center;
   }
   #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #mic-btn {
+    background: #fff;
+    color: var(--wa-text-muted);
+    border: none;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    font-size: 17px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #mic-btn.recording {
+    background: var(--wa-danger);
+    color: #fff;
+    animation: pulse-rec 1.2s infinite;
+  }
+  @keyframes pulse-rec {
+    0% { box-shadow: 0 0 0 0 rgba(178,60,60,0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(178,60,60,0); }
+    100% { box-shadow: 0 0 0 0 rgba(178,60,60,0); }
+  }
+  #rec-timer { font-size: 12px; color: var(--wa-danger); font-weight: 600; align-self: center; min-width: 34px; text-align: center; }
   #loading { padding: 30px 16px; text-align: center; color: var(--wa-text-muted); font-size: 13px; }
 
   /* ═══ CUSTOMER PROFILE PANEL ═══ */
@@ -822,6 +847,7 @@ async function loadThread(phone, silent) {
 
     <div id="composer">
       <textarea id="reply-text" placeholder="Type a manual reply..." rows="1"></textarea>
+      <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note">🎤</button>
       <button id="send-btn" onclick="sendReply('${phone}')" title="Send">➤</button>
     </div>
   `;
@@ -896,6 +922,84 @@ window.pauseAI = async function(phone) {
     if (btn) btn.disabled = false;
   }
 };
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordingTimer = null;
+let recordingSeconds = 0;
+
+window.toggleRecording = async function(phone) {
+  const micBtn = document.getElementById('mic-btn');
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    // Stop and send
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/ogg;codecs=opus' });
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recordingTimer);
+      const rec = document.getElementById('rec-timer');
+      if (rec) rec.remove();
+      micBtn.classList.remove('recording');
+      micBtn.textContent = '🎤';
+
+      const blob = new Blob(recordedChunks, { type: 'audio/ogg' });
+      if (blob.size < 500) return; // too short / accidental tap
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        await sendVoiceNote(phone, reader.result);
+      };
+      reader.readAsDataURL(blob);
+    };
+    mediaRecorder.start();
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹';
+    recordingSeconds = 0;
+    const composer = document.getElementById('composer');
+    const timerSpan = document.createElement('span');
+    timerSpan.id = 'rec-timer';
+    timerSpan.textContent = '0:00';
+    composer.insertBefore(timerSpan, micBtn);
+    recordingTimer = setInterval(() => {
+      recordingSeconds++;
+      const m = Math.floor(recordingSeconds / 60);
+      const s = String(recordingSeconds % 60).padStart(2, '0');
+      timerSpan.textContent = m + ':' + s;
+    }, 1000);
+  } catch (e) {
+    alert('Could not access microphone: ' + e.message);
+  }
+};
+
+async function sendVoiceNote(phone, dataUrl) {
+  const micBtn = document.getElementById('mic-btn');
+  micBtn.disabled = true;
+  try {
+    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, audioBase64: dataUrl, sellerChatId: SELLER_CHAT_ID })
+    });
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (data && data.success) {
+      await loadConversations();
+      await loadThread(phone);
+    } else {
+      alert('Failed to send voice note: ' + (data && data.reason ? data.reason : 'unknown error'));
+    }
+  } catch (e) {
+    alert('Failed to send voice note: ' + e.message);
+  }
+  const freshMicBtn = document.getElementById('mic-btn');
+  if (freshMicBtn) freshMicBtn.disabled = false;
+}
 
 window.sendReply = async function(phone) {
   const textarea = document.getElementById('reply-text');
