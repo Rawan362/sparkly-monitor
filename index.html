@@ -451,6 +451,161 @@
   .profile-notes { font-size: 13px; color: var(--text); line-height: 1.55; background: var(--panel-2); padding: 12px 14px; border-radius: 10px; }
   #profile-loading { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13px; }
 
+  /* ═══ LANDING PAGE ═══ */
+  #landing {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    overflow-y: auto;
+    z-index: 40;
+  }
+  .land-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 6%;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .land-brand { display: flex; align-items: center; gap: 10px; }
+  .land-brand-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .land-brand span { font-size: 15.5px; font-weight: 650; color: var(--text); letter-spacing: -0.01em; }
+  .land-nav-btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 9px 18px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .land-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .land-hero {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 90px 6% 70px;
+    text-align: center;
+  }
+  .land-eyebrow {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 5px 13px;
+    border-radius: 20px;
+    margin-bottom: 22px;
+    letter-spacing: 0.01em;
+  }
+  .land-hero h1 {
+    font-size: 44px;
+    line-height: 1.12;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin: 0 0 20px;
+  }
+  .land-hero h1 em { color: var(--accent); font-style: normal; }
+  .land-hero p {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    margin: 0 auto 34px;
+    max-width: 560px;
+  }
+  .land-cta {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 14px 30px;
+    border-radius: 11px;
+    font-size: 15px;
+    font-weight: 620;
+    cursor: pointer;
+  }
+  .land-cta:hover { opacity: 0.92; }
+
+  .land-preview {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 6% 90px;
+  }
+  .land-preview-frame {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px -20px rgba(37,99,235,0.18);
+    background: var(--panel);
+  }
+  .land-preview-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .land-preview-bar span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .land-preview-body { padding: 30px; display: flex; gap: 16px; }
+  .land-preview-col-a { width: 34%; display: flex; flex-direction: column; gap: 10px; }
+  .land-preview-col-b { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .land-skel { background: var(--panel-2); border-radius: 8px; }
+  .land-bubble { padding: 10px 14px; border-radius: 14px; font-size: 12px; max-width: 70%; }
+  .land-bubble.in { background: var(--panel-2); align-self: flex-start; }
+  .land-bubble.out { background: var(--accent-soft); color: var(--accent); align-self: flex-end; font-weight: 600; }
+
+  .land-features {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 20px 6% 90px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 22px;
+  }
+  .land-feature { padding: 26px 22px; }
+  .land-feature-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .land-feature h3 { font-size: 15px; font-weight: 650; margin: 0 0 8px; color: var(--text); }
+  .land-feature p { font-size: 13px; line-height: 1.55; color: var(--text-muted); margin: 0; }
+
+  .land-footer {
+    border-top: 1px solid var(--border);
+    padding: 26px 6%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .land-footer span { font-size: 12px; color: var(--text-muted); }
+
+  @media (max-width: 860px) {
+    .land-features { grid-template-columns: 1fr 1fr; }
+    .land-hero h1 { font-size: 32px; }
+    .land-preview-body { flex-direction: column; }
+    .land-preview-col-a { width: 100%; }
+  }
+
   /* ═══ LOGIN SCREEN ═══ */
   #login-overlay {
     position: fixed;
@@ -1105,16 +1260,89 @@ document.addEventListener('keydown', (e) => {
 });
 
 function initAuth() {
+  document.getElementById('app').style.display = 'none';
   const savedId = localStorage.getItem('sparkly_seller_chat_id');
   if (savedId) {
     SELLER_CHAT_ID = savedId;
     startApp();
   } else {
-    showLoginScreen();
+    showLandingPage();
   }
 }
 
+function showLandingPage() {
+  const el = document.createElement('div');
+  el.id = 'landing';
+  el.innerHTML = `
+    <nav class="land-nav">
+      <div class="land-brand">
+        <div class="land-brand-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+        <span>Sparkly</span>
+      </div>
+      <button class="land-nav-btn" onclick="showLoginScreen()">Sign in</button>
+    </nav>
+
+    <section class="land-hero">
+      <span class="land-eyebrow">AI-powered WhatsApp sales</span>
+      <h1>Your AI closes deals. <em>You stay in control.</em></h1>
+      <p>Sparkly runs your WhatsApp conversations end to end — qualifying leads, answering questions, and closing orders — while you watch every conversation live and step in personally whenever it matters.</p>
+      <button class="land-cta" onclick="showLoginScreen()">Sign in to your dashboard</button>
+    </section>
+
+    <section class="land-preview">
+      <div class="land-preview-frame">
+        <div class="land-preview-bar"><span></span><span></span><span></span></div>
+        <div class="land-preview-body">
+          <div class="land-preview-col-a">
+            <div class="land-skel" style="height:38px;width:70%;"></div>
+            <div class="land-skel" style="height:52px;"></div>
+            <div class="land-skel" style="height:52px;"></div>
+            <div class="land-skel" style="height:52px;opacity:0.5;"></div>
+          </div>
+          <div class="land-preview-col-b">
+            <div class="land-bubble in">Do you have this in stock for 500 units?</div>
+            <div class="land-bubble out">Yes — I can get that ready by Thursday. Want me to lock in the order?</div>
+            <div class="land-bubble in">Yes, let's go</div>
+            <div class="land-bubble out">Perfect, confirming your order now ✓</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="land-features">
+      <div class="land-feature">
+        <div class="land-feature-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></div>
+        <h3>Runs on autopilot</h3>
+        <p>Ahmad qualifies leads, answers product questions, and closes orders automatically — using your real business rules, not a generic script.</p>
+      </div>
+      <div class="land-feature">
+        <div class="land-feature-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
+        <h3>Every conversation, live</h3>
+        <p>Watch every customer conversation in real time, with a clear at-a-glance view of who's active and who needs your attention.</p>
+      </div>
+      <div class="land-feature">
+        <div class="land-feature-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+        <h3>Take over instantly</h3>
+        <p>Jump into any conversation and reply personally whenever a moment calls for it — the AI steps aside automatically until you hand it back.</p>
+      </div>
+      <div class="land-feature">
+        <div class="land-feature-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>Built for every channel</h3>
+        <p>Live on WhatsApp today, with Instagram and Messenger built into the same foundation — ready to switch on the moment you need them.</p>
+      </div>
+    </section>
+
+    <footer class="land-footer">
+      <span>© ${new Date().getFullYear()} Sparkly</span>
+      <span>Built for real sellers, running real businesses.</span>
+    </footer>
+  `;
+  document.body.appendChild(el);
+}
+
 function showLoginScreen(errorMsg) {
+  const landing = document.getElementById('landing');
+  if (landing) landing.remove();
   document.getElementById('app').style.display = 'none';
   let overlay = document.getElementById('login-overlay');
   if (!overlay) {
