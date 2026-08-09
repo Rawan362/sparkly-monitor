@@ -4,31 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sparkly AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #ffffff;
-    --panel: #ffffff;
-    --panel-2: #f4f7fb;
-    --border: #e4e9f0;
-    --text: #16202e;
-    --text-muted: #6b7686;
-    --accent: #2563eb;
-    --accent-soft: #eaf1fe;
-    --accent-2: #16a34a;
-    --accent-2-soft: #eafbf0;
-    --danger: #dc4444;
-    --danger-soft: #fdeded;
+    --bg: #0C0E12;
+    --panel: #15181E;
+    --panel-2: #1D2129;
+    --border: #2A2F39;
+    --text: #ECEDEF;
+    --text-muted: #8890A0;
+    --accent: #C6A15B;
+    --accent-soft: rgba(198,161,91,0.14);
+    --on-accent: #1B140A;
+    --accent-2: #34A883;
+    --accent-2-soft: rgba(52,168,131,0.14);
+    --danger: #E5595E;
+    --danger-soft: rgba(229,89,94,0.14);
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-family: var(--font-ui);
     background: var(--bg);
     color: var(--text);
     height: 100vh;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
   }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3A4150; }
   #app { display: flex; height: 100vh; position: relative; background: var(--bg); }
 
   /* ═══ CHANNEL RAIL ═══ */
@@ -101,11 +111,12 @@
     align-items: flex-start;
   }
   #sidebar-header h1 {
-    font-size: 17px;
-    font-weight: 620;
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 600;
     margin: 0 0 2px;
     color: var(--text);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.005em;
   }
   #sidebar-header p { font-size: 12px; color: var(--text-muted); margin: 0; }
   #sidebar-close {
@@ -170,8 +181,12 @@
     max-width: 210px;
   }
   .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  .status-dot.live { background: var(--accent-2); }
+  .status-dot.live { background: var(--accent-2); animation: breathe-live 2.6s ease-in-out infinite; }
   .status-dot.paused { background: var(--danger); }
+  @keyframes breathe-live {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52,168,131,0.5); }
+    50% { box-shadow: 0 0 0 4px rgba(52,168,131,0); }
+  }
   .unread-badge { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
   .convo-item.unread .convo-phone { font-weight: 650; }
   .convo-item.unread .convo-preview { color: var(--text); font-weight: 560; }
@@ -273,7 +288,7 @@
     position: relative;
   }
   .msg-row.in .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
-  .msg-row.out .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg-row.out .bubble { background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 4px; }
   .bubble .msg-text { white-space: pre-wrap; word-break: break-word; }
   .bubble .ts {
     display: block;
@@ -282,7 +297,7 @@
     opacity: 0.6;
   }
   .msg-row.in .bubble .ts { color: var(--text-muted); }
-  .msg-row.out .bubble .ts { color: rgba(255,255,255,0.75); }
+  .msg-row.out .bubble .ts { color: rgba(27,20,10,0.65); }
   .bubble.private-note { background: #fdf3da; color: #7a6416; border: 1px solid #eddca0; }
   .bubble.private-note .ts { color: #7a6416; opacity: 0.65; }
   .date-divider {
@@ -319,7 +334,7 @@
   #composer textarea:focus { outline: none; border-color: var(--accent); }
   #send-btn {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     border-radius: 50%;
     width: 40px;
@@ -353,9 +368,9 @@
     animation: pulse-rec 1.2s infinite;
   }
   @keyframes pulse-rec {
-    0% { box-shadow: 0 0 0 0 rgba(181,68,46,0.45); }
-    70% { box-shadow: 0 0 0 8px rgba(181,68,46,0); }
-    100% { box-shadow: 0 0 0 0 rgba(181,68,46,0); }
+    0% { box-shadow: 0 0 0 0 rgba(229,89,94,0.45); }
+    70% { box-shadow: 0 0 0 8px rgba(229,89,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(229,89,94,0); }
   }
   #rec-timer { font-size: 12px; color: var(--danger); font-weight: 600; align-self: center; min-width: 34px; text-align: center; }
   #loading { padding: 30px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
@@ -425,7 +440,7 @@
   #profile-name-save {
     border: none;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border-radius: 7px;
     padding: 3px 10px;
     font-size: 12px;
@@ -478,7 +493,7 @@
     align-items: center;
     justify-content: center;
   }
-  .land-brand span { font-size: 15.5px; font-weight: 650; color: var(--text); letter-spacing: -0.01em; }
+  .land-brand span { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); letter-spacing: -0.005em; }
   .land-nav-btn {
     border: 1px solid var(--border);
     background: var(--panel);
@@ -509,14 +524,15 @@
     letter-spacing: 0.01em;
   }
   .land-hero h1 {
-    font-size: 44px;
+    font-family: var(--font-display);
+    font-size: 48px;
     line-height: 1.12;
-    font-weight: 650;
-    letter-spacing: -0.02em;
+    font-weight: 600;
+    letter-spacing: -0.015em;
     color: var(--text);
     margin: 0 0 20px;
   }
-  .land-hero h1 em { color: var(--accent); font-style: normal; }
+  .land-hero h1 em { color: var(--accent); font-style: italic; }
   .land-hero p {
     font-size: 17px;
     line-height: 1.55;
@@ -526,15 +542,17 @@
   }
   .land-cta {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     padding: 14px 30px;
     border-radius: 11px;
     font-size: 15px;
-    font-weight: 620;
+    font-weight: 650;
     cursor: pointer;
+    box-shadow: 0 8px 24px -8px rgba(198,161,91,0.5);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  .land-cta:hover { opacity: 0.92; }
+  .land-cta:hover { transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(198,161,91,0.6); }
 
   .land-preview {
     max-width: 900px;
@@ -545,7 +563,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 20px 50px -20px rgba(37,99,235,0.18);
+    box-shadow: 0 20px 50px -20px rgba(198,161,91,0.22);
     background: var(--panel);
   }
   .land-preview-bar {
@@ -623,6 +641,11 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 36px 30px 30px;
+    box-shadow: 0 24px 60px -20px rgba(0,0,0,0.55);
   }
   #login-logo {
     width: 52px;
@@ -635,7 +658,7 @@
     justify-content: center;
     margin: 0 auto 6px;
   }
-  #login-card h1 { font-size: 19px; font-weight: 650; margin: 0; letter-spacing: -0.01em; color: var(--text); }
+  #login-card h1 { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.005em; color: var(--text); }
   .login-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 6px; }
   #login-error {
     background: var(--danger-soft);
@@ -658,7 +681,7 @@
   #login-card input:focus { outline: none; border-color: var(--accent); background: var(--panel); }
   #login-btn {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     border-radius: 10px;
     padding: 12px;
