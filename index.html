@@ -1400,6 +1400,7 @@ window.logout = function() {
 };
 
 function startApp() {
+  document.getElementById('app').style.display = 'flex';
   loadConversations();
   pollTimer = setInterval(loadConversations, 8000);
 }
