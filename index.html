@@ -72,7 +72,7 @@
   #menu-toggle {
     position: absolute;
     top: 14px;
-    left: 14px;
+    left: 70px;
     z-index: 20;
     width: 34px;
     height: 34px;
@@ -86,7 +86,10 @@
     font-size: 16px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   }
-  #app.sidebar-hidden #main #menu-toggle { display: flex; }
+  @media (max-width: 720px) {
+    #menu-toggle { left: 14px; }
+  }
+  #app.sidebar-hidden #menu-toggle { display: flex; }
 
   /* ═══ SIDEBAR ═══ */
   #sidebar {
@@ -383,12 +386,12 @@
     <div id="convo-list"><div id="loading">Loading conversations...</div></div>
   </div>
   <div id="main">
-    <button id="menu-toggle" onclick="toggleSidebar()" title="Show list">☰</button>
     <div id="empty-state">
       <div class="icon">💬</div>
       <div>Select a conversation to view it</div>
     </div>
   </div>
+  <button id="menu-toggle" onclick="toggleSidebar()" title="Show list">☰</button>
 </div>
 
 <script>
