@@ -717,16 +717,83 @@
     margin-top: 4px;
   }
   #login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  #logout-btn {
+  #settings-btn {
     border: none;
     background: none;
     color: var(--text-muted);
-    font-size: 12px;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 6px;
     border-radius: 8px;
+    display: flex;
   }
-  #logout-btn:hover { background: var(--panel-2); color: var(--text); }
+  #settings-btn:hover { background: var(--panel-2); color: var(--text); }
+
+  #ahmad-pinned {
+    margin: 0 14px 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  #ahmad-pinned-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--on-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  #ahmad-pinned-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  #ahmad-pinned-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  #ahmad-pinned.active { border-width: 2px; }
+
+  #settings-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20,18,14,0.35);
+    z-index: 40;
+    align-items: center;
+    justify-content: center;
+  }
+  #settings-overlay.show { display: flex; }
+  #settings-panel {
+    width: 340px;
+    max-width: 90vw;
+    background: var(--panel);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 60px -20px rgba(42,42,38,0.3);
+    overflow: hidden;
+  }
+  #settings-panel-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #settings-panel-header h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  #settings-panel-close { border: none; background: none; cursor: pointer; color: var(--text-muted); display: flex; }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 18px;
+    cursor: pointer;
+    font-size: 13.5px;
+    color: var(--text);
+  }
+  .settings-row:hover { background: var(--panel-2); }
+  .settings-row.danger { color: var(--danger); }
+  .settings-row svg { flex-shrink: 0; opacity: 0.75; }
 
   @media (max-width: 720px) {
     #sidebar { position: absolute; top: 0; left: 0; bottom: 0; width: 100vw; min-width: 0; z-index: 15; }
@@ -747,8 +814,15 @@
         <p id="seller-label">Loading...</p>
       </div>
       <div style="display:flex;align-items:center;gap:4px;">
-        <button id="logout-btn" onclick="logout()" title="Sign out">Sign out</button>
+        <button id="settings-btn" onclick="openSettings()" title="Settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         <button id="sidebar-close" onclick="toggleSidebar()" title="Hide list"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div id="ahmad-pinned" onclick="openAhmadChat()">
+      <div id="ahmad-pinned-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg></div>
+      <div>
+        <div id="ahmad-pinned-title">Talk to Ahmad</div>
+        <div id="ahmad-pinned-sub">Set up products, rules & business info</div>
       </div>
     </div>
     <div id="channel-pills"></div>
@@ -777,6 +851,23 @@
   </div>
 </div>
 
+<div id="settings-overlay" onclick="if(event.target===this) closeSettings()">
+  <div id="settings-panel">
+    <div id="settings-panel-header">
+      <h3>Settings</h3>
+      <button id="settings-panel-close" onclick="closeSettings()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="settings-row" onclick="openAhmadChat(); closeSettings();">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
+      Talk to Ahmad
+    </div>
+    <div class="settings-row danger" onclick="logout()">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign out
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════
 // CONFIG — for the SaaS version, sellerChatId will come from a real login
@@ -788,6 +879,8 @@
 const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbW1vb2J3enVoaWltbWppeGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTMzNDcsImV4cCI6MjA5NDI2OTM0N30.ZC81X_-Fe3tjPDhL7s6oemlTJDuIWRnguDIq3ZklxeA';
 const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
+const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
+let ahmadChatOpen = false;
 let SELLER_CHAT_ID = null; // set after login
 const CHANNEL_META = {
   whatsapp:  { label: 'WhatsApp',  color: '#25D366' },
@@ -868,6 +961,7 @@ async function loadConversations() {
   renderChannelPills();
   renderConvoList();
   if (activePhone) await loadThread(activePhone, true);
+  if (ahmadChatOpen) await renderAhmadChatPanel(true);
 }
 
 function renderChannelPills() {
@@ -1058,6 +1152,9 @@ window.selectConvo = function(phone) {
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.add('sidebar-hidden');
   }
+  ahmadChatOpen = false;
+  const pinned = document.getElementById('ahmad-pinned');
+  if (pinned) pinned.classList.remove('active');
   activePhone = phone;
   renderConvoList();
   loadThread(phone);
@@ -1175,6 +1272,105 @@ function renderBubble(m) {
     <div class="bubble ${isNote ? 'private-note' : ''}"><span class="msg-text">${escapeHtml(m.message)}</span><span class="ts">${time}</span></div>
   </div>`;
 }
+
+window.openAhmadChat = async function() {
+  ahmadChatOpen = true;
+  activePhone = null;
+  if (window.innerWidth <= 720) {
+    document.getElementById('app').classList.add('sidebar-hidden');
+  }
+  renderConvoList();
+  const pinned = document.getElementById('ahmad-pinned');
+  if (pinned) pinned.classList.add('active');
+  await renderAhmadChatPanel();
+};
+
+async function renderAhmadChatPanel(silent) {
+  const rows = await sb(
+    'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=role,message,created_at&order=created_at.asc&limit=300'
+  ).catch(() => []);
+
+  const oldBox = document.getElementById('messages');
+  let oldScrollTop = 0;
+  let wasNearBottom = true;
+  if (oldBox) {
+    oldScrollTop = oldBox.scrollTop;
+    wasNearBottom = (oldBox.scrollHeight - oldBox.scrollTop - oldBox.clientHeight) < 120;
+  }
+
+  let lastDate = null;
+  let bubblesHtml = '';
+  if (!rows || rows.length === 0) {
+    bubblesHtml = '<div class="date-divider">Ask Ahmad to set up products, delivery rules, MOQ, or anything about your business</div>';
+  } else {
+    rows.forEach(m => {
+      const dateStr = new Date(m.created_at).toDateString();
+      if (dateStr !== lastDate) {
+        bubblesHtml += `<div class="date-divider">${formatDateDivider(m.created_at)}</div>`;
+        lastDate = dateStr;
+      }
+      bubblesHtml += renderBubble({ role: m.role === 'ahmad' ? 'assistant' : 'user', message: m.message, timestamp: m.created_at });
+    });
+  }
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div id="chat-header" style="border-bottom:2px solid var(--accent)">
+      <div id="chat-header-info">
+        <button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="chat-avatar" style="background:var(--accent);color:var(--on-accent);">A</div>
+          <div>
+            <h2>Ahmad</h2>
+            <span class="chat-channel-tag"><span class="dot" style="background:var(--accent)"></span>Business setup assistant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="messages">${bubblesHtml}</div>
+    <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="Jump to latest"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
+    <div id="composer">
+      <textarea id="reply-text" placeholder="Message Ahmad about your business..." rows="1"></textarea>
+      <button id="send-btn" onclick="sendAhmadMessage()" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+    </div>
+  `;
+  const box = document.getElementById('messages');
+  if (!silent || wasNearBottom) {
+    box.scrollTop = box.scrollHeight;
+  } else {
+    box.scrollTop = Math.min(oldScrollTop, box.scrollHeight);
+  }
+  updateScrollBtn();
+  box.addEventListener('scroll', updateScrollBtn);
+}
+
+window.sendAhmadMessage = async function() {
+  const textarea = document.getElementById('reply-text');
+  const message = textarea.value.trim();
+  if (!message) return;
+  const btn = document.getElementById('send-btn');
+  if (btn) btn.disabled = true;
+  textarea.value = '';
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, role: 'seller', message })
+    });
+    // Nudges the Ahmad workflow to process this — wired up in the next step, safe to fail for now
+    fetch(AHMAD_CHAT_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sellerChatId: SELLER_CHAT_ID, message })
+    }).catch(() => {});
+    await renderAhmadChatPanel();
+  } catch (e) {
+    alert('Failed to send: ' + e.message);
+  }
+  const freshBtn = document.getElementById('send-btn');
+  if (freshBtn) freshBtn.disabled = false;
+};
 
 window.resumeAI = async function(phone) {
   const btn = document.getElementById('ai-toggle');
@@ -1358,7 +1554,8 @@ window.sendReply = async function(phone) {
 document.addEventListener('keydown', (e) => {
   if (e.target.id === 'reply-text' && e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    if (activePhone) sendReply(activePhone);
+    if (ahmadChatOpen) sendAhmadMessage();
+    else if (activePhone) sendReply(activePhone);
   }
 });
 
@@ -1500,6 +1697,13 @@ window.doLogin = async function() {
 window.logout = function() {
   localStorage.removeItem('sparkly_seller_chat_id');
   location.reload();
+};
+
+window.openSettings = function() {
+  document.getElementById('settings-overlay').classList.add('show');
+};
+window.closeSettings = function() {
+  document.getElementById('settings-overlay').classList.remove('show');
 };
 
 function startApp() {
