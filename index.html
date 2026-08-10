@@ -195,10 +195,10 @@
   .bottom-nav-item span { font-size: 11px; font-weight: 500; }
   .bottom-nav-item.active { color: var(--accent); }
   .bottom-nav-item:hover { background: var(--border); }
-  button, .convo-item, .bottom-nav-item, .settings-row, .channel-pill, #ahmad-pinned {
+  button, .convo-item, .bottom-nav-item, .settings-row, .channel-pill {
     transition: transform 0.08s ease, opacity 0.08s ease, background 0.15s ease;
   }
-  button:active, .convo-item:active, .bottom-nav-item:active, .settings-row:active, #ahmad-pinned:active {
+  button:active, .convo-item:active, .bottom-nav-item:active, .settings-row:active {
     transform: scale(0.97);
     opacity: 0.85;
   }
@@ -837,32 +837,6 @@
   }
   #login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-  #ahmad-pinned {
-    margin: 0 14px 12px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: var(--accent-soft);
-    border: 1px solid var(--accent);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-  }
-  #ahmad-pinned-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--on-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  #ahmad-pinned-title { font-size: 13px; font-weight: 600; color: var(--text); }
-  #ahmad-pinned-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
-  #ahmad-pinned.active { border-width: 2px; }
-
   .settings-row {
     display: flex;
     align-items: center;
@@ -908,13 +882,6 @@
       </div>
     </div>
     <div id="chats-tab-content">
-      <div id="ahmad-pinned" onclick="openAhmadChat()">
-        <div id="ahmad-pinned-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg></div>
-        <div>
-          <div id="ahmad-pinned-title">Talk to Ahmad</div>
-          <div id="ahmad-pinned-sub">Set up products, rules & business info</div>
-        </div>
-      </div>
       <div id="channel-pills"></div>
       <div id="search-wrap">
         <span id="search-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
@@ -923,12 +890,7 @@
       <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
     </div>
     <div id="settings-tab-content" style="display:none;">
-      <div class="settings-section-label" style="padding-top:16px;">Business</div>
-      <div class="settings-row" onclick="openAhmadChat()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
-        Talk to Ahmad
-      </div>
-      <div class="settings-section-label">Account</div>
+      <div class="settings-section-label" style="padding-top:16px;">Account</div>
       <div class="settings-row danger" onclick="logout()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Sign out
@@ -942,6 +904,10 @@
       <div class="bottom-nav-item active" id="nav-chats" onclick="goToChats()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
         <span>Chats</span>
+      </div>
+      <div class="bottom-nav-item" id="nav-ai" onclick="openAhmadChat()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
+        <span id="nav-ai-label">AI</span>
       </div>
       <div class="bottom-nav-item" id="nav-settings" onclick="openSettings()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1411,11 +1377,9 @@ window.openAhmadChat = async function() {
     document.getElementById('app').classList.add('sidebar-hidden');
   }
   renderConvoList();
-  const pinned = document.getElementById('ahmad-pinned');
-  if (pinned) pinned.classList.add('active');
   document.querySelectorAll('#sidebar-bottom-nav .bottom-nav-item').forEach(el => el.classList.remove('active'));
-  const navChats = document.getElementById('nav-chats');
-  if (navChats) navChats.classList.add('active');
+  const navAi = document.getElementById('nav-ai');
+  if (navAi) navAi.classList.add('active');
   await renderAhmadChatPanel();
 };
 
@@ -1952,8 +1916,8 @@ async function loadAiName() {
     const rows = await sb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=ai_name&limit=1');
     AI_NAME = (rows && rows[0] && rows[0].ai_name) || null;
   } catch (e) { AI_NAME = null; }
-  const pinnedTitle = document.getElementById('ahmad-pinned-title');
-  if (pinnedTitle) pinnedTitle.textContent = AI_NAME ? 'Talk to ' + AI_NAME : 'Talk to your AI assistant';
+  const navLabel = document.getElementById('nav-ai-label');
+  if (navLabel) navLabel.textContent = AI_NAME || 'AI';
 }
 
 document.addEventListener('DOMContentLoaded', initAuth);
