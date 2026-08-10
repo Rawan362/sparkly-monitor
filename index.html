@@ -268,33 +268,28 @@
   }
   #chat-header-info h2 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: -0.005em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  #ai-toggle-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 10px; }
-  #ai-toggle-label { font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
-  #ai-toggle {
-    position: relative;
-    width: 38px;
-    height: 21px;
-    border-radius: 12px;
+  #ai-paused-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--danger-soft);
+    border-top: 1px solid var(--border);
+  }
+  #ai-paused-banner span { font-size: 12.5px; color: var(--danger); font-weight: 500; }
+  #ai-paused-banner button {
     border: none;
+    background: var(--danger);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
     cursor: pointer;
-    padding: 0;
-    background: #ded9d0;
-    transition: background 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
-  #ai-toggle.on { background: var(--accent-2); }
-  #ai-toggle.off { background: var(--danger); }
-  #ai-toggle .knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 17px;
-    height: 17px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-    transition: left 0.15s ease;
-  }
-  #ai-toggle.on .knob { left: 19px; }
 
   #messages {
     flex: 1;
@@ -1336,16 +1331,11 @@ async function loadThread(phone, silent) {
           </div>
         </div>
       </div>
-      <div id="ai-toggle-wrap" title="${isActive ? 'AI is handling this conversation' : 'AI is paused — manual mode'}">
-        <span id="ai-toggle-label">${isActive ? 'AI on' : 'AI off'}</span>
-        <button id="ai-toggle" class="${isActive ? 'on' : 'off'}" onclick="${isActive ? `pauseAI('${phone}')` : `resumeAI('${phone}')`}">
-          <span class="knob"></span>
-        </button>
       </div>
     </div>
     <div id="messages">${bubblesHtml}</div>
     <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="Jump to latest"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
-
+    ${!isActive ? `<div id="ai-paused-banner"><span>AI is off for this customer — you're replying manually</span><button onclick="resumeAI('${phone}')">Turn AI back on</button></div>` : ''}
     <div id="composer">
       <textarea id="reply-text" placeholder="Type a manual reply..." rows="1"></textarea>
       <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
@@ -1492,8 +1482,6 @@ window.sendAhmadMessage = async function() {
 };
 
 window.resumeAI = async function(phone) {
-  const btn = document.getElementById('ai-toggle');
-  if (btn) btn.disabled = true;
   try {
     const res = await fetch(
       SUPABASE_URL + '/rest/v1/client_status?phone_number=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID,
@@ -1513,7 +1501,6 @@ window.resumeAI = async function(phone) {
     await loadThread(phone);
   } catch (e) {
     alert('Failed to resume AI: ' + e.message);
-    if (btn) btn.disabled = false;
   }
 };
 
