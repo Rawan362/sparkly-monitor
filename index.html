@@ -952,6 +952,13 @@ let channelFilter = 'all';
 let conversations = [];
 let activePhone = null;
 let searchQuery = '';
+let drafts = {}; // per-conversation unsent text — key is phone number, or 'ahmad'
+function saveCurrentDraft() {
+  const ta = document.getElementById('reply-text');
+  if (!ta) return;
+  const key = ahmadChatOpen ? 'ahmad' : activePhone;
+  if (key) drafts[key] = ta.value;
+}
 let pollTimer = null;
 
 async function sb(path) {
@@ -1206,6 +1213,7 @@ window.toggleSidebar = function() {
 };
 
 window.selectConvo = function(phone) {
+  saveCurrentDraft();
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.add('sidebar-hidden');
   }
@@ -1282,9 +1290,12 @@ async function loadThread(phone, silent) {
 
   const main = document.getElementById('main');
   const existingTextarea = document.getElementById('reply-text');
-  const draftText = existingTextarea ? existingTextarea.value : '';
-  const wasFocused = existingTextarea === document.activeElement;
-  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
+  // Same thread mid-refresh: keep whatever's being typed right now.
+  // Fresh navigation into this thread: restore its own saved draft, not
+  // whatever happens to be sitting in the DOM from a different conversation.
+  const draftText = (silent && existingTextarea) ? existingTextarea.value : (drafts[phone] || '');
+  const wasFocused = silent && existingTextarea === document.activeElement;
+  const cursorPos = (silent && existingTextarea) ? existingTextarea.selectionStart : null;
   const chMeta = CHANNEL_META[convo ? convo.channel : 'whatsapp'] || CHANNEL_META.whatsapp;
   main.innerHTML = `
     <div id="chat-header" style="border-bottom:2px solid ${chMeta.color}">
@@ -1343,6 +1354,7 @@ function renderBubble(m) {
 }
 
 window.openAhmadChat = async function() {
+  saveCurrentDraft();
   ahmadChatOpen = true;
   activePhone = null;
   if (window.innerWidth <= 720) {
@@ -1384,8 +1396,8 @@ async function renderAhmadChatPanel(silent) {
 
   const main = document.getElementById('main');
   const existingTextarea = document.getElementById('reply-text');
-  const draftText = existingTextarea ? existingTextarea.value : '';
-  const wasFocused = existingTextarea === document.activeElement;
+  const draftText = (silent && existingTextarea) ? existingTextarea.value : (drafts['ahmad'] || '');
+  const wasFocused = silent && existingTextarea === document.activeElement;
   const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
   main.innerHTML = `
     <div id="chat-header" style="border-bottom:2px solid var(--accent)">
@@ -1432,6 +1444,7 @@ window.sendAhmadMessage = async function() {
   const btn = document.getElementById('send-btn');
   if (btn) btn.disabled = true;
   textarea.value = '';
+  delete drafts['ahmad'];
   try {
     await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
       method: 'POST',
@@ -1630,6 +1643,7 @@ window.sendReply = async function(phone) {
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
     if (data && data.success) {
       textarea.value = '';
+      delete drafts[phone];
       await loadConversations();
       await loadThread(phone);
       const freshTextarea = document.getElementById('reply-text');
