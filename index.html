@@ -317,14 +317,27 @@
   .msg-row.out .bubble { background: var(--accent-soft); color: var(--accent); font-weight: 600; border: none; border-bottom-right-radius: 4px; }
   .bubble .msg-text { white-space: pre-wrap; word-break: break-word; }
   .bubble .ts {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     font-size: 10px;
     margin-top: 4px;
-    opacity: 0.6;
+    opacity: 0.7;
   }
   .msg-row.in .bubble .ts { color: var(--text-muted); }
-  .msg-row.out .bubble .ts { color: rgba(46,74,135,0.65); }
+  .msg-row.out .bubble .ts { color: rgba(46,74,135,0.7); }
+  .ts .ticks { display: inline-flex; }
+  .ts .ticks svg { display: block; }
+  .ts .ticks.read { color: #4FB3F6; }
   .bubble.private-note { background: #fdf3da; color: #7a6416; border: 1px solid #eddca0; }
+  .typing-bubble { display: flex; align-items: center; gap: 4px; padding: 12px 16px !important; }
+  .typing-bubble .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); animation: typing-bounce 1.2s infinite ease-in-out; }
+  .typing-bubble .dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-bubble .dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
   .bubble.private-note .ts { color: #7a6416; opacity: 0.65; }
   .date-divider {
     align-self: center;
@@ -399,6 +412,50 @@
     100% { box-shadow: 0 0 0 0 rgba(210,72,63,0); }
   }
   #rec-timer { font-size: 12px; color: var(--danger); font-weight: 600; align-self: center; min-width: 34px; text-align: center; }
+  #recording-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+  }
+  #recording-bar .rec-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--danger);
+    flex-shrink: 0;
+    animation: pulse-rec 1.2s infinite;
+  }
+  #recording-bar .rec-waveform {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 22px;
+    overflow: hidden;
+  }
+  #recording-bar .rec-waveform span {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+    opacity: 0.55;
+    animation: rec-wave 1s infinite ease-in-out;
+  }
+  @keyframes rec-wave {
+    0%, 100% { height: 6px; }
+    50% { height: 20px; }
+  }
+  #rec-cancel {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    padding: 4px;
+    flex-shrink: 0;
+  }
+  #rec-cancel:hover { color: var(--danger); }
   #loading { padding: 30px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
 
   /* ═══ CUSTOMER PROFILE PANEL ═══ */
@@ -1199,6 +1256,15 @@ async function loadThread(phone, silent) {
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
     '&select=role,message,timestamp&order=timestamp.asc&limit=200'
   );
+  let isTypingNow = false;
+  try {
+    const statusRows = await sb(
+      'client_status?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=ai_typing_until'
+    );
+    if (statusRows && statusRows[0] && statusRows[0].ai_typing_until) {
+      isTypingNow = new Date(statusRows[0].ai_typing_until) > new Date();
+    }
+  } catch (e) {}
   const convo = conversations.find(c => c.phone_number === phone);
   const isActive = convo ? convo.aiActive : true;
   const displayName = convo ? convo.displayName : phone;
@@ -1215,6 +1281,9 @@ async function loadThread(phone, silent) {
     }
     bubblesHtml += renderBubble(m);
   });
+  if (isTypingNow) {
+    bubblesHtml += `<div class="msg-row in"><div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>`;
+  }
 
   const main = document.getElementById('main');
   const chMeta = CHANNEL_META[convo ? convo.channel : 'whatsapp'] || CHANNEL_META.whatsapp;
@@ -1268,8 +1337,9 @@ function renderBubble(m) {
   const isOut = m.role === 'assistant';
   const isNote = (m.message || '').startsWith('📩 Customer:');
   const time = new Date(m.timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const ticks = isOut ? `<span class="ticks${m.read ? ' read' : ''}"><svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg></span>` : '';
   return `<div class="msg-row ${isOut ? 'out' : 'in'}">
-    <div class="bubble ${isNote ? 'private-note' : ''}"><span class="msg-text">${escapeHtml(m.message)}</span><span class="ts">${time}</span></div>
+    <div class="bubble ${isNote ? 'private-note' : ''}"><span class="msg-text">${escapeHtml(m.message)}</span><span class="ts">${time}${ticks}</span></div>
   </div>`;
 }
 
@@ -1433,6 +1503,7 @@ window.toggleRecording = async function(phone) {
   const micBtn = document.getElementById('mic-btn');
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     // Stop and send
+    window._recordingCancelled = false;
     mediaRecorder.stop();
     return;
   }
@@ -1463,11 +1534,14 @@ window.toggleRecording = async function(phone) {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       clearInterval(recordingTimer);
-      const rec = document.getElementById('rec-timer');
-      if (rec) rec.remove();
+      const bar = document.getElementById('recording-bar');
+      if (bar) bar.remove();
+      const textarea = document.getElementById('reply-text');
+      if (textarea) textarea.style.display = '';
       micBtn.classList.remove('recording');
       micBtn.innerHTML = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg>';
 
+      if (window._recordingCancelled) { window._recordingCancelled = false; return; }
       const blob = new Blob(recordedChunks, { type: window._recordedMimeType || 'audio/webm' });
       if (blob.size < 500) return; // too short / accidental tap
 
@@ -1481,16 +1555,25 @@ window.toggleRecording = async function(phone) {
     micBtn.classList.add('recording');
     micBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
     recordingSeconds = 0;
+
+    const textarea = document.getElementById('reply-text');
+    if (textarea) textarea.style.display = 'none';
     const composer = document.getElementById('composer');
-    const timerSpan = document.createElement('span');
-    timerSpan.id = 'rec-timer';
-    timerSpan.textContent = '0:00';
-    composer.insertBefore(timerSpan, micBtn);
+    const bar = document.createElement('div');
+    bar.id = 'recording-bar';
+    const waveBars = Array.from({ length: 24 }, (_, i) => `<span style="animation-delay:${(i % 6) * 0.12}s"></span>`).join('');
+    bar.innerHTML = `<span class="rec-dot"></span><span id="rec-timer">0:00</span><span class="rec-waveform">${waveBars}</span><button id="rec-cancel" title="Cancel"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
+    composer.insertBefore(bar, micBtn);
+    document.getElementById('rec-cancel').onclick = () => {
+      window._recordingCancelled = true;
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+    };
+    const timerSpan = document.getElementById('rec-timer');
     recordingTimer = setInterval(() => {
       recordingSeconds++;
       const m = Math.floor(recordingSeconds / 60);
       const s = String(recordingSeconds % 60).padStart(2, '0');
-      timerSpan.textContent = m + ':' + s;
+      if (timerSpan) timerSpan.textContent = m + ':' + s;
     }, 1000);
   } catch (e) {
     alert('Could not access microphone: ' + e.message);
