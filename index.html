@@ -287,8 +287,8 @@
     line-height: 1.48;
     position: relative;
   }
-  .msg-row.in .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
-  .msg-row.out .bubble { background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 4px; }
+  .msg-row.in .bubble { background: var(--panel-2); border: none; border-bottom-left-radius: 4px; color: var(--text); }
+  .msg-row.out .bubble { background: var(--accent-soft); color: var(--accent); font-weight: 600; border: none; border-bottom-right-radius: 4px; }
   .bubble .msg-text { white-space: pre-wrap; word-break: break-word; }
   .bubble .ts {
     display: block;
@@ -297,7 +297,7 @@
     opacity: 0.6;
   }
   .msg-row.in .bubble .ts { color: var(--text-muted); }
-  .msg-row.out .bubble .ts { color: rgba(27,20,10,0.65); }
+  .msg-row.out .bubble .ts { color: rgba(46,74,135,0.65); }
   .bubble.private-note { background: #fdf3da; color: #7a6416; border: 1px solid #eddca0; }
   .bubble.private-note .ts { color: #7a6416; opacity: 0.65; }
   .date-divider {
