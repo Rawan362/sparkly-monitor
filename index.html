@@ -141,11 +141,15 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 500;
     color: var(--text-muted);
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
-  .chat-channel-tag .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .chat-channel-tag .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
   #search-wrap { padding: 4px 16px 12px; position: relative; }
   #search-box {
@@ -225,14 +229,16 @@
   #empty-state .icon { font-size: 40px; opacity: 0.25; }
 
   #chat-header {
-    padding: 16px 24px;
+    padding: 10px 14px;
+    min-height: 60px;
     border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
     background: var(--panel);
+    box-sizing: border-box;
   }
-  #chat-header-info { display: flex; align-items: center; gap: 12px; }
+  #chat-header-info { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
   #back-arrow {
     display: none;
     border: none;
@@ -240,24 +246,27 @@
     font-size: 19px;
     color: var(--text);
     cursor: pointer;
-    padding: 4px 2px;
+    padding: 6px;
+    margin-right: 2px;
     line-height: 1;
+    flex-shrink: 0;
   }
   .chat-avatar {
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
     border-radius: 50%;
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: 16px;
+    flex-shrink: 0;
   }
-  #chat-header-info h2 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: -0.005em; }
-  #chat-header-info span { font-size: 11.5px; color: var(--text-muted); }
+  #chat-header-info h2 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: -0.005em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  #ai-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+  #ai-toggle-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 10px; }
   #ai-toggle-label { font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
   #ai-toggle {
     position: relative;
@@ -1313,9 +1322,9 @@ async function loadThread(phone, silent) {
       <div id="chat-header-info">
         <button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
         <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openProfile('${phone}')">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;min-width:0;flex:1;" onclick="openProfile('${phone}')">
           <div class="chat-avatar" style="background:${avatarColor(phone)}">${initials(phone)}</div>
-          <div>
+          <div style="min-width:0;">
             <h2>${escapeHtml(displayName)}</h2>
             <span class="chat-channel-tag"><span class="dot" style="background:${chMeta.color}"></span>${chMeta.label}${hasCustomName ? ' · ' + phone : ''} · ${rows.length} messages</span>
           </div>
@@ -1415,9 +1424,9 @@ async function renderAhmadChatPanel(silent) {
       <div id="chat-header-info">
         <button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
         <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
           <div class="chat-avatar" style="background:var(--accent);color:var(--on-accent);">${AI_NAME ? escapeHtml(AI_NAME.charAt(0).toUpperCase()) : '?'}</div>
-          <div>
+          <div style="min-width:0;">
             <h2>${AI_NAME ? escapeHtml(AI_NAME) : 'Your AI assistant'}</h2>
             <span class="chat-channel-tag"><span class="dot" style="background:var(--accent)"></span>Business setup assistant</span>
           </div>
