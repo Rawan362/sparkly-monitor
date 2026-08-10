@@ -166,6 +166,8 @@
   #search-box:focus { outline: none; background: var(--panel); border-color: var(--border); }
   #search-icon { position: absolute; left: 30px; top: 14px; color: var(--text-muted); font-size: 13px; pointer-events: none; }
 
+  #chats-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #settings-tab-content { flex: 1; overflow-y: auto; }
   #convo-list { flex: 1; overflow-y: auto; padding: 0 8px; }
   #sidebar-bottom-nav {
     display: flex;
@@ -188,7 +190,7 @@
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  #main.screen-transition { animation: screen-fade-in 0.18s ease; }
+  #main.screen-transition, #chats-tab-content.screen-transition, #settings-tab-content.screen-transition { animation: screen-fade-in 0.18s ease; }
 
   .bottom-nav-item span { font-size: 11px; font-weight: 500; }
   .bottom-nav-item.active { color: var(--accent); }
@@ -905,19 +907,37 @@
         <button id="sidebar-close" onclick="toggleSidebar()" title="Hide list"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     </div>
-    <div id="ahmad-pinned" onclick="openAhmadChat()">
-      <div id="ahmad-pinned-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg></div>
-      <div>
-        <div id="ahmad-pinned-title">Talk to Ahmad</div>
-        <div id="ahmad-pinned-sub">Set up products, rules & business info</div>
+    <div id="chats-tab-content">
+      <div id="ahmad-pinned" onclick="openAhmadChat()">
+        <div id="ahmad-pinned-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg></div>
+        <div>
+          <div id="ahmad-pinned-title">Talk to Ahmad</div>
+          <div id="ahmad-pinned-sub">Set up products, rules & business info</div>
+        </div>
+      </div>
+      <div id="channel-pills"></div>
+      <div id="search-wrap">
+        <span id="search-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input id="search-box" placeholder="Search conversations" oninput="filterConvos(this.value)">
+      </div>
+      <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
+    </div>
+    <div id="settings-tab-content" style="display:none;">
+      <div class="settings-section-label" style="padding-top:16px;">Business</div>
+      <div class="settings-row" onclick="openAhmadChat()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
+        Talk to Ahmad
+      </div>
+      <div class="settings-section-label">Account</div>
+      <div class="settings-row danger" onclick="logout()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </div>
+      <div class="settings-row danger" onclick="confirmDeleteAccount()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Delete my account
       </div>
     </div>
-    <div id="channel-pills"></div>
-    <div id="search-wrap">
-      <span id="search-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-      <input id="search-box" placeholder="Search conversations" oninput="filterConvos(this.value)">
-    </div>
-    <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
     <div id="sidebar-bottom-nav">
       <div class="bottom-nav-item active" id="nav-chats" onclick="goToChats()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -1874,36 +1894,17 @@ window.openSettings = function() {
   document.querySelectorAll('#sidebar-bottom-nav .bottom-nav-item').forEach(el => el.classList.remove('active'));
   const navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.classList.add('active');
+
+  document.getElementById('chats-tab-content').style.display = 'none';
+  const settingsTab = document.getElementById('settings-tab-content');
+  settingsTab.style.display = 'block';
+  settingsTab.classList.remove('screen-transition');
+  void settingsTab.offsetWidth;
+  settingsTab.classList.add('screen-transition');
+
   if (window.innerWidth <= 720) {
-    document.getElementById('app').classList.add('sidebar-hidden');
+    document.getElementById('app').classList.remove('sidebar-hidden');
   }
-  const main = document.getElementById('main');
-  main.innerHTML = `
-    <div id="chat-header">
-      <div id="chat-header-info">
-        <button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-        <button id="back-arrow" onclick="goToChats()" title="Back to chats" style="display:block;"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-        <h2 style="font-size:17px;">Settings</h2>
-      </div>
-    </div>
-    <div style="overflow-y:auto;flex:1;">
-      <div class="settings-section-label">Business</div>
-      <div class="settings-row" onclick="openAhmadChat()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
-        Talk to Ahmad
-      </div>
-      <div class="settings-section-label">Account</div>
-      <div class="settings-row danger" onclick="logout()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign out
-      </div>
-      <div class="settings-row danger" onclick="confirmDeleteAccount()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        Delete my account
-      </div>
-    </div>
-  `;
-  playScreenTransition();
 };
 
 window.goToChats = function() {
@@ -1916,6 +1917,14 @@ window.goToChats = function() {
   const navChats = document.getElementById('nav-chats');
   if (navChats) navChats.classList.add('active');
   renderConvoList();
+
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const chatsTab = document.getElementById('chats-tab-content');
+  chatsTab.style.display = 'flex';
+  chatsTab.classList.remove('screen-transition');
+  void chatsTab.offsetWidth;
+  chatsTab.classList.add('screen-transition');
+
   const main = document.getElementById('main');
   main.innerHTML = `
     <div id="empty-state-header"><button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button></div>
@@ -1924,7 +1933,6 @@ window.goToChats = function() {
       <div>Select a conversation to view it</div>
     </div>
   `;
-  playScreenTransition();
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.remove('sidebar-hidden');
   }
