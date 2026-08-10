@@ -1356,6 +1356,11 @@ window.openAhmadChat = async function() {
 };
 
 async function renderAhmadChatPanel(silent) {
+  const existingTextarea = document.getElementById('reply-text');
+  const draftText = existingTextarea ? existingTextarea.value : '';
+  const wasFocused = existingTextarea === document.activeElement;
+  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
+
   const rows = await sb(
     'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=role,message,created_at&order=created_at.asc&limit=300'
   ).catch(() => []);
@@ -1413,6 +1418,13 @@ async function renderAhmadChatPanel(silent) {
   }
   updateScrollBtn();
   box.addEventListener('scroll', updateScrollBtn);
+
+  const newTextarea = document.getElementById('reply-text');
+  if (newTextarea && draftText) newTextarea.value = draftText;
+  if (newTextarea && wasFocused) {
+    newTextarea.focus();
+    if (cursorPos !== null) newTextarea.setSelectionRange(cursorPos, cursorPos);
+  }
 }
 
 window.sendAhmadMessage = async function() {
@@ -1792,6 +1804,7 @@ window.closeSettings = function() {
 function startApp() {
   document.getElementById('app').style.display = 'flex';
   loadConversations();
+  if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadConversations, 8000);
 }
 
