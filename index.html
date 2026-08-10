@@ -167,6 +167,25 @@
   #search-icon { position: absolute; left: 30px; top: 14px; color: var(--text-muted); font-size: 13px; pointer-events: none; }
 
   #convo-list { flex: 1; overflow-y: auto; padding: 0 8px; }
+  #sidebar-bottom-nav {
+    display: flex;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 9px 0 10px;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+  .bottom-nav-item span { font-size: 11px; font-weight: 500; }
+  .bottom-nav-item.active { color: var(--accent); }
+  .bottom-nav-item:hover { background: var(--panel-2); }
   .convo-item {
     padding: 11px 10px;
     cursor: pointer;
@@ -791,41 +810,6 @@
     margin-top: 4px;
   }
   #login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  #menu-btn {
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 8px;
-    display: flex;
-  }
-  #menu-btn:hover { background: var(--panel-2); color: var(--text); }
-  #header-menu-dropdown {
-    display: none;
-    position: absolute;
-    top: 36px;
-    left: 0;
-    width: 180px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 12px 30px -10px rgba(42,42,38,0.25);
-    overflow: hidden;
-    z-index: 30;
-  }
-  #header-menu-dropdown.show { display: block; }
-  .header-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 14px;
-    font-size: 13.5px;
-    color: var(--text);
-    cursor: pointer;
-  }
-  .header-menu-item svg { flex-shrink: 0; opacity: 0.75; }
-  .header-menu-item:hover { background: var(--panel-2); }
 
   #ahmad-pinned {
     margin: 0 14px 12px;
@@ -912,19 +896,8 @@
         <h1>Sparkly AI</h1>
         <p id="seller-label">Loading...</p>
       </div>
-      <div style="display:flex;align-items:center;gap:4px;position:relative;">
-        <button id="menu-btn" onclick="toggleHeaderMenu()" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div style="display:flex;align-items:center;gap:4px;">
         <button id="sidebar-close" onclick="toggleSidebar()" title="Hide list"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-        <div id="header-menu-dropdown">
-          <div class="header-menu-item" onclick="goToChats()">
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-            Chats
-          </div>
-          <div class="header-menu-item" onclick="closeHeaderMenu(); openSettings();">
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            Settings
-          </div>
-        </div>
       </div>
     </div>
     <div id="ahmad-pinned" onclick="openAhmadChat()">
@@ -940,6 +913,16 @@
       <input id="search-box" placeholder="Search conversations" oninput="filterConvos(this.value)">
     </div>
     <div id="convo-list"><div id="loading">Loading conversations...</div></div>
+    <div id="sidebar-bottom-nav">
+      <div class="bottom-nav-item active" id="nav-chats" onclick="goToChats()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span>Chats</span>
+      </div>
+      <div class="bottom-nav-item" id="nav-settings" onclick="openSettings()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </div>
   </div>
   <div id="main">
     <div id="empty-state-header"><button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button></div>
@@ -1890,26 +1873,7 @@ window.closeSettings = function() {
   document.getElementById('settings-overlay').classList.remove('show');
 };
 
-window.toggleHeaderMenu = function() {
-  const el = document.getElementById('header-menu-dropdown');
-  if (el) el.classList.toggle('show');
-};
-window.closeHeaderMenu = function() {
-  const el = document.getElementById('header-menu-dropdown');
-  if (el) el.classList.remove('show');
-};
-document.addEventListener('click', function(e) {
-  const dropdown = document.getElementById('header-menu-dropdown');
-  if (!dropdown || !dropdown.classList.contains('show')) return;
-  const clickedInsideDropdown = dropdown.contains(e.target);
-  const clickedMenuBtn = e.target.closest ? e.target.closest('#menu-btn') : null;
-  if (!clickedInsideDropdown && !clickedMenuBtn) {
-    dropdown.classList.remove('show');
-  }
-});
-
 window.goToChats = function() {
-  closeHeaderMenu();
   saveCurrentDraft();
   ahmadChatOpen = false;
   activePhone = null;
