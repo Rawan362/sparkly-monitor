@@ -1239,11 +1239,6 @@ function formatDateDivider(ts) {
 }
 
 async function loadThread(phone, silent) {
-  const existingTextarea = document.getElementById('reply-text');
-  const draftText = existingTextarea ? existingTextarea.value : '';
-  const wasFocused = existingTextarea === document.activeElement;
-  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
-
   const oldBox = document.getElementById('messages');
   let oldScrollTop = 0;
   let wasNearBottom = true;
@@ -1286,6 +1281,10 @@ async function loadThread(phone, silent) {
   }
 
   const main = document.getElementById('main');
+  const existingTextarea = document.getElementById('reply-text');
+  const draftText = existingTextarea ? existingTextarea.value : '';
+  const wasFocused = existingTextarea === document.activeElement;
+  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
   const chMeta = CHANNEL_META[convo ? convo.channel : 'whatsapp'] || CHANNEL_META.whatsapp;
   main.innerHTML = `
     <div id="chat-header" style="border-bottom:2px solid ${chMeta.color}">
@@ -1356,11 +1355,6 @@ window.openAhmadChat = async function() {
 };
 
 async function renderAhmadChatPanel(silent) {
-  const existingTextarea = document.getElementById('reply-text');
-  const draftText = existingTextarea ? existingTextarea.value : '';
-  const wasFocused = existingTextarea === document.activeElement;
-  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
-
   const rows = await sb(
     'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=role,message,created_at&order=created_at.asc&limit=300'
   ).catch(() => []);
@@ -1389,6 +1383,10 @@ async function renderAhmadChatPanel(silent) {
   }
 
   const main = document.getElementById('main');
+  const existingTextarea = document.getElementById('reply-text');
+  const draftText = existingTextarea ? existingTextarea.value : '';
+  const wasFocused = existingTextarea === document.activeElement;
+  const cursorPos = existingTextarea ? existingTextarea.selectionStart : null;
   main.innerHTML = `
     <div id="chat-header" style="border-bottom:2px solid var(--accent)">
       <div id="chat-header-info">
