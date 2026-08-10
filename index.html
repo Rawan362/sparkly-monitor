@@ -1891,16 +1891,19 @@ window.closeSettings = function() {
 };
 
 window.toggleHeaderMenu = function() {
-  document.getElementById('header-menu-dropdown').classList.toggle('show');
+  const el = document.getElementById('header-menu-dropdown');
+  if (el) el.classList.toggle('show');
 };
 window.closeHeaderMenu = function() {
   const el = document.getElementById('header-menu-dropdown');
   if (el) el.classList.remove('show');
 };
-document.addEventListener('click', (e) => {
+document.addEventListener('click', function(e) {
   const dropdown = document.getElementById('header-menu-dropdown');
-  const btn = document.getElementById('menu-btn');
-  if (dropdown && dropdown.classList.contains('show') && !dropdown.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) {
+  if (!dropdown || !dropdown.classList.contains('show')) return;
+  const clickedInsideDropdown = dropdown.contains(e.target);
+  const clickedMenuBtn = e.target.closest ? e.target.closest('#menu-btn') : null;
+  if (!clickedInsideDropdown && !clickedMenuBtn) {
     dropdown.classList.remove('show');
   }
 });
