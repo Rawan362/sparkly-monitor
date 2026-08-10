@@ -1405,9 +1405,9 @@ async function renderAhmadChatPanel(silent) {
         <button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
         <button id="back-arrow" onclick="toggleSidebar()" title="Back to chats"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <div style="display:flex;align-items:center;gap:10px;">
-          <div class="chat-avatar" style="background:var(--accent);color:var(--on-accent);">A</div>
+          <div class="chat-avatar" style="background:var(--accent);color:var(--on-accent);">${AI_NAME ? escapeHtml(AI_NAME.charAt(0).toUpperCase()) : '?'}</div>
           <div>
-            <h2>Ahmad</h2>
+            <h2>${AI_NAME ? escapeHtml(AI_NAME) : 'Your AI assistant'}</h2>
             <span class="chat-channel-tag"><span class="dot" style="background:var(--accent)"></span>Business setup assistant</span>
           </div>
         </div>
@@ -1815,9 +1815,20 @@ window.closeSettings = function() {
 
 function startApp() {
   document.getElementById('app').style.display = 'flex';
+  loadAiName();
   loadConversations();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadConversations, 8000);
+}
+
+let AI_NAME = null; // null = seller hasn't named their assistant yet
+async function loadAiName() {
+  try {
+    const rows = await sb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=ai_name&limit=1');
+    AI_NAME = (rows && rows[0] && rows[0].ai_name) || null;
+  } catch (e) { AI_NAME = null; }
+  const pinnedTitle = document.getElementById('ahmad-pinned-title');
+  if (pinnedTitle) pinnedTitle.textContent = AI_NAME ? 'Talk to ' + AI_NAME : 'Talk to your AI assistant';
 }
 
 document.addEventListener('DOMContentLoaded', initAuth);
