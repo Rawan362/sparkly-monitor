@@ -168,6 +168,33 @@
 
   #chats-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #settings-tab-content { flex: 1; overflow-y: auto; }
+  #language-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #lang-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #lang-header button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; flex-shrink: 0; }
+  #lang-search {
+    flex: 1;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    color: var(--text);
+    outline: none;
+  }
+  #lang-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .lang-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 20px;
+    cursor: pointer;
+    font-size: 14.5px;
+    color: var(--text);
+  }
+  .lang-row:hover { background: var(--panel-2); }
+  .lang-row .lang-native { color: var(--text-muted); font-size: 12.5px; margin-left: 8px; }
+  .lang-row .lang-check { color: var(--accent); display: none; }
+  .lang-row.selected .lang-check { display: block; }
   #convo-list { flex: 1; overflow-y: auto; padding: 0 8px; }
   #sidebar-bottom-nav {
     display: flex;
@@ -955,20 +982,33 @@
       <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
     </div>
     <div id="settings-tab-content" style="display:none;">
-      <div class="settings-section-label" style="padding-top:16px;">Account</div>
+      <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
+      <div class="settings-row" onclick="openLanguagePicker()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span id="settings-label-language">Language</span>
+        <span id="current-lang-label" style="margin-left:auto;color:var(--text-muted);font-size:13px;">English</span>
+      </div>
+      <div class="settings-section-label" id="settings-label-account">Account</div>
       <div class="settings-row danger" onclick="logout()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign out
+        <span id="settings-label-signout">Sign out</span>
       </div>
       <div class="settings-row danger" onclick="confirmDeleteAccount()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        Delete my account
+        <span id="settings-label-delete">Delete my account</span>
       </div>
+    </div>
+    <div id="language-tab-content" style="display:none;">
+      <div id="lang-header">
+        <button onclick="closeLanguagePicker()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <input id="lang-search" placeholder="Search languages" oninput="renderLanguageList(this.value)">
+      </div>
+      <div id="lang-list"></div>
     </div>
     <div id="sidebar-bottom-nav">
       <div class="bottom-nav-item active" id="nav-chats" onclick="goToChats()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-        <span>Chats</span>
+        <span id="nav-chats-label">Chats</span>
       </div>
       <div class="bottom-nav-item" id="nav-ai" onclick="openAhmadChat()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
@@ -976,7 +1016,7 @@
       </div>
       <div class="bottom-nav-item" id="nav-settings" onclick="openSettings()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>Settings</span>
+        <span id="nav-settings-label">Settings</span>
       </div>
     </div>
   </div>
@@ -984,7 +1024,7 @@
     <div id="empty-state-header"><button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button></div>
     <div id="empty-state">
       <div class="icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
-      <div>Select a conversation to view it</div>
+      <div id="empty-state-text">Select a conversation to view it</div>
     </div>
   </div>
 </div>
@@ -1016,6 +1056,52 @@
 // by tagging conversations with a different `channel` value — no rebuild
 // of the core UI needed.
 // ═══════════════════════════════════════════════
+const LANGUAGES = [
+  { code: 'en', name: 'English', native: 'English', rtl: false },
+  { code: 'ar', name: 'Arabic', native: 'العربية', rtl: true },
+  { code: 'es', name: 'Spanish', native: 'Español', rtl: false },
+  { code: 'fr', name: 'French', native: 'Français', rtl: false },
+  { code: 'tr', name: 'Turkish', native: 'Türkçe', rtl: false },
+  { code: 'ur', name: 'Urdu', native: 'اردو', rtl: true },
+  { code: 'hi', name: 'Hindi', native: 'हिन्दी', rtl: false },
+  { code: 'zh', name: 'Chinese', native: '中文', rtl: false },
+  { code: 'pt', name: 'Portuguese', native: 'Português', rtl: false },
+  { code: 'de', name: 'German', native: 'Deutsch', rtl: false },
+  { code: 'ru', name: 'Russian', native: 'Русский', rtl: false },
+  { code: 'id', name: 'Indonesian', native: 'Bahasa Indonesia', rtl: false },
+  { code: 'fa', name: 'Persian', native: 'فارسی', rtl: true },
+  { code: 'sw', name: 'Swahili', native: 'Kiswahili', rtl: false },
+  { code: 'bn', name: 'Bengali', native: 'বাংলা', rtl: false }
+];
+
+const TRANSLATIONS = {
+  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my account', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages' },
+  ar: { chats:'المحادثات', ai:'الذكاء الاصطناعي', settings:'الإعدادات', search_conversations:'بحث في المحادثات', no_conversations:'لا توجد محادثات بعد.', no_matches:'لا توجد نتائج.', select_conversation:'اختر محادثة لعرضها', sign_in_sub:'سجّل الدخول برقم البائع', seller_chat_id:'رقم البائع', password:'كلمة المرور', sign_in:'تسجيل الدخول', business:'العمل', account:'الحساب', talk_to_ai:'تحدث مع مساعدك الذكي', sign_out:'تسجيل الخروج', delete_account:'حذف حسابي', language:'اللغة', delete_confirm:'سيتم حذف حسابك وكل بياناتك نهائيًا — المنتجات، العملاء، الطلبات، وسجل المحادثات. لا يمكن التراجع عن هذا.\n\nاكتب DELETE للتأكيد:', clear_chat_confirm:'مسح هذه المحادثة؟ سيتم حذف سجل الرسائل نهائيًا.', pin:'تثبيت المحادثة', unpin:'إلغاء التثبيت', mute:'كتم الإشعارات', unmute:'إلغاء الكتم', favorite_add:'إضافة للمفضلة', favorite_remove:'إزالة من المفضلة', create_contact:'إنشاء جهة اتصال', archive:'أرشفة المحادثة', unarchive:'إلغاء الأرشفة', clear_chat:'مسح المحادثة', block:'حظر الرقم', unblock:'إلغاء الحظر', reply_placeholder:'اكتب ردًا يدويًا...', ai_reply_placeholder:'راسل أحمد عن عملك...', jump_to_latest:'الانتقال للأحدث', ai_paused:'الذكاء الاصطناعي متوقف لهذا العميل — أنت ترد يدويًا', turn_ai_on:'إعادة تشغيل الذكاء الاصطناعي', search_language:'ابحث عن لغة' },
+  es: { chats:'Chats', ai:'IA', settings:'Configuración', search_conversations:'Buscar conversaciones', no_conversations:'Aún no hay conversaciones.', no_matches:'Sin resultados.', select_conversation:'Selecciona una conversación', sign_in_sub:'Inicia sesión con tu ID de vendedor', seller_chat_id:'ID de vendedor', password:'Contraseña', sign_in:'Iniciar sesión', business:'Negocio', account:'Cuenta', talk_to_ai:'Habla con tu asistente de IA', sign_out:'Cerrar sesión', delete_account:'Eliminar mi cuenta', language:'Idioma', delete_confirm:'Esto elimina permanentemente tu cuenta y TODOS los datos: productos, clientes, pedidos e historial. No se puede deshacer.\n\nEscribe DELETE para confirmar:', clear_chat_confirm:'¿Borrar este chat? Esto elimina permanentemente el historial de mensajes.', pin:'Fijar conversación', unpin:'Dejar de fijar', mute:'Silenciar notificaciones', unmute:'Activar notificaciones', favorite_add:'Añadir a favoritos', favorite_remove:'Quitar de favoritos', create_contact:'Crear nuevo contacto', archive:'Archivar chat', unarchive:'Desarchivar chat', clear_chat:'Borrar chat', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Escribe una respuesta...', ai_reply_placeholder:'Escribe a Ahmad sobre tu negocio...', jump_to_latest:'Ir al más reciente', ai_paused:'La IA está desactivada para este cliente — estás respondiendo manualmente', turn_ai_on:'Reactivar la IA', search_language:'Buscar idiomas' },
+  fr: { chats:'Discussions', ai:'IA', settings:'Paramètres', search_conversations:'Rechercher des discussions', no_conversations:'Aucune discussion pour le moment.', no_matches:'Aucun résultat.', select_conversation:'Sélectionnez une discussion', sign_in_sub:'Connectez-vous avec votre ID vendeur', seller_chat_id:'ID vendeur', password:'Mot de passe', sign_in:'Se connecter', business:'Entreprise', account:'Compte', talk_to_ai:'Parlez à votre assistant IA', sign_out:'Déconnexion', delete_account:'Supprimer mon compte', language:'Langue', delete_confirm:'Cela supprime définitivement votre compte et TOUTES les données — produits, clients, commandes et historique. Action irréversible.\n\nTapez DELETE pour confirmer :', clear_chat_confirm:'Effacer cette discussion ? Cela supprime définitivement l\u2019historique des messages.', pin:'Épingler la discussion', unpin:'Détacher', mute:'Couper les notifications', unmute:'Réactiver les notifications', favorite_add:'Ajouter aux favoris', favorite_remove:'Retirer des favoris', create_contact:'Créer un contact', archive:'Archiver la discussion', unarchive:'Désarchiver', clear_chat:'Effacer la discussion', block:'Bloquer le numéro', unblock:'Débloquer le numéro', reply_placeholder:'Écrire une réponse manuelle...', ai_reply_placeholder:'Écrire à Ahmad à propos de votre entreprise...', jump_to_latest:'Aller au plus récent', ai_paused:"L'IA est désactivée pour ce client — vous répondez manuellement", turn_ai_on:"Réactiver l'IA", search_language:'Rechercher une langue' },
+  tr: { chats:'Sohbetler', ai:'YZ', settings:'Ayarlar', search_conversations:'Sohbetlerde ara', no_conversations:'Henüz sohbet yok.', no_matches:'Sonuç yok.', select_conversation:'Görüntülemek için bir sohbet seçin', sign_in_sub:'Satıcı kimliğinizle giriş yapın', seller_chat_id:'Satıcı kimliği', password:'Şifre', sign_in:'Giriş yap', business:'İşletme', account:'Hesap', talk_to_ai:'Yapay zeka asistanınızla konuşun', sign_out:'Çıkış yap', delete_account:'Hesabımı sil', language:'Dil', delete_confirm:'Bu, hesabınızı ve TÜM verilerinizi kalıcı olarak siler — ürünler, müşteriler, siparişler ve sohbet geçmişi. Geri alınamaz.\n\nOnaylamak için DELETE yazın:', clear_chat_confirm:'Bu sohbet temizlensin mi? Mesaj geçmişi kalıcı olarak silinecek.', pin:'Sohbeti sabitle', unpin:'Sabitlemeyi kaldır', mute:'Bildirimleri sustur', unmute:'Bildirimleri aç', favorite_add:'Favorilere ekle', favorite_remove:'Favorilerden çıkar', create_contact:'Yeni kişi oluştur', archive:'Sohbeti arşivle', unarchive:'Arşivden çıkar', clear_chat:'Sohbeti temizle', block:'Numarayı engelle', unblock:'Engeli kaldır', reply_placeholder:'Manuel yanıt yazın...', ai_reply_placeholder:'İşletmeniz hakkında Ahmad\'a yazın...', jump_to_latest:'En yeniye git', ai_paused:'Bu müşteri için YZ kapalı — manuel yanıt veriyorsunuz', turn_ai_on:'YZ\'yi tekrar aç', search_language:'Dil ara' },
+  ur: { chats:'چیٹس', ai:'اے آئی', settings:'ترتیبات', search_conversations:'گفتگو تلاش کریں', no_conversations:'ابھی کوئی گفتگو نہیں۔', no_matches:'کوئی نتیجہ نہیں۔', select_conversation:'دیکھنے کے لیے گفتگو منتخب کریں', sign_in_sub:'اپنی سیلر چیٹ آئی ڈی سے سائن ان کریں', seller_chat_id:'سیلر چیٹ آئی ڈی', password:'پاس ورڈ', sign_in:'سائن ان', business:'کاروبار', account:'اکاؤنٹ', talk_to_ai:'اپنے اے آئی اسسٹنٹ سے بات کریں', sign_out:'سائن آؤٹ', delete_account:'میرا اکاؤنٹ حذف کریں', language:'زبان', delete_confirm:'یہ آپ کا اکاؤنٹ اور تمام ڈیٹا مستقل طور پر حذف کر دے گا — پروڈکٹس، کسٹمرز، آرڈرز اور گفتگو کی تاریخ۔ اسے واپس نہیں لایا جا سکتا۔\n\nتصدیق کے لیے DELETE لکھیں:', clear_chat_confirm:'یہ چیٹ صاف کریں؟ پیغامات کی تاریخ مستقل طور پر حذف ہو جائے گی۔', pin:'گفتگو پن کریں', unpin:'پن ہٹائیں', mute:'اطلاعات خاموش کریں', unmute:'اطلاعات آن کریں', favorite_add:'پسندیدہ میں شامل کریں', favorite_remove:'پسندیدہ سے ہٹائیں', create_contact:'نیا رابطہ بنائیں', archive:'چیٹ آرکائیو کریں', unarchive:'آرکائیو سے نکالیں', clear_chat:'چیٹ صاف کریں', block:'نمبر بلاک کریں', unblock:'بلاک ہٹائیں', reply_placeholder:'دستی جواب لکھیں...', ai_reply_placeholder:'اپنے کاروبار کے بارے میں احمد کو لکھیں...', jump_to_latest:'تازہ ترین پر جائیں', ai_paused:'اس کسٹمر کے لیے اے آئی بند ہے — آپ دستی جواب دے رہے ہیں', turn_ai_on:'اے آئی دوبارہ آن کریں', search_language:'زبان تلاش کریں' },
+  hi: { chats:'चैट्स', ai:'एआई', settings:'सेटिंग्स', search_conversations:'बातचीत खोजें', no_conversations:'अभी कोई बातचीत नहीं।', no_matches:'कोई परिणाम नहीं।', select_conversation:'देखने के लिए बातचीत चुनें', sign_in_sub:'अपनी विक्रेता चैट आईडी से साइन इन करें', seller_chat_id:'विक्रेता चैट आईडी', password:'पासवर्ड', sign_in:'साइन इन करें', business:'व्यवसाय', account:'खाता', talk_to_ai:'अपने एआई सहायक से बात करें', sign_out:'साइन आउट', delete_account:'मेरा खाता हटाएं', language:'भाषा', delete_confirm:'यह आपके खाते और सभी डेटा को स्थायी रूप से हटा देगा — उत्पाद, ग्राहक, ऑर्डर और चैट इतिहास। इसे पूर्ववत नहीं किया जा सकता।\n\nपुष्टि के लिए DELETE लिखें:', clear_chat_confirm:'यह चैट साफ़ करें? संदेश इतिहास स्थायी रूप से हटा दिया जाएगा।', pin:'बातचीत पिन करें', unpin:'अनपिन करें', mute:'सूचनाएं म्यूट करें', unmute:'सूचनाएं अनम्यूट करें', favorite_add:'पसंदीदा में जोड़ें', favorite_remove:'पसंदीदा से हटाएं', create_contact:'नया संपर्क बनाएं', archive:'चैट आर्काइव करें', unarchive:'आर्काइव से निकालें', clear_chat:'चैट साफ़ करें', block:'नंबर ब्लॉक करें', unblock:'अनब्लॉक करें', reply_placeholder:'मैन्युअल जवाब लिखें...', ai_reply_placeholder:'अपने व्यवसाय के बारे में अहमद को लिखें...', jump_to_latest:'नवीनतम पर जाएं', ai_paused:'इस ग्राहक के लिए एआई बंद है — आप मैन्युअल जवाब दे रहे हैं', turn_ai_on:'एआई फिर से चालू करें', search_language:'भाषा खोजें' },
+  zh: { chats:'聊天', ai:'AI', settings:'设置', search_conversations:'搜索对话', no_conversations:'暂无对话。', no_matches:'没有匹配结果。', select_conversation:'选择一个对话查看', sign_in_sub:'使用您的卖家聊天 ID 登录', seller_chat_id:'卖家聊天 ID', password:'密码', sign_in:'登录', business:'业务', account:'账户', talk_to_ai:'与您的 AI 助手对话', sign_out:'退出登录', delete_account:'删除我的账户', language:'语言', delete_confirm:'这将永久删除您的账户和所有数据——产品、客户、订单和对话记录。此操作无法撤销。\n\n输入 DELETE 确认：', clear_chat_confirm:'清除此对话？消息记录将被永久删除。', pin:'置顶对话', unpin:'取消置顶', mute:'静音通知', unmute:'取消静音', favorite_add:'添加到收藏', favorite_remove:'从收藏中移除', create_contact:'创建新联系人', archive:'归档对话', unarchive:'取消归档', clear_chat:'清除对话', block:'屏蔽号码', unblock:'取消屏蔽', reply_placeholder:'输入手动回复...', ai_reply_placeholder:'向 Ahmad 咨询您的业务...', jump_to_latest:'跳转到最新', ai_paused:'该客户的 AI 已关闭 — 您正在手动回复', turn_ai_on:'重新开启 AI', search_language:'搜索语言' },
+  pt: { chats:'Conversas', ai:'IA', settings:'Configurações', search_conversations:'Buscar conversas', no_conversations:'Ainda não há conversas.', no_matches:'Nenhum resultado.', select_conversation:'Selecione uma conversa', sign_in_sub:'Entre com seu ID de vendedor', seller_chat_id:'ID do vendedor', password:'Senha', sign_in:'Entrar', business:'Negócio', account:'Conta', talk_to_ai:'Fale com seu assistente de IA', sign_out:'Sair', delete_account:'Excluir minha conta', language:'Idioma', delete_confirm:'Isso excluirá permanentemente sua conta e TODOS os dados — produtos, clientes, pedidos e histórico. Não pode ser desfeito.\n\nDigite DELETE para confirmar:', clear_chat_confirm:'Limpar esta conversa? O histórico de mensagens será excluído permanentemente.', pin:'Fixar conversa', unpin:'Desafixar', mute:'Silenciar notificações', unmute:'Ativar notificações', favorite_add:'Adicionar aos favoritos', favorite_remove:'Remover dos favoritos', create_contact:'Criar novo contato', archive:'Arquivar conversa', unarchive:'Desarquivar', clear_chat:'Limpar conversa', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Digite uma resposta manual...', ai_reply_placeholder:'Escreva ao Ahmad sobre seu negócio...', jump_to_latest:'Ir para o mais recente', ai_paused:'A IA está desativada para este cliente — você está respondendo manualmente', turn_ai_on:'Reativar a IA', search_language:'Buscar idiomas' },
+  de: { chats:'Chats', ai:'KI', settings:'Einstellungen', search_conversations:'Unterhaltungen durchsuchen', no_conversations:'Noch keine Unterhaltungen.', no_matches:'Keine Treffer.', select_conversation:'Wähle eine Unterhaltung aus', sign_in_sub:'Melde dich mit deiner Verkäufer-ID an', seller_chat_id:'Verkäufer-ID', password:'Passwort', sign_in:'Anmelden', business:'Geschäft', account:'Konto', talk_to_ai:'Sprich mit deinem KI-Assistenten', sign_out:'Abmelden', delete_account:'Mein Konto löschen', language:'Sprache', delete_confirm:'Dies löscht dein Konto und ALLE Daten dauerhaft — Produkte, Kunden, Bestellungen und Chatverlauf. Kann nicht rückgängig gemacht werden.\n\nGib DELETE ein, um zu bestätigen:', clear_chat_confirm:'Diesen Chat löschen? Der Nachrichtenverlauf wird dauerhaft gelöscht.', pin:'Unterhaltung anheften', unpin:'Nicht mehr anheften', mute:'Benachrichtigungen stummschalten', unmute:'Benachrichtigungen aktivieren', favorite_add:'Zu Favoriten hinzufügen', favorite_remove:'Aus Favoriten entfernen', create_contact:'Neuen Kontakt erstellen', archive:'Chat archivieren', unarchive:'Archivierung aufheben', clear_chat:'Chat löschen', block:'Nummer blockieren', unblock:'Blockierung aufheben', reply_placeholder:'Manuelle Antwort schreiben...', ai_reply_placeholder:'Schreibe Ahmad über dein Geschäft...', jump_to_latest:'Zum Neuesten springen', ai_paused:'KI ist für diesen Kunden deaktiviert — du antwortest manuell', turn_ai_on:'KI wieder aktivieren', search_language:'Sprache suchen' },
+  ru: { chats:'Чаты', ai:'ИИ', settings:'Настройки', search_conversations:'Поиск чатов', no_conversations:'Пока нет чатов.', no_matches:'Ничего не найдено.', select_conversation:'Выберите чат для просмотра', sign_in_sub:'Войдите с вашим ID продавца', seller_chat_id:'ID продавца', password:'Пароль', sign_in:'Войти', business:'Бизнес', account:'Аккаунт', talk_to_ai:'Поговорите с вашим ИИ-ассистентом', sign_out:'Выйти', delete_account:'Удалить мой аккаунт', language:'Язык', delete_confirm:'Это навсегда удалит ваш аккаунт и ВСЕ данные — товары, клиентов, заказы и историю чатов. Отменить нельзя.\n\nВведите DELETE для подтверждения:', clear_chat_confirm:'Очистить этот чат? История сообщений будет удалена навсегда.', pin:'Закрепить чат', unpin:'Открепить', mute:'Отключить уведомления', unmute:'Включить уведомления', favorite_add:'Добавить в избранное', favorite_remove:'Убрать из избранного', create_contact:'Создать новый контакт', archive:'Архивировать чат', unarchive:'Разархивировать', clear_chat:'Очистить чат', block:'Заблокировать номер', unblock:'Разблокировать', reply_placeholder:'Введите ответ вручную...', ai_reply_placeholder:'Напишите Ахмаду о вашем бизнесе...', jump_to_latest:'К последнему сообщению', ai_paused:'ИИ отключен для этого клиента — вы отвечаете вручную', turn_ai_on:'Снова включить ИИ', search_language:'Поиск языка' },
+  id: { chats:'Obrolan', ai:'AI', settings:'Pengaturan', search_conversations:'Cari percakapan', no_conversations:'Belum ada percakapan.', no_matches:'Tidak ada hasil.', select_conversation:'Pilih percakapan untuk melihatnya', sign_in_sub:'Masuk dengan ID chat penjual Anda', seller_chat_id:'ID chat penjual', password:'Kata sandi', sign_in:'Masuk', business:'Bisnis', account:'Akun', talk_to_ai:'Bicara dengan asisten AI Anda', sign_out:'Keluar', delete_account:'Hapus akun saya', language:'Bahasa', delete_confirm:'Ini akan menghapus akun dan SEMUA data Anda secara permanen — produk, pelanggan, pesanan, dan riwayat obrolan. Tidak dapat dibatalkan.\n\nKetik DELETE untuk konfirmasi:', clear_chat_confirm:'Hapus obrolan ini? Riwayat pesan akan dihapus secara permanen.', pin:'Sematkan percakapan', unpin:'Lepas sematan', mute:'Bisukan notifikasi', unmute:'Aktifkan notifikasi', favorite_add:'Tambah ke favorit', favorite_remove:'Hapus dari favorit', create_contact:'Buat kontak baru', archive:'Arsipkan obrolan', unarchive:'Batalkan arsip', clear_chat:'Hapus obrolan', block:'Blokir nomor', unblock:'Buka blokir', reply_placeholder:'Ketik balasan manual...', ai_reply_placeholder:'Tulis ke Ahmad tentang bisnis Anda...', jump_to_latest:'Lompat ke terbaru', ai_paused:'AI dimatikan untuk pelanggan ini — Anda membalas secara manual', turn_ai_on:'Aktifkan AI kembali', search_language:'Cari bahasa' },
+  fa: { chats:'چت‌ها', ai:'هوش مصنوعی', settings:'تنظیمات', search_conversations:'جستجوی گفتگوها', no_conversations:'هنوز گفتگویی وجود ندارد.', no_matches:'نتیجه‌ای یافت نشد.', select_conversation:'گفتگویی را برای مشاهده انتخاب کنید', sign_in_sub:'با شناسه فروشنده خود وارد شوید', seller_chat_id:'شناسه فروشنده', password:'رمز عبور', sign_in:'ورود', business:'کسب‌وکار', account:'حساب کاربری', talk_to_ai:'با دستیار هوش مصنوعی خود صحبت کنید', sign_out:'خروج', delete_account:'حذف حساب من', language:'زبان', delete_confirm:'این کار حساب و تمام داده‌های شما را برای همیشه حذف می‌کند — محصولات، مشتریان، سفارش‌ها و تاریخچه گفتگو. غیرقابل بازگشت است.\n\nبرای تأیید DELETE را تایپ کنید:', clear_chat_confirm:'این گفتگو پاک شود؟ تاریخچه پیام‌ها برای همیشه حذف می‌شود.', pin:'سنجاق کردن گفتگو', unpin:'برداشتن سنجاق', mute:'بی‌صدا کردن اعلان‌ها', unmute:'فعال کردن اعلان‌ها', favorite_add:'افزودن به علاقه‌مندی‌ها', favorite_remove:'حذف از علاقه‌مندی‌ها', create_contact:'ایجاد مخاطب جدید', archive:'بایگانی گفتگو', unarchive:'خروج از بایگانی', clear_chat:'پاک کردن گفتگو', block:'مسدود کردن شماره', unblock:'رفع مسدودی', reply_placeholder:'پاسخ دستی بنویسید...', ai_reply_placeholder:'درباره کسب‌وکارتان به احمد بنویسید...', jump_to_latest:'رفتن به آخرین پیام', ai_paused:'هوش مصنوعی برای این مشتری خاموش است — شما دستی پاسخ می‌دهید', turn_ai_on:'روشن کردن دوباره هوش مصنوعی', search_language:'جستجوی زبان' },
+  sw: { chats:'Mazungumzo', ai:'AI', settings:'Mipangilio', search_conversations:'Tafuta mazungumzo', no_conversations:'Bado hakuna mazungumzo.', no_matches:'Hakuna matokeo.', select_conversation:'Chagua mazungumzo kuyaona', sign_in_sub:'Ingia kwa kitambulisho chako cha muuzaji', seller_chat_id:'Kitambulisho cha muuzaji', password:'Nenosiri', sign_in:'Ingia', business:'Biashara', account:'Akaunti', talk_to_ai:'Zungumza na msaidizi wako wa AI', sign_out:'Toka', delete_account:'Futa akaunti yangu', language:'Lugha', delete_confirm:'Hii itafuta kabisa akaunti yako na data YOTE — bidhaa, wateja, maagizo, na historia ya mazungumzo. Haiwezi kutenduliwa.\n\nAndika DELETE kuthibitisha:', clear_chat_confirm:'Futa mazungumzo haya? Historia ya ujumbe itafutwa kabisa.', pin:'Bandika mazungumzo', unpin:'Ondoa bandiko', mute:'Zima arifa', unmute:'Washa arifa', favorite_add:'Ongeza kwenye vipendwa', favorite_remove:'Ondoa kwenye vipendwa', create_contact:'Unda mawasiliano mapya', archive:'Hifadhi mazungumzo', unarchive:'Toa kwenye hifadhi', clear_chat:'Futa mazungumzo', block:'Zuia namba', unblock:'Ondoa kizuizi', reply_placeholder:'Andika jibu la mkono...', ai_reply_placeholder:'Mwandikie Ahmad kuhusu biashara yako...', jump_to_latest:'Nenda kwa mpya zaidi', ai_paused:'AI imezimwa kwa mteja huyu — unajibu kwa mkono', turn_ai_on:'Washa AI tena', search_language:'Tafuta lugha' },
+  bn: { chats:'চ্যাট', ai:'এআই', settings:'সেটিংস', search_conversations:'কথোপকথন খুঁজুন', no_conversations:'এখনো কোনো কথোপকথন নেই।', no_matches:'কোনো ফলাফল নেই।', select_conversation:'দেখতে একটি কথোপকথন নির্বাচন করুন', sign_in_sub:'আপনার বিক্রেতা চ্যাট আইডি দিয়ে সাইন ইন করুন', seller_chat_id:'বিক্রেতা চ্যাট আইডি', password:'পাসওয়ার্ড', sign_in:'সাইন ইন', business:'ব্যবসা', account:'অ্যাকাউন্ট', talk_to_ai:'আপনার এআই সহকারীর সাথে কথা বলুন', sign_out:'সাইন আউট', delete_account:'আমার অ্যাকাউন্ট মুছুন', language:'ভাষা', delete_confirm:'এটি আপনার অ্যাকাউন্ট এবং সমস্ত ডেটা স্থায়ীভাবে মুছে ফেলবে — পণ্য, গ্রাহক, অর্ডার এবং চ্যাট ইতিহাস। এটি পূর্বাবস্থায় ফেরানো যাবে না।\n\nনিশ্চিত করতে DELETE লিখুন:', clear_chat_confirm:'এই চ্যাট মুছবেন? বার্তার ইতিহাস স্থায়ীভাবে মুছে যাবে।', pin:'কথোপকথন পিন করুন', unpin:'আনপিন করুন', mute:'বিজ্ঞপ্তি মিউট করুন', unmute:'বিজ্ঞপ্তি আনমিউট করুন', favorite_add:'পছন্দে যোগ করুন', favorite_remove:'পছন্দ থেকে সরান', create_contact:'নতুন পরিচিতি তৈরি করুন', archive:'চ্যাট আর্কাইভ করুন', unarchive:'আর্কাইভ থেকে সরান', clear_chat:'চ্যাট মুছুন', block:'নম্বর ব্লক করুন', unblock:'আনব্লক করুন', reply_placeholder:'ম্যানুয়াল উত্তর লিখুন...', ai_reply_placeholder:'আপনার ব্যবসা সম্পর্কে আহমাদকে লিখুন...', jump_to_latest:'সর্বশেষে যান', ai_paused:'এই গ্রাহকের জন্য এআই বন্ধ — আপনি ম্যানুয়ালি উত্তর দিচ্ছেন', turn_ai_on:'এআই আবার চালু করুন', search_language:'ভাষা খুঁজুন' }
+};
+
+let currentLang = localStorage.getItem('sparkly_lang') || 'en';
+function t(key) {
+  return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || TRANSLATIONS.en[key] || key;
+}
+function applyLanguageDirection() {
+  const langMeta = LANGUAGES.find(l => l.code === currentLang);
+  document.documentElement.dir = (langMeta && langMeta.rtl) ? 'rtl' : 'ltr';
+  document.documentElement.lang = currentLang;
+}
+
 const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbW1vb2J3enVoaWltbWppeGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTMzNDcsImV4cCI6MjA5NDI2OTM0N30.ZC81X_-Fe3tjPDhL7s6oemlTJDuIWRnguDIq3ZklxeA';
 const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
@@ -1164,7 +1250,7 @@ function renderConvoList() {
   if (searchQuery) filtered = filtered.filter(c => c.phone_number.includes(searchQuery) || (c.message || '').toLowerCase().includes(searchQuery.toLowerCase()));
   if (channelFilter !== 'all') filtered = filtered.filter(c => c.channel === channelFilter);
   if (filtered.length === 0) {
-    el.innerHTML = '<div id="loading">' + (searchQuery || channelFilter !== 'all' ? 'No matches.' : 'No conversations yet.') + '</div>';
+    el.innerHTML = '<div id="loading">' + (searchQuery || channelFilter !== 'all' ? t('no_matches') : t('no_conversations')) + '</div>';
     return;
   }
   el.innerHTML = filtered.map(c => {
@@ -1312,13 +1398,13 @@ window.openConvoActionSheet = function(phone, event) {
   if (!convo) return;
 
   const items = [
-    { icon: '<path d="M16 3l5 5-5.5 1.5L13 12l-2 8-2-2 2-6-5-1.5L8 8l5-5z" transform="rotate(45 12 12)"/>', fill: true, label: convo.pinned ? 'Unpin conversation' : 'Pin conversation', action: () => updateClientStatusField(phone, 'pinned', !convo.pinned) },
-    { icon: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>', label: convo.muted ? 'Unmute notifications' : 'Mute notifications', action: () => updateClientStatusField(phone, 'muted', !convo.muted) },
-    { icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>', fill: true, label: convo.favorite ? 'Remove from favorites' : 'Add to favorites', action: () => updateClientStatusField(phone, 'favorite', !convo.favorite) },
-    { icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>', label: 'Create new contact', action: () => { closeConvoActionSheet(); openProfile(phone); } },
-    { icon: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>', label: convo.archived ? 'Unarchive chat' : 'Archive chat', action: () => updateClientStatusField(phone, 'archived', !convo.archived) },
-    { icon: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', label: 'Clear chat', danger: true, action: () => { closeConvoActionSheet(); clearChatConfirm(phone); } },
-    { icon: '<circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>', label: convo.blocked ? 'Unblock number' : 'Block number', danger: true, action: () => updateClientStatusField(phone, 'blocked', !convo.blocked) }
+    { icon: '<path d="M16 3l5 5-5.5 1.5L13 12l-2 8-2-2 2-6-5-1.5L8 8l5-5z" transform="rotate(45 12 12)"/>', fill: true, label: convo.pinned ? t('unpin') : t('pin'), action: () => updateClientStatusField(phone, 'pinned', !convo.pinned) },
+    { icon: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>', label: convo.muted ? t('unmute') : t('mute'), action: () => updateClientStatusField(phone, 'muted', !convo.muted) },
+    { icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>', fill: true, label: convo.favorite ? t('favorite_remove') : t('favorite_add'), action: () => updateClientStatusField(phone, 'favorite', !convo.favorite) },
+    { icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>', label: t('create_contact'), noAutoClose: true, action: () => { closeConvoActionSheet(); openProfile(phone); } },
+    { icon: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>', label: convo.archived ? t('unarchive') : t('archive'), action: () => updateClientStatusField(phone, 'archived', !convo.archived) },
+    { icon: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', label: t('clear_chat'), danger: true, noAutoClose: true, action: () => { closeConvoActionSheet(); clearChatConfirm(phone); } },
+    { icon: '<circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>', label: convo.blocked ? t('unblock') : t('block'), danger: true, action: () => updateClientStatusField(phone, 'blocked', !convo.blocked) }
   ];
 
   const container = document.getElementById('action-sheet-items');
@@ -1328,7 +1414,7 @@ window.openConvoActionSheet = function(phone, event) {
       ${it.label}
     </div>
   `).join('');
-  window._sheetActions = items.map(it => () => { it.action(); if (!it.label.includes('Create') && !it.label.includes('Clear')) closeConvoActionSheet(); });
+  window._sheetActions = items.map(it => () => { it.action(); if (!it.noAutoClose) closeConvoActionSheet(); });
 
   document.getElementById('action-sheet-overlay').classList.add('show');
 };
@@ -1340,7 +1426,7 @@ window.closeConvoActionSheet = function() {
 window.clearChatConfirm = function(phone, event) {
   if (event) event.stopPropagation();
   if (swipeOpenPhone) closeSwipeRow(swipeOpenPhone);
-  const ok = confirm('Clear this chat? This permanently deletes the message history for this conversation.');
+  const ok = confirm(t('clear_chat_confirm'));
   if (!ok) return;
   clearChatNow(phone);
 };
@@ -1578,10 +1664,10 @@ async function loadThread(phone, silent) {
       </div>
     </div>
     <div id="messages">${bubblesHtml}</div>
-    <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="Jump to latest"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
-    ${!isActive ? `<div id="ai-paused-banner"><span>AI is off for this customer — you're replying manually</span><button onclick="resumeAI('${phone}')">Turn AI back on</button></div>` : ''}
+    <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="${t('jump_to_latest')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
+    ${!isActive ? `<div id="ai-paused-banner"><span>${t('ai_paused')}</span><button onclick="resumeAI('${phone}')">${t('turn_ai_on')}</button></div>` : ''}
     <div id="composer">
-      <textarea id="reply-text" placeholder="Type a manual reply..." rows="1"></textarea>
+      <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1"></textarea>
       <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
     </div>
   `;
@@ -1675,9 +1761,9 @@ async function renderAhmadChatPanel(silent) {
       </div>
     </div>
     <div id="messages">${bubblesHtml}</div>
-    <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="Jump to latest"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
+    <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="${t('jump_to_latest')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
     <div id="composer">
-      <textarea id="reply-text" placeholder="Message Ahmad about your business..." rows="1"></textarea>
+      <textarea id="reply-text" placeholder="${t('ai_reply_placeholder')}" rows="1"></textarea>
       <button id="send-btn" onclick="sendAhmadMessage()" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
     </div>
   `;
@@ -1926,6 +2012,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 function initAuth() {
+  applyLanguageDirection();
   document.getElementById('app').style.display = 'none';
   const savedId = localStorage.getItem('sparkly_seller_chat_id');
   if (savedId) {
@@ -2030,6 +2117,7 @@ function showLoginScreen(errorMsg) {
   `;
   document.getElementById('login-chatid').focus();
   document.addEventListener('keydown', loginKeyHandler);
+  applyTranslations();
 }
 
 function loginKeyHandler(e) {
@@ -2067,7 +2155,7 @@ window.doLogin = async function() {
 };
 
 window.confirmDeleteAccount = function() {
-  const typed = prompt('This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:');
+  const typed = prompt(t('delete_confirm'));
   if (typed !== 'DELETE') return;
   deleteAccountNow();
 };
@@ -2103,17 +2191,75 @@ window.openSettings = function() {
   const navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.classList.add('active');
 
-  document.getElementById('chats-tab-content').style.display = 'none';
-  const settingsTab = document.getElementById('settings-tab-content');
-  settingsTab.style.display = 'block';
-  settingsTab.classList.remove('screen-transition');
-  void settingsTab.offsetWidth;
-  settingsTab.classList.add('screen-transition');
-
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.remove('sidebar-hidden');
   }
 };
+
+window.openLanguagePicker = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const langTab = document.getElementById('language-tab-content');
+  langTab.style.display = 'flex';
+  langTab.classList.remove('screen-transition');
+  void langTab.offsetWidth;
+  langTab.classList.add('screen-transition');
+  renderLanguageList('');
+};
+
+window.closeLanguagePicker = function() {
+  document.getElementById('language-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+window.renderLanguageList = function(query) {
+  const q = (query || '').toLowerCase();
+  const filtered = LANGUAGES.filter(l => l.name.toLowerCase().includes(q) || l.native.toLowerCase().includes(q));
+  const list = document.getElementById('lang-list');
+  list.innerHTML = filtered.map(l => `
+    <div class="lang-row ${l.code === currentLang ? 'selected' : ''}" onclick="selectLanguage('${l.code}')">
+      <span>${l.name} <span class="lang-native">${l.native}</span></span>
+      <svg class="lang-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+  `).join('');
+};
+
+window.selectLanguage = function(code) {
+  currentLang = code;
+  localStorage.setItem('sparkly_lang', code);
+  applyLanguageDirection();
+  applyTranslations();
+  closeLanguagePicker();
+};
+
+function applyTranslations() {
+  const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+  set('nav-chats-label', 'chats');
+  set('nav-settings-label', 'settings');
+  set('settings-label-general', 'business');
+  set('settings-label-account', 'account');
+  set('settings-label-signout', 'sign_out');
+  set('settings-label-delete', 'delete_account');
+  set('settings-label-language', 'language');
+  const langMeta = LANGUAGES.find(l => l.code === currentLang);
+  const currentLangLabel = document.getElementById('current-lang-label');
+  if (currentLangLabel) currentLangLabel.textContent = langMeta ? langMeta.name : 'English';
+  const searchBox = document.getElementById('search-box');
+  if (searchBox) searchBox.placeholder = t('search_conversations');
+  const langSearch = document.getElementById('lang-search');
+  if (langSearch) langSearch.placeholder = t('search_language');
+  const loginSub = document.querySelector('.login-sub');
+  if (loginSub) loginSub.textContent = t('sign_in_sub');
+  const chatIdInput = document.getElementById('login-chatid');
+  if (chatIdInput) chatIdInput.placeholder = t('seller_chat_id');
+  const passwordInput = document.getElementById('login-password');
+  if (passwordInput) passwordInput.placeholder = t('password');
+  const loginBtn = document.getElementById('login-btn');
+  if (loginBtn) loginBtn.textContent = t('sign_in');
+  renderConvoList();
+  if (ahmadChatOpen) renderAhmadChatPanel(true);
+  else if (activePhone) loadThread(activePhone, true);
+}
+
 
 window.goToChats = function() {
   saveCurrentDraft();
@@ -2138,7 +2284,7 @@ window.goToChats = function() {
     <div id="empty-state-header"><button id="menu-toggle" onclick="toggleSidebar()" title="Show list"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button></div>
     <div id="empty-state">
       <div class="icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
-      <div>Select a conversation to view it</div>
+      <div id="empty-state-text">${t('select_conversation')}</div>
     </div>
   `;
   if (window.innerWidth <= 720) {
@@ -2148,6 +2294,8 @@ window.goToChats = function() {
 
 function startApp() {
   document.getElementById('app').style.display = 'flex';
+  applyLanguageDirection();
+  applyTranslations();
   loadAiName();
   loadConversations();
   if (pollTimer) clearInterval(pollTimer);
