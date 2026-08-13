@@ -33,9 +33,35 @@
     --accent-2-soft: rgba(47,158,110,0.08);
     --danger: #D2483F;
     --danger-soft: rgba(210,72,63,0.08);
+    --bubble-out-bg: #FBF7EE;
+    --badge-gold-bg: #fdf3da;
+    --badge-gold-text: #7a6416;
+    --badge-gold-border: #eddca0;
+    --shadow-color: 42,42,38;
     --font-display: 'Fraunces', Georgia, serif;
     --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }
+  html[data-theme="dark"] {
+    --bg: #17140F;
+    --panel: #201C15;
+    --panel-2: #29241A;
+    --border: #3C3527;
+    --text: #EEE9DD;
+    --text-muted: #A69C88;
+    --accent: #7B9EEA;
+    --accent-soft: rgba(123,158,234,0.14);
+    --on-accent: #131A2E;
+    --accent-2: #57C89A;
+    --accent-2-soft: rgba(87,200,154,0.14);
+    --danger: #EC7B6E;
+    --danger-soft: rgba(236,123,110,0.14);
+    --bubble-out-bg: #262115;
+    --badge-gold-bg: #3A3018;
+    --badge-gold-text: #E4C874;
+    --badge-gold-border: #4F4222;
+    --shadow-color: 0,0,0;
+  }
+  html, body { transition: background-color 0.25s ease, color 0.25s ease; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0;
@@ -51,7 +77,7 @@
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3A4150; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
   #app { display: flex; height: 100vh; position: relative; background: var(--bg); }
 
   /* ═══ CHANNEL RAIL ═══ */
@@ -501,7 +527,7 @@
     position: relative;
   }
   .msg-row.in .bubble { background: var(--panel); border: none; border-bottom-left-radius: 4px; color: var(--text); }
-  .msg-row.out .bubble { background: #FBF7EE; color: var(--accent); font-weight: 600; border: none; border-bottom-right-radius: 4px; }
+  .msg-row.out .bubble { background: var(--bubble-out-bg); color: var(--accent); font-weight: 600; border: none; border-bottom-right-radius: 4px; }
   .bubble .msg-text { white-space: pre-wrap; word-break: break-word; }
   .bubble .ts {
     display: inline-flex;
@@ -516,7 +542,7 @@
   .ts .ticks { display: inline-flex; }
   .ts .ticks svg { display: block; }
   .ts .ticks.read { color: #4FB3F6; }
-  .bubble.private-note { background: #fdf3da; color: #7a6416; border: 1px solid #eddca0; }
+  .bubble.private-note { background: var(--badge-gold-bg); color: var(--badge-gold-text); border: 1px solid var(--badge-gold-border); }
   .typing-bubble { display: flex; align-items: center; gap: 4px; padding: 12px 16px !important; }
   .typing-bubble .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); animation: typing-bounce 1.2s infinite ease-in-out; }
   .typing-bubble .dot:nth-child(2) { animation-delay: 0.15s; }
@@ -525,7 +551,7 @@
     0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
     30% { transform: translateY(-4px); opacity: 1; }
   }
-  .bubble.private-note .ts { color: #7a6416; opacity: 0.65; }
+  .bubble.private-note .ts { color: var(--badge-gold-text); opacity: 0.65; }
   .date-divider {
     align-self: center;
     background: var(--panel-2);
@@ -736,7 +762,7 @@
     padding: 4px 11px;
     border-radius: 20px;
   }
-  .profile-badge.vip { background: #fdf3da; color: #7a6416; }
+  .profile-badge.vip { background: var(--badge-gold-bg); color: var(--badge-gold-text); }
   .profile-badge.wholesale { background: var(--accent-2-soft); color: var(--accent-2); }
   .profile-section { text-align: left; padding: 18px 22px; border-top: 1px solid var(--border); }
   .profile-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 0 0 12px; font-weight: 650; }
@@ -1026,6 +1052,11 @@
     </div>
     <div id="settings-tab-content" style="display:none;">
       <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
+      <div class="settings-row" onclick="openAppearancePicker()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span id="settings-label-appearance">Appearance</span>
+        <span id="current-appearance-label" style="margin-left:auto;color:var(--text-muted);font-size:13px;">System</span>
+      </div>
       <div class="settings-row" onclick="openLanguagePicker()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         <span id="settings-label-language">Language</span>
@@ -1044,6 +1075,13 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span id="settings-label-delete">Delete my account</span>
       </div>
+    </div>
+    <div id="appearance-tab-content" style="display:none;">
+      <div id="lang-header">
+        <button onclick="closeAppearancePicker()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span style="font-weight:600;font-size:14.5px;">Appearance</span>
+      </div>
+      <div id="appearance-list"></div>
     </div>
     <div id="devices-tab-content" style="display:none;">
       <div id="lang-header">
@@ -1129,7 +1167,7 @@ const LANGUAGES = [
 ];
 
 const TRANSLATIONS = {
-  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my account', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages', devices:'Linked Devices' },
+  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my account', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages', devices:'Linked Devices', appearance:'Appearance' },
   ar: { chats:'المحادثات', ai:'الذكاء الاصطناعي', settings:'الإعدادات', search_conversations:'بحث في المحادثات', no_conversations:'لا توجد محادثات بعد.', no_matches:'لا توجد نتائج.', select_conversation:'اختر محادثة لعرضها', sign_in_sub:'سجّل الدخول برقم البائع', seller_chat_id:'رقم البائع', password:'كلمة المرور', sign_in:'تسجيل الدخول', business:'العمل', account:'الحساب', talk_to_ai:'تحدث مع مساعدك الذكي', sign_out:'تسجيل الخروج', delete_account:'حذف حسابي', language:'اللغة', delete_confirm:'سيتم حذف حسابك وكل بياناتك نهائيًا — المنتجات، العملاء، الطلبات، وسجل المحادثات. لا يمكن التراجع عن هذا.\n\nاكتب DELETE للتأكيد:', clear_chat_confirm:'مسح هذه المحادثة؟ سيتم حذف سجل الرسائل نهائيًا.', pin:'تثبيت المحادثة', unpin:'إلغاء التثبيت', mute:'كتم الإشعارات', unmute:'إلغاء الكتم', favorite_add:'إضافة للمفضلة', favorite_remove:'إزالة من المفضلة', create_contact:'إنشاء جهة اتصال', archive:'أرشفة المحادثة', unarchive:'إلغاء الأرشفة', clear_chat:'مسح المحادثة', block:'حظر الرقم', unblock:'إلغاء الحظر', reply_placeholder:'اكتب ردًا يدويًا...', ai_reply_placeholder:'راسل أحمد عن عملك...', jump_to_latest:'الانتقال للأحدث', ai_paused:'الذكاء الاصطناعي متوقف لهذا العميل — أنت ترد يدويًا', turn_ai_on:'إعادة تشغيل الذكاء الاصطناعي', search_language:'ابحث عن لغة' },
   es: { chats:'Chats', ai:'IA', settings:'Configuración', search_conversations:'Buscar conversaciones', no_conversations:'Aún no hay conversaciones.', no_matches:'Sin resultados.', select_conversation:'Selecciona una conversación', sign_in_sub:'Inicia sesión con tu ID de vendedor', seller_chat_id:'ID de vendedor', password:'Contraseña', sign_in:'Iniciar sesión', business:'Negocio', account:'Cuenta', talk_to_ai:'Habla con tu asistente de IA', sign_out:'Cerrar sesión', delete_account:'Eliminar mi cuenta', language:'Idioma', delete_confirm:'Esto elimina permanentemente tu cuenta y TODOS los datos: productos, clientes, pedidos e historial. No se puede deshacer.\n\nEscribe DELETE para confirmar:', clear_chat_confirm:'¿Borrar este chat? Esto elimina permanentemente el historial de mensajes.', pin:'Fijar conversación', unpin:'Dejar de fijar', mute:'Silenciar notificaciones', unmute:'Activar notificaciones', favorite_add:'Añadir a favoritos', favorite_remove:'Quitar de favoritos', create_contact:'Crear nuevo contacto', archive:'Archivar chat', unarchive:'Desarchivar chat', clear_chat:'Borrar chat', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Escribe una respuesta...', ai_reply_placeholder:'Escribe a Ahmad sobre tu negocio...', jump_to_latest:'Ir al más reciente', ai_paused:'La IA está desactivada para este cliente — estás respondiendo manualmente', turn_ai_on:'Reactivar la IA', search_language:'Buscar idiomas' },
   fr: { chats:'Discussions', ai:'IA', settings:'Paramètres', search_conversations:'Rechercher des discussions', no_conversations:'Aucune discussion pour le moment.', no_matches:'Aucun résultat.', select_conversation:'Sélectionnez une discussion', sign_in_sub:'Connectez-vous avec votre ID vendeur', seller_chat_id:'ID vendeur', password:'Mot de passe', sign_in:'Se connecter', business:'Entreprise', account:'Compte', talk_to_ai:'Parlez à votre assistant IA', sign_out:'Déconnexion', delete_account:'Supprimer mon compte', language:'Langue', delete_confirm:'Cela supprime définitivement votre compte et TOUTES les données — produits, clients, commandes et historique. Action irréversible.\n\nTapez DELETE pour confirmer :', clear_chat_confirm:'Effacer cette discussion ? Cela supprime définitivement l\u2019historique des messages.', pin:'Épingler la discussion', unpin:'Détacher', mute:'Couper les notifications', unmute:'Réactiver les notifications', favorite_add:'Ajouter aux favoris', favorite_remove:'Retirer des favoris', create_contact:'Créer un contact', archive:'Archiver la discussion', unarchive:'Désarchiver', clear_chat:'Effacer la discussion', block:'Bloquer le numéro', unblock:'Débloquer le numéro', reply_placeholder:'Écrire une réponse manuelle...', ai_reply_placeholder:'Écrire à Ahmad à propos de votre entreprise...', jump_to_latest:'Aller au plus récent', ai_paused:"L'IA est désactivée pour ce client — vous répondez manuellement", turn_ai_on:"Réactiver l'IA", search_language:'Rechercher une langue' },
@@ -1154,6 +1192,28 @@ function applyLanguageDirection() {
   const langMeta = LANGUAGES.find(l => l.code === currentLang);
   document.documentElement.dir = (langMeta && langMeta.rtl) ? 'rtl' : 'ltr';
   document.documentElement.lang = currentLang;
+}
+
+// ═══ Appearance: Light / Dark / System, with live OS-theme following ═══
+const APPEARANCE_OPTIONS = [
+  { key: 'light', label: 'Light', icon: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>' },
+  { key: 'dark', label: 'Dark', icon: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>' },
+  { key: 'system', label: 'System', icon: '<rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>' }
+];
+let appearanceMode = localStorage.getItem('sparkly_theme') || 'system';
+function applyTheme() {
+  const isDark = appearanceMode === 'dark' || (appearanceMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  const label = document.getElementById('current-appearance-label');
+  if (label) {
+    const opt = APPEARANCE_OPTIONS.find(o => o.key === appearanceMode);
+    label.textContent = opt ? opt.label : 'System';
+  }
+}
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (appearanceMode === 'system') applyTheme();
+  });
 }
 
 const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
@@ -2097,6 +2157,7 @@ document.addEventListener('keydown', (e) => {
 
 function initAuth() {
   applyLanguageDirection();
+  applyTheme();
   document.getElementById('app').style.display = 'none';
   const savedId = localStorage.getItem('sparkly_seller_chat_id');
   if (savedId) {
@@ -2303,6 +2364,42 @@ window.closeLanguagePicker = function() {
   document.getElementById('settings-tab-content').style.display = 'block';
 };
 
+window.openAppearancePicker = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('appearance-tab-content');
+  panel.style.display = 'block';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  renderAppearanceList();
+};
+
+window.closeAppearancePicker = function() {
+  document.getElementById('appearance-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+function renderAppearanceList() {
+  const list = document.getElementById('appearance-list');
+  list.innerHTML = APPEARANCE_OPTIONS.map(o => `
+    <div class="lang-row ${o.key === appearanceMode ? 'selected' : ''}" onclick="selectAppearance('${o.key}')">
+      <span style="display:flex;align-items:center;gap:12px;">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.75;">${o.icon}</svg>
+        ${o.label}
+      </span>
+      <svg class="lang-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+  `).join('');
+}
+
+window.selectAppearance = function(mode) {
+  appearanceMode = mode;
+  localStorage.setItem('sparkly_theme', mode);
+  applyTheme();
+  renderAppearanceList();
+  closeAppearancePicker();
+};
+
 window.openDevicesPanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
   const panel = document.getElementById('devices-tab-content');
@@ -2383,6 +2480,7 @@ function applyTranslations() {
   set('settings-label-delete', 'delete_account');
   set('settings-label-language', 'language');
   set('settings-label-devices', 'devices');
+  set('settings-label-appearance', 'appearance');
   const langMeta = LANGUAGES.find(l => l.code === currentLang);
   const currentLangLabel = document.getElementById('current-lang-label');
   if (currentLangLabel) currentLangLabel.textContent = langMeta ? langMeta.name : 'English';
