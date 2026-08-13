@@ -1850,6 +1850,9 @@ window.openAhmadChat = async function() {
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.add('sidebar-hidden');
   }
+  hideAllSidebarPanels();
+  const chatsTabForAi = document.getElementById('chats-tab-content');
+  if (chatsTabForAi) chatsTabForAi.style.display = 'flex';
   renderConvoList();
   document.querySelectorAll('#sidebar-bottom-nav .bottom-nav-item').forEach(el => el.classList.remove('active'));
   const navAi = document.getElementById('nav-ai');
@@ -2334,6 +2337,13 @@ window.logout = function() {
   location.reload();
 };
 
+function hideAllSidebarPanels() {
+  ['chats-tab-content', 'settings-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
 window.openSettings = function() {
   saveCurrentDraft();
   ahmadChatOpen = false;
@@ -2343,6 +2353,13 @@ window.openSettings = function() {
   document.querySelectorAll('#sidebar-bottom-nav .bottom-nav-item').forEach(el => el.classList.remove('active'));
   const navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.classList.add('active');
+
+  hideAllSidebarPanels();
+  const settingsTab = document.getElementById('settings-tab-content');
+  settingsTab.style.display = 'block';
+  settingsTab.classList.remove('screen-transition');
+  void settingsTab.offsetWidth;
+  settingsTab.classList.add('screen-transition');
 
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.remove('sidebar-hidden');
@@ -2513,7 +2530,7 @@ window.goToChats = function() {
   if (navChats) navChats.classList.add('active');
   renderConvoList();
 
-  document.getElementById('settings-tab-content').style.display = 'none';
+  hideAllSidebarPanels();
   const chatsTab = document.getElementById('chats-tab-content');
   chatsTab.style.display = 'flex';
   chatsTab.classList.remove('screen-transition');
