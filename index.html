@@ -1344,6 +1344,19 @@ function renderConvoList() {
     </div>
   `;
   }).join('');
+
+  // The 8-second background refresh rebuilds this whole list — without this,
+  // an open swipe-actions row would silently snap shut the next time it polls.
+  if (swipeOpenPhone) {
+    const openRow = document.querySelector('.convo-row[data-phone="' + CSS.escape(swipeOpenPhone) + '"]');
+    if (openRow) {
+      const openItem = openRow.querySelector('.convo-item');
+      openItem.style.transition = 'none';
+      openItem.style.transform = 'translateX(-' + STRIP_WIDTH + 'px)';
+    } else {
+      swipeOpenPhone = null; // that conversation is gone now (deleted/archived) — nothing to restore
+    }
+  }
 }
 
 window.filterConvos = function(val) {
