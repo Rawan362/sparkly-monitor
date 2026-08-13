@@ -1927,6 +1927,88 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+
+// ═══ Edge-swipe-to-go-back, matching WhatsApp/iOS: grab the left edge of an
+// open chat and drag right to exit, with the chat list peeking in live. ═══
+(function() {
+  const EDGE_ZONE = 28;       // px from the left edge that can start the gesture
+  const COMPLETE_RATIO = 0.3; // drag past 30% of screen width = commit to closing
+  let startX = 0, startY = 0, dragging = false, decided = false, tracking = false;
+
+  const main = document.getElementById('main');
+  if (!main) return;
+
+  main.addEventListener('touchstart', (e) => {
+    if (window.innerWidth > 720) return;
+    const app = document.getElementById('app');
+    if (!app.classList.contains('sidebar-hidden')) return; // no open chat to swipe away from
+    const touch = e.touches[0];
+    if (touch.clientX > EDGE_ZONE) return; // only the edge starts the gesture
+    startX = touch.clientX;
+    startY = touch.clientY;
+    tracking = true;
+    dragging = false;
+    decided = false;
+  }, { passive: true });
+
+  main.addEventListener('touchmove', (e) => {
+    if (!tracking) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+
+    if (!decided) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      decided = true;
+      dragging = Math.abs(dx) > Math.abs(dy) && dx > 0;
+      if (!dragging) { tracking = false; return; }
+      const sidebar = document.getElementById('sidebar');
+      main.style.transition = 'none';
+      sidebar.style.transition = 'none';
+    }
+    if (!dragging) return;
+
+    const clamped = Math.max(0, Math.min(dx, window.innerWidth));
+    const sidebar = document.getElementById('sidebar');
+    main.style.transform = 'translateX(' + clamped + 'px)';
+    sidebar.style.marginLeft = (-100 + (clamped / window.innerWidth) * 100) + 'vw';
+  }, { passive: true });
+
+  main.addEventListener('touchend', (e) => {
+    if (!tracking) return;
+    tracking = false;
+    if (!dragging) return;
+    dragging = false;
+
+    const sidebar = document.getElementById('sidebar');
+    const dx = (e.changedTouches[0].clientX - startX);
+    const ratio = Math.max(0, dx) / window.innerWidth;
+
+    main.style.transition = 'transform 0.2s ease';
+    sidebar.style.transition = 'margin-left 0.2s ease';
+
+    if (ratio > COMPLETE_RATIO) {
+      main.style.transform = 'translateX(100%)';
+      sidebar.style.marginLeft = '0';
+      setTimeout(() => {
+        document.getElementById('app').classList.remove('sidebar-hidden');
+        main.style.transition = '';
+        main.style.transform = '';
+        sidebar.style.transition = '';
+        sidebar.style.marginLeft = '';
+      }, 200);
+    } else {
+      main.style.transform = 'translateX(0)';
+      sidebar.style.marginLeft = '-100vw';
+      setTimeout(() => {
+        main.style.transition = '';
+        main.style.transform = '';
+        sidebar.style.transition = '';
+        sidebar.style.marginLeft = '';
+      }, 200);
+    }
+  });
+})();
 </script>
 </body>
 </html>
