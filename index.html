@@ -2736,6 +2736,7 @@ window.signOutDevice = async function(sessionId) {
 let linkCodePollTimer = null;
 let linkCodeExpiryTimer = null;
 let myPendingLinkCode = null;
+let linkVisibilityHandler = null;
 
 function generateLinkCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
@@ -2782,26 +2783,56 @@ window.openNewDeviceLinkScreen = async function() {
     if (remaining <= 0) { clearInterval(linkCodeExpiryTimer); closeLinkDeviceFlow(); }
   }, 1000);
 
-  clearInterval(linkCodePollTimer);
-  linkCodePollTimer = setInterval(async () => {
+  const checkLinkApproval = async () => {
+    if (myPendingLinkCode !== code) return; // a newer code replaced this one — stop
     try {
       const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used&_=' + Date.now());
-      if (rows && rows[0] && rows[0].used && rows[0].seller_id) {
+      if (!rows || !rows[0]) return;
+      if (rows[0].used) {
+        if (!rows[0].seller_id) {
+          // Approved, but something went wrong recording who approved it — don't hang forever silently
+          clearInterval(linkCodePollTimer);
+          clearInterval(linkCodeExpiryTimer);
+          alert('This device was approved, but something went wrong completing sign-in. Please try linking again.');
+          closeLinkDeviceFlow();
+          return;
+        }
         clearInterval(linkCodePollTimer);
         clearInterval(linkCodeExpiryTimer);
+        if (linkVisibilityHandler) {
+          document.removeEventListener('visibilitychange', linkVisibilityHandler);
+          window.removeEventListener('focus', linkVisibilityHandler);
+        }
         SELLER_CHAT_ID = rows[0].seller_id;
         localStorage.setItem('sparkly_seller_chat_id', rows[0].seller_id);
         document.getElementById('link-device-overlay').classList.remove('show');
         startApp();
       }
     } catch (e) {}
-  }, 1200);
+  };
+
+  // Mobile browsers throttle/pause timers on background tabs — if the person
+  // switches away to use their camera and comes back, check immediately
+  // instead of waiting for the next (possibly delayed) interval tick.
+  const onVisibilityCheck = () => { if (!document.hidden) checkLinkApproval(); };
+  linkVisibilityHandler = onVisibilityCheck;
+  document.addEventListener('visibilitychange', onVisibilityCheck);
+  window.addEventListener('focus', onVisibilityCheck);
+
+  clearInterval(linkCodePollTimer);
+  linkCodePollTimer = setInterval(checkLinkApproval, 1200);
 };
 
 window.closeLinkDeviceFlow = function() {
   document.getElementById('link-device-overlay').classList.remove('show');
   clearInterval(linkCodePollTimer);
   clearInterval(linkCodeExpiryTimer);
+  if (linkVisibilityHandler) {
+    document.removeEventListener('visibilitychange', linkVisibilityHandler);
+    window.removeEventListener('focus', linkVisibilityHandler);
+    linkVisibilityHandler = null;
+  }
+  myPendingLinkCode = null;
   stopDeviceScanner();
 };
 
@@ -2867,6 +2898,10 @@ window.submitManualScanCode = async function() {
 };
 
 async function claimDeviceCode(code) {
+  if (!SELLER_CHAT_ID) {
+    alert('Your own session looks invalid — please sign out and back in, then try linking again.');
+    return;
+  }
   try {
     const rows = await sb('device_link_codes?code=eq.' + encodeURIComponent(code) + '&select=used,seller_id,expires_at');
     if (!rows || rows.length === 0) { alert(t('invalid_code')); return; }
