@@ -1499,7 +1499,8 @@ let pollTimer = null;
 
 async function sb(path) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Cache-Control': 'no-cache' },
+    cache: 'no-store'
   });
   if (!res.ok) throw new Error('Supabase error ' + res.status);
   return res.json();
@@ -2784,7 +2785,7 @@ window.openNewDeviceLinkScreen = async function() {
   clearInterval(linkCodePollTimer);
   linkCodePollTimer = setInterval(async () => {
     try {
-      const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used');
+      const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used&_=' + Date.now());
       if (rows && rows[0] && rows[0].used && rows[0].seller_id) {
         clearInterval(linkCodePollTimer);
         clearInterval(linkCodeExpiryTimer);
