@@ -1513,8 +1513,13 @@ function renderConvoList() {
     const openRow = document.querySelector('.convo-row[data-phone="' + CSS.escape(swipeOpenPhone) + '"]');
     if (openRow) {
       const openItem = openRow.querySelector('.convo-item');
+      const openButtons = openRow.querySelectorAll('.convo-action-btn');
       openItem.style.transition = 'none';
       openItem.style.transform = 'translateX(-' + STRIP_WIDTH + 'px)';
+      openButtons.forEach(b => { b.style.transition = 'none'; });
+      openRow.classList.add('revealed');
+      void openRow.offsetWidth; // force layout before re-enabling transitions
+      openButtons.forEach(b => { b.style.transition = ''; });
     } else {
       swipeOpenPhone = null; // that conversation is gone now (deleted/archived) — nothing to restore
     }
