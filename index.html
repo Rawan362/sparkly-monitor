@@ -42,24 +42,43 @@
     --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }
   html[data-theme="dark"] {
-    --bg: #17140F;
-    --panel: #201C15;
-    --panel-2: #29241A;
-    --border: #3C3527;
-    --text: #EEE9DD;
-    --text-muted: #A69C88;
-    --accent: #7B9EEA;
-    --accent-soft: rgba(123,158,234,0.14);
-    --on-accent: #131A2E;
-    --accent-2: #57C89A;
-    --accent-2-soft: rgba(87,200,154,0.14);
-    --danger: #EC7B6E;
-    --danger-soft: rgba(236,123,110,0.14);
-    --bubble-out-bg: #262115;
-    --badge-gold-bg: #3A3018;
-    --badge-gold-text: #E4C874;
-    --badge-gold-border: #4F4222;
+    --bg: #121110;
+    --panel: #1A1917;
+    --panel-2: #211F1C;
+    --border: #2E2C28;
+    --text: #ECEAE6;
+    --text-muted: #8C897F;
+    --accent: #7297EE;
+    --accent-soft: rgba(114,151,238,0.13);
+    --on-accent: #10152A;
+    --accent-2: #4EBF93;
+    --accent-2-soft: rgba(78,191,147,0.13);
+    --danger: #E37066;
+    --danger-soft: rgba(227,112,102,0.13);
+    --bubble-out-bg: #201F1C;
+    --badge-gold-bg: #2E2A1E;
+    --badge-gold-text: #D6BC72;
+    --badge-gold-border: #423C28;
     --shadow-color: 0,0,0;
+    --elevate: 0 1px 2px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    --elevate-lg: 0 12px 32px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  }
+  html:not([data-theme="dark"]) { --elevate: none; --elevate-lg: none; }
+  html[data-theme="dark"] #sidebar,
+  html[data-theme="dark"] #chat-header,
+  html[data-theme="dark"] #login-card,
+  html[data-theme="dark"] #settings-tab-content .settings-row,
+  html[data-theme="dark"] #action-sheet,
+  html[data-theme="dark"] .msg-row.in .bubble,
+  html[data-theme="dark"] .msg-row.out .bubble,
+  html[data-theme="dark"] .convo-item.active,
+  html[data-theme="dark"] #link-device-panel,
+  html[data-theme="dark"] .convo-action-btn {
+    box-shadow: var(--elevate);
+  }
+  html[data-theme="dark"] #action-sheet,
+  html[data-theme="dark"] #link-device-panel {
+    box-shadow: var(--elevate-lg);
   }
   html, body { transition: background-color 0.25s ease, color 0.25s ease; }
   /* Keep app chrome (nav, buttons, gestures) always structurally LTR — only
