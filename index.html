@@ -369,10 +369,22 @@
     color: var(--text-muted);
   }
   @keyframes screen-fade-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(10px) scale(0.98); filter: blur(3px); }
+    to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
   }
-  #main.screen-transition, #chats-tab-content.screen-transition, #settings-tab-content.screen-transition { animation: screen-fade-in 0.18s ease; }
+  #main.screen-transition,
+  #chats-tab-content.screen-transition,
+  #settings-tab-content.screen-transition,
+  #language-tab-content.screen-transition,
+  #devices-tab-content.screen-transition,
+  #appearance-tab-content.screen-transition {
+    animation: screen-fade-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes screen-slide-in {
+    from { opacity: 0; transform: translateX(var(--slide-x, 18px)) scale(0.98); filter: blur(3px); }
+    to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  }
+  .screen-transition-slide { animation: screen-slide-in 0.38s cubic-bezier(0.22, 1, 0.36, 1); }
 
   .bottom-nav-item span { font-size: 11px; font-weight: 500; }
   .bottom-nav-item.active { color: var(--accent); }
@@ -1372,6 +1384,19 @@ function playScreenTransition() {
   void main.offsetWidth;
   main.classList.add('screen-transition');
 }
+let lastTabKey = 'chats';
+function playTabSlide(el, newKey) {
+  if (!el) return;
+  const order = ['chats', 'ai', 'settings'];
+  const oldIdx = order.indexOf(lastTabKey);
+  const newIdx = order.indexOf(newKey);
+  const dir = newIdx > oldIdx ? 22 : (newIdx < oldIdx ? -22 : 0);
+  el.style.setProperty('--slide-x', dir + 'px');
+  el.classList.remove('screen-transition-slide');
+  void el.offsetWidth;
+  el.classList.add('screen-transition-slide');
+  lastTabKey = newKey;
+}
 let pollTimer = null;
 
 async function sb(path) {
@@ -2042,7 +2067,7 @@ async function renderAhmadChatPanel(silent) {
       <button id="send-btn" onclick="sendAhmadMessage()" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
     </div>
   `;
-  if (!silent) playScreenTransition();
+  if (!silent) playTabSlide(document.getElementById('main'), 'ai');
   const box = document.getElementById('messages');
   if (!silent || wasNearBottom) {
     box.scrollTop = box.scrollHeight;
@@ -2497,9 +2522,7 @@ window.openSettings = function() {
   hideAllSidebarPanels();
   const settingsTab = document.getElementById('settings-tab-content');
   settingsTab.style.display = 'block';
-  settingsTab.classList.remove('screen-transition');
-  void settingsTab.offsetWidth;
-  settingsTab.classList.add('screen-transition');
+  playTabSlide(settingsTab, 'settings');
 
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.remove('sidebar-hidden');
@@ -2778,9 +2801,7 @@ window.goToChats = function() {
   hideAllSidebarPanels();
   const chatsTab = document.getElementById('chats-tab-content');
   chatsTab.style.display = 'flex';
-  chatsTab.classList.remove('screen-transition');
-  void chatsTab.offsetWidth;
-  chatsTab.classList.add('screen-transition');
+  playTabSlide(chatsTab, 'chats');
 
   const main = document.getElementById('main');
   main.innerHTML = `
