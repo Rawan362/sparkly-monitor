@@ -2751,11 +2751,16 @@ window.openNewDeviceLinkScreen = async function() {
   myPendingLinkCode = code;
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/device_link_codes', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/device_link_codes', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ code, seller_id: null, expires_at: expiresAt.toISOString() })
     });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      alert(t('could_not_generate_code') + '\n\n(' + res.status + ': ' + errText + ')');
+      return;
+    }
   } catch (e) {
     alert(t('could_not_generate_code'));
     return;
@@ -2789,7 +2794,7 @@ window.openNewDeviceLinkScreen = async function() {
         startApp();
       }
     } catch (e) {}
-  }, 2500);
+  }, 1200);
 };
 
 window.closeLinkDeviceFlow = function() {
@@ -2869,11 +2874,16 @@ async function claimDeviceCode(code) {
     if (new Date(row.expires_at) < new Date()) { alert(t('code_expired')); return; }
     const ok = confirm('Link this new device to your account?');
     if (!ok) return;
-    await fetch(SUPABASE_URL + '/rest/v1/device_link_codes?code=eq.' + encodeURIComponent(code), {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/device_link_codes?code=eq.' + encodeURIComponent(code), {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ used: true, seller_id: SELLER_CHAT_ID })
     });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      alert(t('link_failed') + 'Server rejected the update (status ' + res.status + '). ' + errText);
+      return;
+    }
     stopDeviceScanner();
     await renderDevicesList();
     alert(t('device_linked_success'));
