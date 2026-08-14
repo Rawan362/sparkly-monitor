@@ -3110,14 +3110,6 @@ if ('serviceWorker' in navigator) {
       reg.update(); // always check for a newer version on load, don't trust the cached one
     }).catch(() => {});
   });
-  // If a new service worker takes over mid-session, reload once so this tab
-  // actually runs the latest code instead of a stale cached copy.
-  let swRefreshed = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (swRefreshed) return;
-    swRefreshed = true;
-    window.location.reload();
-  });
 }
 
 // ═══ Edge-swipe-to-go-back, matching WhatsApp/iOS: grab the left edge of an
