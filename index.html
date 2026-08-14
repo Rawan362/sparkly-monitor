@@ -1343,6 +1343,7 @@
     <div id="link-qr-wrap"><img id="link-qr-img" alt="QR code"></div>
     <div id="link-code-display">------</div>
     <div id="link-expiry"><span id="link-expiry-label">Expires in</span> <span id="link-expiry-timer">10:00</span></div>
+    <div id="link-check-status" style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Not checking yet</div>
     <p class="link-instructions" id="link-instructions-text">Open monitor.sparklly.site on the new device and tap "Link with a code" on the sign-in screen, or scan the QR code with its camera.</p>
     <button class="cancel-btn" id="link-cancel-btn" onclick="closeLinkDeviceFlow()">Cancel</button>
   </div>
@@ -2784,10 +2785,18 @@ window.openNewDeviceLinkScreen = async function() {
   }, 1000);
 
   const checkLinkApproval = async () => {
+    const statusEl = document.getElementById('link-check-status');
     if (myPendingLinkCode !== code) return; // a newer code replaced this one — stop
+    checkLinkApproval.count = (checkLinkApproval.count || 0) + 1;
+    const now = new Date().toLocaleTimeString();
+    if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — last: ' + now;
     try {
       const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used&_=' + Date.now());
-      if (!rows || !rows[0]) return;
+      if (!rows || !rows[0]) {
+        if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — code not found in database!';
+        return;
+      }
+      if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — used: ' + rows[0].used + ', linked to: ' + (rows[0].seller_id || 'nobody yet');
       if (rows[0].used) {
         if (!rows[0].seller_id) {
           // Approved, but something went wrong recording who approved it — don't hang forever silently
@@ -2808,7 +2817,9 @@ window.openNewDeviceLinkScreen = async function() {
         document.getElementById('link-device-overlay').classList.remove('show');
         startApp();
       }
-    } catch (e) {}
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — error: ' + e.message;
+    }
   };
 
   // Mobile browsers throttle/pause timers on background tabs — if the person
@@ -3095,7 +3106,17 @@ document.addEventListener('DOMContentLoaded', initAuth);
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.update(); // always check for a newer version on load, don't trust the cached one
+    }).catch(() => {});
+  });
+  // If a new service worker takes over mid-session, reload once so this tab
+  // actually runs the latest code instead of a stale cached copy.
+  let swRefreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swRefreshed) return;
+    swRefreshed = true;
+    window.location.reload();
   });
 }
 
