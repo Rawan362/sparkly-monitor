@@ -2791,7 +2791,7 @@ window.openNewDeviceLinkScreen = async function() {
     const now = new Date().toLocaleTimeString();
     if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — last: ' + now;
     try {
-      const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used&_=' + Date.now());
+      const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used');
       if (!rows || !rows[0]) {
         if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — code not found in database!';
         return;
