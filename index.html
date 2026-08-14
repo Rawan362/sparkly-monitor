@@ -84,31 +84,25 @@
   /* Keep app chrome (nav, buttons, gestures) always structurally LTR — only
      actual text content should flow RTL for Arabic/Urdu/Persian. This matches
      how WhatsApp/Telegram/Instagram handle RTL: the shell stays consistent,
-     only reading direction changes. */
-  html[dir="rtl"] #app,
-  html[dir="rtl"] #sidebar-bottom-nav,
-  html[dir="rtl"] .convo-row,
-  html[dir="rtl"] .convo-item,
-  html[dir="rtl"] .convo-actions-strip,
-  html[dir="rtl"] #chat-header,
-  html[dir="rtl"] #chat-header-info,
-  html[dir="rtl"] #composer,
-  html[dir="rtl"] .settings-row,
-  html[dir="rtl"] .lang-row,
-  html[dir="rtl"] .device-row,
-  html[dir="rtl"] .action-sheet-item,
-  html[dir="rtl"] #lang-header,
-  html[dir="rtl"] #ai-paused-banner,
-  html[dir="rtl"] .land-nav,
-  html[dir="rtl"] #login-card,
-  html[dir="rtl"] #sidebar-header {
-    direction: ltr;
-  }
-  html[dir="rtl"] .msg-text,
-  html[dir="rtl"] .convo-preview,
-  html[dir="rtl"] .settings-row span:first-of-type,
-  html[dir="rtl"] .lang-row span,
-  html[dir="rtl"] #ai-paused-banner span {
+     only reading direction changes. Nothing structural (nav, buttons,
+     gestures) is ever touched — only these specific text-bearing elements
+     opt into RTL, and only when .lang-rtl is present on <body>. */
+  body.lang-rtl .convo-phone,
+  body.lang-rtl #chat-header-info h2,
+  body.lang-rtl .chat-channel-tag,
+  body.lang-rtl .settings-row span:first-of-type,
+  body.lang-rtl .lang-row span,
+  body.lang-rtl .device-label,
+  body.lang-rtl .action-sheet-item,
+  body.lang-rtl #ai-paused-banner span,
+  body.lang-rtl .land-hero,
+  body.lang-rtl .land-hero p,
+  body.lang-rtl #login-card p,
+  body.lang-rtl #sidebar-header p,
+  body.lang-rtl .link-instructions,
+  body.lang-rtl #reply-text,
+  body.lang-rtl #lang-search,
+  body.lang-rtl #search-box {
     direction: rtl;
     text-align: right;
   }
@@ -1232,13 +1226,13 @@
 
 <div id="link-device-overlay" onclick="if(event.target===this) closeLinkDeviceFlow()">
   <div id="link-device-panel">
-    <h3>Link a New Device</h3>
-    <div class="link-sub">Scan this on the new device, or enter the code manually</div>
+    <h3 id="link-title">Link a New Device</h3>
+    <div class="link-sub" id="link-sub">Scan this on the new device, or enter the code manually</div>
     <div id="link-qr-wrap"><img id="link-qr-img" alt="QR code"></div>
     <div id="link-code-display">------</div>
-    <div id="link-expiry">Expires in <span id="link-expiry-timer">10:00</span></div>
-    <p class="link-instructions">Open monitor.sparklly.site on the new device and tap "Link with a code" on the sign-in screen, or scan the QR code with its camera.</p>
-    <button class="cancel-btn" onclick="closeLinkDeviceFlow()">Cancel</button>
+    <div id="link-expiry"><span id="link-expiry-label">Expires in</span> <span id="link-expiry-timer">10:00</span></div>
+    <p class="link-instructions" id="link-instructions-text">Open monitor.sparklly.site on the new device and tap "Link with a code" on the sign-in screen, or scan the QR code with its camera.</p>
+    <button class="cancel-btn" id="link-cancel-btn" onclick="closeLinkDeviceFlow()">Cancel</button>
   </div>
 </div>
 
@@ -1253,7 +1247,7 @@
   <div id="profile-panel">
     <div id="profile-header">
       <button id="profile-close" onclick="closeProfile()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-      <span style="font-weight:600;font-size:15px;">Contact info</span>
+      <span id="contact-info-title" style="font-weight:600;font-size:15px;">Contact info</span>
     </div>
     <div id="profile-content"><div id="profile-loading"><div class="spinner"></div>Loading...</div></div>
   </div>
@@ -1288,8 +1282,8 @@ const LANGUAGES = [
 ];
 
 const TRANSLATIONS = {
-  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my account', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages', devices:'Linked Devices', appearance:'Appearance' },
-  ar: { chats:'المحادثات', ai:'الذكاء الاصطناعي', settings:'الإعدادات', search_conversations:'بحث في المحادثات', no_conversations:'لا توجد محادثات بعد.', no_matches:'لا توجد نتائج.', select_conversation:'اختر محادثة لعرضها', sign_in_sub:'سجّل الدخول برقم البائع', seller_chat_id:'رقم البائع', password:'كلمة المرور', sign_in:'تسجيل الدخول', business:'العمل', account:'الحساب', talk_to_ai:'تحدث مع مساعدك الذكي', sign_out:'تسجيل الخروج', delete_account:'حذف حسابي', language:'اللغة', delete_confirm:'سيتم حذف حسابك وكل بياناتك نهائيًا — المنتجات، العملاء، الطلبات، وسجل المحادثات. لا يمكن التراجع عن هذا.\n\nاكتب DELETE للتأكيد:', clear_chat_confirm:'مسح هذه المحادثة؟ سيتم حذف سجل الرسائل نهائيًا.', pin:'تثبيت المحادثة', unpin:'إلغاء التثبيت', mute:'كتم الإشعارات', unmute:'إلغاء الكتم', favorite_add:'إضافة للمفضلة', favorite_remove:'إزالة من المفضلة', create_contact:'إنشاء جهة اتصال', archive:'أرشفة المحادثة', unarchive:'إلغاء الأرشفة', clear_chat:'مسح المحادثة', block:'حظر الرقم', unblock:'إلغاء الحظر', reply_placeholder:'اكتب ردًا يدويًا...', ai_reply_placeholder:'راسل أحمد عن عملك...', jump_to_latest:'الانتقال للأحدث', ai_paused:'الذكاء الاصطناعي متوقف لهذا العميل — أنت ترد يدويًا', turn_ai_on:'إعادة تشغيل الذكاء الاصطناعي', search_language:'ابحث عن لغة' },
+  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my account', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages', devices:'Linked Devices', appearance:'Appearance', no_devices_found:'No devices found.', this_device:'This device', last_active:'Last active', sign_out_device_confirm:'Sign out this device? It will be logged out the next time it checks in.', link_new_device:'Link a New Device', link_sub:'Scan this on the new device, or enter the code manually', expires_in:'Expires in', link_instructions:'Open monitor.sparklly.site on the new device and tap "Link with a code" on the sign-in screen, or scan the QR code with its camera.', contact_info:'Contact info', mic_error:'Could not access microphone: ', send_failed:'Failed to send: ', device_linked_success:'New device linked successfully!', unknown_device:'Unknown device', link_code_prompt:'Enter the 6-character code shown on your other device:', cancel:'Cancel', link_with_code:'Link with a code', invalid_code:'That code is invalid.', code_used:'That code has already been used.', code_expired:'That code has expired.', link_failed:'Could not link this device: ', could_not_generate_code:'Could not generate a linking code. Try again.' },
+  ar: { chats:'المحادثات', ai:'الذكاء الاصطناعي', settings:'الإعدادات', search_conversations:'بحث في المحادثات', no_conversations:'لا توجد محادثات بعد.', no_matches:'لا توجد نتائج.', select_conversation:'اختر محادثة لعرضها', sign_in_sub:'سجّل الدخول برقم البائع', seller_chat_id:'رقم البائع', password:'كلمة المرور', sign_in:'تسجيل الدخول', business:'العمل', account:'الحساب', talk_to_ai:'تحدث مع مساعدك الذكي', sign_out:'تسجيل الخروج', delete_account:'حذف حسابي', language:'اللغة', delete_confirm:'سيتم حذف حسابك وكل بياناتك نهائيًا — المنتجات، العملاء، الطلبات، وسجل المحادثات. لا يمكن التراجع عن هذا.\n\nاكتب DELETE للتأكيد:', clear_chat_confirm:'مسح هذه المحادثة؟ سيتم حذف سجل الرسائل نهائيًا.', pin:'تثبيت المحادثة', unpin:'إلغاء التثبيت', mute:'كتم الإشعارات', unmute:'إلغاء الكتم', favorite_add:'إضافة للمفضلة', favorite_remove:'إزالة من المفضلة', create_contact:'إنشاء جهة اتصال', archive:'أرشفة المحادثة', unarchive:'إلغاء الأرشفة', clear_chat:'مسح المحادثة', block:'حظر الرقم', unblock:'إلغاء الحظر', reply_placeholder:'اكتب ردًا يدويًا...', ai_reply_placeholder:'راسل أحمد عن عملك...', jump_to_latest:'الانتقال للأحدث', ai_paused:'الذكاء الاصطناعي متوقف لهذا العميل — أنت ترد يدويًا', turn_ai_on:'إعادة تشغيل الذكاء الاصطناعي', search_language:'ابحث عن لغة', devices:'الأجهزة المرتبطة', appearance:'المظهر', no_devices_found:'لا توجد أجهزة.', this_device:'هذا الجهاز', last_active:'آخر نشاط', sign_out_device_confirm:'تسجيل خروج هذا الجهاز؟ سيتم تسجيل خروجه في المرة القادمة التي يتصل فيها.', link_new_device:'ربط جهاز جديد', link_sub:'امسح هذا على الجهاز الجديد، أو أدخل الرمز يدويًا', expires_in:'تنتهي الصلاحية خلال', link_instructions:'افتح monitor.sparklly.site على الجهاز الجديد واضغط "ربط برمز" في شاشة تسجيل الدخول، أو امسح رمز QR بالكاميرا.', contact_info:'معلومات جهة الاتصال', mic_error:'تعذر الوصول إلى الميكروفون: ', send_failed:'فشل الإرسال: ', device_linked_success:'تم ربط الجهاز الجديد بنجاح!', unknown_device:'جهاز غير معروف', link_code_prompt:'أدخل الرمز المكون من 6 خانات الموجود على جهازك الآخر:', cancel:'إلغاء', link_with_code:'ربط برمز', invalid_code:'هذا الرمز غير صالح.', code_used:'تم استخدام هذا الرمز مسبقًا.', code_expired:'انتهت صلاحية هذا الرمز.', link_failed:'تعذر ربط هذا الجهاز: ', could_not_generate_code:'تعذر إنشاء رمز الربط. حاول مرة أخرى.' },
   es: { chats:'Chats', ai:'IA', settings:'Configuración', search_conversations:'Buscar conversaciones', no_conversations:'Aún no hay conversaciones.', no_matches:'Sin resultados.', select_conversation:'Selecciona una conversación', sign_in_sub:'Inicia sesión con tu ID de vendedor', seller_chat_id:'ID de vendedor', password:'Contraseña', sign_in:'Iniciar sesión', business:'Negocio', account:'Cuenta', talk_to_ai:'Habla con tu asistente de IA', sign_out:'Cerrar sesión', delete_account:'Eliminar mi cuenta', language:'Idioma', delete_confirm:'Esto elimina permanentemente tu cuenta y TODOS los datos: productos, clientes, pedidos e historial. No se puede deshacer.\n\nEscribe DELETE para confirmar:', clear_chat_confirm:'¿Borrar este chat? Esto elimina permanentemente el historial de mensajes.', pin:'Fijar conversación', unpin:'Dejar de fijar', mute:'Silenciar notificaciones', unmute:'Activar notificaciones', favorite_add:'Añadir a favoritos', favorite_remove:'Quitar de favoritos', create_contact:'Crear nuevo contacto', archive:'Archivar chat', unarchive:'Desarchivar chat', clear_chat:'Borrar chat', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Escribe una respuesta...', ai_reply_placeholder:'Escribe a Ahmad sobre tu negocio...', jump_to_latest:'Ir al más reciente', ai_paused:'La IA está desactivada para este cliente — estás respondiendo manualmente', turn_ai_on:'Reactivar la IA', search_language:'Buscar idiomas' },
   fr: { chats:'Discussions', ai:'IA', settings:'Paramètres', search_conversations:'Rechercher des discussions', no_conversations:'Aucune discussion pour le moment.', no_matches:'Aucun résultat.', select_conversation:'Sélectionnez une discussion', sign_in_sub:'Connectez-vous avec votre ID vendeur', seller_chat_id:'ID vendeur', password:'Mot de passe', sign_in:'Se connecter', business:'Entreprise', account:'Compte', talk_to_ai:'Parlez à votre assistant IA', sign_out:'Déconnexion', delete_account:'Supprimer mon compte', language:'Langue', delete_confirm:'Cela supprime définitivement votre compte et TOUTES les données — produits, clients, commandes et historique. Action irréversible.\n\nTapez DELETE pour confirmer :', clear_chat_confirm:'Effacer cette discussion ? Cela supprime définitivement l\u2019historique des messages.', pin:'Épingler la discussion', unpin:'Détacher', mute:'Couper les notifications', unmute:'Réactiver les notifications', favorite_add:'Ajouter aux favoris', favorite_remove:'Retirer des favoris', create_contact:'Créer un contact', archive:'Archiver la discussion', unarchive:'Désarchiver', clear_chat:'Effacer la discussion', block:'Bloquer le numéro', unblock:'Débloquer le numéro', reply_placeholder:'Écrire une réponse manuelle...', ai_reply_placeholder:'Écrire à Ahmad à propos de votre entreprise...', jump_to_latest:'Aller au plus récent', ai_paused:"L'IA est désactivée pour ce client — vous répondez manuellement", turn_ai_on:"Réactiver l'IA", search_language:'Rechercher une langue' },
   tr: { chats:'Sohbetler', ai:'YZ', settings:'Ayarlar', search_conversations:'Sohbetlerde ara', no_conversations:'Henüz sohbet yok.', no_matches:'Sonuç yok.', select_conversation:'Görüntülemek için bir sohbet seçin', sign_in_sub:'Satıcı kimliğinizle giriş yapın', seller_chat_id:'Satıcı kimliği', password:'Şifre', sign_in:'Giriş yap', business:'İşletme', account:'Hesap', talk_to_ai:'Yapay zeka asistanınızla konuşun', sign_out:'Çıkış yap', delete_account:'Hesabımı sil', language:'Dil', delete_confirm:'Bu, hesabınızı ve TÜM verilerinizi kalıcı olarak siler — ürünler, müşteriler, siparişler ve sohbet geçmişi. Geri alınamaz.\n\nOnaylamak için DELETE yazın:', clear_chat_confirm:'Bu sohbet temizlensin mi? Mesaj geçmişi kalıcı olarak silinecek.', pin:'Sohbeti sabitle', unpin:'Sabitlemeyi kaldır', mute:'Bildirimleri sustur', unmute:'Bildirimleri aç', favorite_add:'Favorilere ekle', favorite_remove:'Favorilerden çıkar', create_contact:'Yeni kişi oluştur', archive:'Sohbeti arşivle', unarchive:'Arşivden çıkar', clear_chat:'Sohbeti temizle', block:'Numarayı engelle', unblock:'Engeli kaldır', reply_placeholder:'Manuel yanıt yazın...', ai_reply_placeholder:'İşletmeniz hakkında Ahmad\'a yazın...', jump_to_latest:'En yeniye git', ai_paused:'Bu müşteri için YZ kapalı — manuel yanıt veriyorsunuz', turn_ai_on:'YZ\'yi tekrar aç', search_language:'Dil ara' },
@@ -1311,7 +1305,13 @@ function t(key) {
 }
 function applyLanguageDirection() {
   const langMeta = LANGUAGES.find(l => l.code === currentLang);
-  document.documentElement.dir = (langMeta && langMeta.rtl) ? 'rtl' : 'ltr';
+  const isRtl = !!(langMeta && langMeta.rtl);
+  // html/body direction stays 'ltr' ALWAYS — the app shell (nav, buttons,
+  // gestures) must never structurally flip. Only text content gets RTL
+  // treatment, via this opt-in class rather than direction cascading down
+  // from the root (which is what broke navigation before).
+  document.documentElement.dir = 'ltr';
+  document.body.classList.toggle('lang-rtl', isRtl);
   document.documentElement.lang = currentLang;
 }
 
@@ -1514,7 +1514,7 @@ function renderConvoList() {
             <span class="convo-time">${timeAgo(c.timestamp)}</span>
           </div>
           <div class="convo-preview-row">
-            <span class="convo-preview">${c.role === 'user' ? '' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;opacity:0.6;"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>'}${escapeHtml(c.message).slice(0, 46)}</span>
+            <span class="convo-preview" dir="auto">${c.role === 'user' ? '' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;opacity:0.6;"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>'}${escapeHtml(c.message).slice(0, 46)}</span>
             <span style="display:flex;align-items:center;gap:6px;">
               ${isUnread ? '<span class="unread-badge"></span>' : ''}
               <span class="status-dot ${c.aiActive ? 'live' : 'paused'}"></span>
@@ -1965,7 +1965,7 @@ function renderBubble(m) {
   const time = new Date(m.timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const ticks = isOut ? `<span class="ticks${m.read ? ' read' : ''}"><svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg></span>` : '';
   return `<div class="msg-row ${isOut ? 'out' : 'in'}">
-    <div class="bubble ${isNote ? 'private-note' : ''}"><span class="msg-text">${escapeHtml(m.message)}</span><span class="ts">${time}${ticks}</span></div>
+    <div class="bubble ${isNote ? 'private-note' : ''}"><span class="msg-text" dir="auto">${escapeHtml(m.message)}</span><span class="ts">${time}${ticks}</span></div>
   </div>`;
 }
 
@@ -2080,7 +2080,7 @@ window.sendAhmadMessage = async function() {
     }).catch(() => {});
     await renderAhmadChatPanel();
   } catch (e) {
-    alert('Failed to send: ' + e.message);
+    alert(t('send_failed') + e.message);
   }
   const freshBtn = document.getElementById('send-btn');
   if (freshBtn) freshBtn.disabled = false;
@@ -2217,7 +2217,7 @@ window.toggleRecording = async function(phone) {
       if (timerSpan) timerSpan.textContent = m + ':' + s;
     }, 1000);
   } catch (e) {
-    alert('Could not access microphone: ' + e.message);
+    alert(t('mic_error') + e.message);
   }
 };
 
@@ -2267,10 +2267,10 @@ window.sendReply = async function(phone) {
       const freshTextarea = document.getElementById('reply-text');
       if (freshTextarea) freshTextarea.focus();
     } else {
-      alert('Failed to send: ' + (data && data.reason ? data.reason : 'unknown error'));
+      alert(t('send_failed') + (data && data.reason ? data.reason : 'unknown error'));
     }
   } catch (e) {
-    alert('Failed to send: ' + e.message);
+    alert(t('send_failed') + e.message);
   }
   const freshBtn = document.getElementById('send-btn');
   if (freshBtn) freshBtn.disabled = false;
@@ -2397,7 +2397,7 @@ function showLoginScreen(errorMsg) {
       <input id="login-chatid" placeholder="Seller chat ID" autocomplete="off">
       <input id="login-password" type="password" placeholder="Password">
       <button id="login-btn" onclick="doLogin()">Sign in</button>
-      <button type="button" onclick="promptLinkCode()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Link with a code</button>
+      <button id="link-with-code-btn" type="button" onclick="promptLinkCode()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Link with a code</button>
       <a href="privacy.html" target="_blank" style="font-size:11.5px;color:var(--text-muted);text-align:center;margin-top:4px;">Privacy Policy</a>
     </div>
   `;
@@ -2581,11 +2581,11 @@ async function renderDevicesList() {
   const linkBtnHtml = `
     <div class="link-device-btn" onclick="openLinkDeviceFlow()">
       <div class="device-icon" style="background:var(--accent-soft);color:var(--accent);"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-      <span>Link a New Device</span>
+      <span>${t('link_new_device')}</span>
     </div>`;
 
   if (!rows || rows.length === 0) {
-    list.innerHTML = linkBtnHtml + '<div id="loading">No devices found.</div>';
+    list.innerHTML = linkBtnHtml + '<div id="loading">' + t('no_devices_found') + '</div>';
     return;
   }
   list.innerHTML = linkBtnHtml + rows.map(r => {
@@ -2594,16 +2594,16 @@ async function renderDevicesList() {
     <div class="device-row">
       <div class="device-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg></div>
       <div class="device-info">
-        <div class="device-label">${escapeHtml(r.device_label || 'Unknown device')}${isThis ? ' <span class="device-this-tag">This device</span>' : ''}</div>
-        <div class="device-time">Last active ${timeAgo(r.last_seen_at)}</div>
+        <div class="device-label">${escapeHtml(r.device_label || t('unknown_device'))}${isThis ? ' <span class="device-this-tag">' + t('this_device') + '</span>' : ''}</div>
+        <div class="device-time">${t('last_active')} ${timeAgo(r.last_seen_at)}</div>
       </div>
-      ${!isThis ? `<button class="device-signout-btn" onclick="signOutDevice('${r.id}')">Sign out</button>` : ''}
+      ${!isThis ? `<button class="device-signout-btn" onclick="signOutDevice('${r.id}')">${t('sign_out')}</button>` : ''}
     </div>`;
   }).join('');
 }
 
 window.signOutDevice = async function(sessionId) {
-  const ok = confirm('Sign out this device? It will be logged out the next time it checks in.');
+  const ok = confirm(t('sign_out_device_confirm'));
   if (!ok) return;
   try {
     await fetch(SUPABASE_URL + '/rest/v1/sessions?id=eq.' + sessionId, {
@@ -2637,7 +2637,7 @@ window.openLinkDeviceFlow = async function() {
       body: JSON.stringify({ code, seller_id: SELLER_CHAT_ID, expires_at: expiresAt.toISOString() })
     });
   } catch (e) {
-    alert('Could not generate a linking code. Try again.');
+    alert(t('could_not_generate_code'));
     return;
   }
   const linkUrl = window.location.origin + window.location.pathname + '?link=' + code;
@@ -2661,7 +2661,7 @@ window.openLinkDeviceFlow = async function() {
       if (rows && rows[0] && rows[0].used) {
         closeLinkDeviceFlow();
         await renderDevicesList();
-        alert('New device linked successfully!');
+        alert(t('device_linked_success'));
       }
     } catch (e) {}
   }, 3000);
@@ -2678,10 +2678,10 @@ window.closeLinkDeviceFlow = function() {
 async function redeemLinkCode(code) {
   try {
     const rows = await sb('device_link_codes?code=eq.' + encodeURIComponent(code) + '&select=seller_id,used,expires_at');
-    if (!rows || rows.length === 0) { alert('That code is invalid.'); return false; }
+    if (!rows || rows.length === 0) { alert(t('invalid_code')); return false; }
     const row = rows[0];
-    if (row.used) { alert('That code has already been used.'); return false; }
-    if (new Date(row.expires_at) < new Date()) { alert('That code has expired.'); return false; }
+    if (row.used) { alert(t('code_used')); return false; }
+    if (new Date(row.expires_at) < new Date()) { alert(t('code_expired')); return false; }
     await fetch(SUPABASE_URL + '/rest/v1/device_link_codes?code=eq.' + encodeURIComponent(code), {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -2692,13 +2692,13 @@ async function redeemLinkCode(code) {
     startApp();
     return true;
   } catch (e) {
-    alert('Could not link this device: ' + e.message);
+    alert(t('link_failed') + e.message);
     return false;
   }
 }
 
 window.promptLinkCode = async function() {
-  const code = prompt('Enter the 6-character code shown on your other device:');
+  const code = prompt(t('link_code_prompt'));
   if (!code) return;
   await redeemLinkCode(code.trim().toUpperCase());
 };
@@ -2734,6 +2734,13 @@ function applyTranslations() {
   set('settings-label-language', 'language');
   set('settings-label-devices', 'devices');
   set('settings-label-appearance', 'appearance');
+  set('link-title', 'link_new_device');
+  set('link-sub', 'link_sub');
+  set('link-expiry-label', 'expires_in');
+  set('link-instructions-text', 'link_instructions');
+  set('link-cancel-btn', 'cancel');
+  set('contact-info-title', 'contact_info');
+  set('link-with-code-btn', 'link_with_code');
   const langMeta = LANGUAGES.find(l => l.code === currentLang);
   const currentLangLabel = document.getElementById('current-lang-label');
   if (currentLangLabel) currentLangLabel.textContent = langMeta ? langMeta.name : 'English';
