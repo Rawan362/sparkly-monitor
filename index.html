@@ -2560,6 +2560,7 @@ function showLoginScreen(errorMsg) {
       <button id="login-btn" onclick="doLogin()">Sign in</button>
       <button id="link-with-code-btn" type="button" onclick="openNewDeviceLinkScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Link with a code</button>
       <a href="privacy.html" target="_blank" style="font-size:11.5px;color:var(--text-muted);text-align:center;margin-top:4px;">Privacy Policy</a>
+      <button type="button" onclick="showLoginDebugLog()" style="background:none;border:none;color:var(--text-muted);font-size:10.5px;text-decoration:underline;cursor:pointer;margin-top:2px;">Debug Log</button>
     </div>
   `;
   document.getElementById('login-chatid').focus();
@@ -2757,6 +2758,13 @@ function promptCopyFallback(text) {
 window.clearDebugLog = function() {
   localStorage.removeItem('sparkly_debug_log');
   renderDebugLog();
+};
+
+window.showLoginDebugLog = function() {
+  let entries = [];
+  try { entries = JSON.parse(localStorage.getItem('sparkly_debug_log') || '[]'); } catch (e) {}
+  const text = entries.map(e => e.t + '  ' + e.m).join('\n') || 'No log entries yet.';
+  prompt('Debug log — copy this text (select all, copy):', text);
 };
 
 window.openDevicesPanel = async function() {
