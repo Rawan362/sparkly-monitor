@@ -2881,7 +2881,9 @@ function scanLoop() {
   if (window.jsQR) {
     const result = jsQR(imageData.data, imageData.width, imageData.height);
     if (result && result.data) {
-      claimDeviceCode(result.data.trim().toUpperCase());
+      const scannedCode = result.data.trim().toUpperCase();
+      stopDeviceScanner(); // release the camera BEFORE any dialog shows
+      claimDeviceCode(scannedCode);
       return;
     }
   }
