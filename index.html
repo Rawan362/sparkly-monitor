@@ -2464,9 +2464,25 @@ function initAuth() {
   if (savedId) {
     SELLER_CHAT_ID = savedId;
     startApp();
-  } else {
-    showLandingPage();
+    return;
   }
+
+  // If we were mid-way through "Link with a code" and got silently reloaded
+  // (a known iOS behavior for installed home-screen apps), resume exactly
+  // where we left off instead of losing the whole flow.
+  try {
+    const pending = JSON.parse(localStorage.getItem('sparkly_pending_link_code') || 'null');
+    if (pending && pending.code && new Date(pending.expiresAt) > new Date()) {
+      debugLog('initAuth: resuming pending link code="' + pending.code + '" after reload');
+      showLandingPage();
+      resumeLinkCodeDisplay(pending.code, new Date(pending.expiresAt));
+      return;
+    } else if (pending) {
+      localStorage.removeItem('sparkly_pending_link_code'); // expired — clean up
+    }
+  } catch (e) {}
+
+  showLandingPage();
 }
 
 function showLandingPage() {
@@ -2848,7 +2864,6 @@ function generateLinkCode() {
 // to scan and claim it.
 window.openNewDeviceLinkScreen = async function() {
   const code = generateLinkCode();
-  myPendingLinkCode = code;
   debugLog('openNewDeviceLinkScreen: generated code="' + code + '"');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   try {
@@ -2869,6 +2884,17 @@ window.openNewDeviceLinkScreen = async function() {
     alert(t('could_not_generate_code'));
     return;
   }
+  // Persist so that if iOS silently kills and reloads this page (a known
+  // behavior for installed home-screen apps), we can resume exactly where
+  // we left off instead of losing the whole flow.
+  localStorage.setItem('sparkly_pending_link_code', JSON.stringify({ code, expiresAt: expiresAt.toISOString() }));
+  resumeLinkCodeDisplay(code, expiresAt);
+};
+
+// Shared by both a fresh code generation and resuming after a forced reload.
+function resumeLinkCodeDisplay(code, expiresAt) {
+  myPendingLinkCode = code;
+  debugLog('resumeLinkCodeDisplay: showing code="' + code + '", expires=' + expiresAt.toISOString());
   document.getElementById('link-title').textContent = 'Waiting to be linked...';
   document.getElementById('link-sub').textContent = 'On your other signed-in device, go to Settings → Linked Devices → Link a New Device, and scan this';
   document.getElementById('link-qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(code);
@@ -2893,6 +2919,7 @@ window.openNewDeviceLinkScreen = async function() {
     if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — last: ' + now;
     try {
       const rows = await sb('device_link_codes?code=eq.' + code + '&select=seller_id,used');
+      debugLog('checkLinkApproval #' + checkLinkApproval.count + ': used=' + (rows && rows[0] && rows[0].used) + ' seller_id=' + (rows && rows[0] && rows[0].seller_id));
       if (!rows || !rows[0]) {
         if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — code not found in database!';
         return;
@@ -2903,6 +2930,7 @@ window.openNewDeviceLinkScreen = async function() {
           // Approved, but something went wrong recording who approved it — don't hang forever silently
           clearInterval(linkCodePollTimer);
           clearInterval(linkCodeExpiryTimer);
+          localStorage.removeItem('sparkly_pending_link_code');
           alert('This device was approved, but something went wrong completing sign-in. Please try linking again.');
           closeLinkDeviceFlow();
           return;
@@ -2913,12 +2941,15 @@ window.openNewDeviceLinkScreen = async function() {
           document.removeEventListener('visibilitychange', linkVisibilityHandler);
           window.removeEventListener('focus', linkVisibilityHandler);
         }
+        localStorage.removeItem('sparkly_pending_link_code');
         SELLER_CHAT_ID = rows[0].seller_id;
         localStorage.setItem('sparkly_seller_chat_id', rows[0].seller_id);
         document.getElementById('link-device-overlay').classList.remove('show');
+        debugLog('checkLinkApproval: SUCCESS - calling startApp()');
         startApp();
       }
     } catch (e) {
+      debugLog('checkLinkApproval: ERROR: ' + e.message);
       if (statusEl) statusEl.textContent = 'Checked ' + checkLinkApproval.count + ' times — error: ' + e.message;
     }
   };
@@ -2933,7 +2964,8 @@ window.openNewDeviceLinkScreen = async function() {
 
   clearInterval(linkCodePollTimer);
   linkCodePollTimer = setInterval(checkLinkApproval, 1200);
-};
+  checkLinkApproval(); // also check immediately on resume, don't wait for the first tick
+}
 
 window.closeLinkDeviceFlow = function() {
   document.getElementById('link-device-overlay').classList.remove('show');
@@ -2945,6 +2977,7 @@ window.closeLinkDeviceFlow = function() {
     linkVisibilityHandler = null;
   }
   myPendingLinkCode = null;
+  localStorage.removeItem('sparkly_pending_link_code');
   stopDeviceScanner();
 };
 
