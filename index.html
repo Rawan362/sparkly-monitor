@@ -253,6 +253,11 @@
     outline: none;
   }
   #lang-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  #debug-log-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #debug-log-content { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.6; }
+  .debug-log-line { color: var(--text); border-bottom: 1px solid var(--border); padding: 4px 0; word-break: break-word; }
+  .debug-log-line .debug-time { color: var(--accent); margin-right: 6px; }
+  .debug-log-line.debug-error { color: var(--danger); }
   .lang-row {
     display: flex;
     align-items: center;
@@ -1262,6 +1267,10 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
         <span id="settings-label-devices">Linked Devices</span>
       </div>
+      <div class="settings-row" onclick="openDebugLog()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>Debug Log</span>
+      </div>
       <div class="settings-section-label" id="settings-label-account">Account</div>
       <div class="settings-row danger" onclick="logout()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -1271,6 +1280,15 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span id="settings-label-delete">Delete my account</span>
       </div>
+    </div>
+    <div id="debug-log-tab-content" style="display:none;">
+      <div id="lang-header">
+        <button onclick="closeDebugLog()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span style="font-weight:600;font-size:14.5px;">Debug Log</span>
+        <button onclick="copyDebugLog()" style="margin-left:auto;border:none;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;">Copy</button>
+        <button onclick="clearDebugLog()" style="border:none;background:var(--danger-soft);color:var(--danger);font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;">Clear</button>
+      </div>
+      <div id="debug-log-content"></div>
     </div>
     <div id="appearance-tab-content" style="display:none;">
       <div id="lang-header">
@@ -1449,6 +1467,32 @@ if (window.matchMedia) {
     if (appearanceMode === 'system') applyTheme();
   });
 }
+
+// ═══ Debug log — persists in localStorage so it survives even if the page
+// unexpectedly reloads or crashes, which is exactly what we need to catch
+// right now. Not shown to normal users; accessed via Settings when needed. ═══
+function debugLog(msg) {
+  try {
+    const key = 'sparkly_debug_log';
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    existing.push({ t: new Date().toISOString().slice(11, 23), m: String(msg) });
+    while (existing.length > 200) existing.shift();
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (e) {}
+  console.log('[debug]', msg);
+}
+window.addEventListener('error', (e) => {
+  debugLog('JS ERROR: ' + e.message + ' @ ' + (e.filename || '').split('/').pop() + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  debugLog('UNHANDLED REJECTION: ' + ((e.reason && e.reason.message) || e.reason));
+});
+document.addEventListener('visibilitychange', () => {
+  debugLog('visibilitychange: hidden=' + document.hidden);
+});
+window.addEventListener('pagehide', () => { debugLog('pagehide event fired'); });
+window.addEventListener('beforeunload', () => { debugLog('beforeunload event fired — page is navigating/reloading NOW'); });
+window.addEventListener('load', () => { debugLog('=== PAGE LOADED ==='); });
 
 const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbW1vb2J3enVoaWltbWppeGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTMzNDcsImV4cCI6MjA5NDI2OTM0N30.ZC81X_-Fe3tjPDhL7s6oemlTJDuIWRnguDIq3ZklxeA';
@@ -2593,7 +2637,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -2668,6 +2712,51 @@ window.selectAppearance = function(mode) {
   applyTheme();
   renderAppearanceList();
   closeAppearancePicker();
+};
+
+window.openDebugLog = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('debug-log-tab-content');
+  panel.style.display = 'flex';
+  renderDebugLog();
+};
+
+window.closeDebugLog = function() {
+  document.getElementById('debug-log-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+function renderDebugLog() {
+  const content = document.getElementById('debug-log-content');
+  let entries = [];
+  try { entries = JSON.parse(localStorage.getItem('sparkly_debug_log') || '[]'); } catch (e) {}
+  if (entries.length === 0) {
+    content.innerHTML = '<div style="color:var(--text-muted);padding:20px 0;">No log entries yet. Go try the device-linking flow, then come back here.</div>';
+    return;
+  }
+  content.innerHTML = entries.slice().reverse().map(e =>
+    `<div class="debug-log-line ${/error|exception|failed|abort/i.test(e.m) ? 'debug-error' : ''}"><span class="debug-time">${e.t}</span>${escapeHtml(e.m)}</div>`
+  ).join('');
+}
+
+window.copyDebugLog = function() {
+  let entries = [];
+  try { entries = JSON.parse(localStorage.getItem('sparkly_debug_log') || '[]'); } catch (e) {}
+  const text = entries.map(e => e.t + '  ' + e.m).join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => alert('Copied — paste it in chat.')).catch(() => promptCopyFallback(text));
+  } else {
+    promptCopyFallback(text);
+  }
+};
+
+function promptCopyFallback(text) {
+  prompt('Copy this text (select all, copy):', text);
+}
+
+window.clearDebugLog = function() {
+  localStorage.removeItem('sparkly_debug_log');
+  renderDebugLog();
 };
 
 window.openDevicesPanel = async function() {
@@ -2752,6 +2841,7 @@ function generateLinkCode() {
 window.openNewDeviceLinkScreen = async function() {
   const code = generateLinkCode();
   myPendingLinkCode = code;
+  debugLog('openNewDeviceLinkScreen: generated code="' + code + '"');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/device_link_codes', {
@@ -2759,12 +2849,15 @@ window.openNewDeviceLinkScreen = async function() {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ code, seller_id: null, expires_at: expiresAt.toISOString() })
     });
+    debugLog('openNewDeviceLinkScreen: POST status=' + res.status);
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
+      debugLog('openNewDeviceLinkScreen: POST FAILED body=' + errText);
       alert(t('could_not_generate_code') + '\n\n(' + res.status + ': ' + errText + ')');
       return;
     }
   } catch (e) {
+    debugLog('openNewDeviceLinkScreen: EXCEPTION: ' + e.message);
     alert(t('could_not_generate_code'));
     return;
   }
@@ -2854,14 +2947,19 @@ let scannerStream = null;
 let scannerRafId = null;
 
 window.openDeviceScanner = async function() {
+  debugLog('openDeviceScanner: called, SELLER_CHAT_ID=' + SELLER_CHAT_ID);
   document.getElementById('scanner-overlay').classList.add('show');
   const video = document.getElementById('scanner-video');
   try {
+    debugLog('openDeviceScanner: requesting camera...');
     scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    debugLog('openDeviceScanner: camera stream acquired');
     video.srcObject = scannerStream;
     await video.play();
+    debugLog('openDeviceScanner: video playing, starting scan loop');
     scanLoop();
   } catch (e) {
+    debugLog('openDeviceScanner: CAMERA ERROR: ' + e.message);
     document.getElementById('scanner-camera-error').style.display = 'flex';
   }
 };
@@ -2882,7 +2980,9 @@ function scanLoop() {
     const result = jsQR(imageData.data, imageData.width, imageData.height);
     if (result && result.data) {
       const scannedCode = result.data.trim().toUpperCase();
+      debugLog('scanLoop: QR DETECTED, raw="' + result.data + '" cleaned="' + scannedCode + '"');
       stopDeviceScanner(); // release the camera BEFORE any dialog shows
+      debugLog('scanLoop: camera stopped, calling claimDeviceCode');
       claimDeviceCode(scannedCode);
       return;
     }
@@ -2900,6 +3000,7 @@ function stopDeviceScanner() {
 }
 
 window.closeDeviceScanner = function() {
+  debugLog('closeDeviceScanner: manually closed by user');
   stopDeviceScanner();
 };
 
@@ -2907,36 +3008,50 @@ window.submitManualScanCode = async function() {
   const input = document.getElementById('scanner-manual-input');
   const code = (input.value || '').trim().toUpperCase();
   if (!code) return;
+  debugLog('submitManualScanCode: manual code entered="' + code + '"');
   await claimDeviceCode(code);
 };
 
 async function claimDeviceCode(code) {
+  debugLog('claimDeviceCode: START code="' + code + '" SELLER_CHAT_ID=' + SELLER_CHAT_ID);
   if (!SELLER_CHAT_ID) {
+    debugLog('claimDeviceCode: ABORT - no SELLER_CHAT_ID');
     alert('Your own session looks invalid — please sign out and back in, then try linking again.');
     return;
   }
   try {
+    debugLog('claimDeviceCode: looking up code in database...');
     const rows = await sb('device_link_codes?code=eq.' + encodeURIComponent(code) + '&select=used,seller_id,expires_at');
-    if (!rows || rows.length === 0) { alert(t('invalid_code')); return; }
+    debugLog('claimDeviceCode: lookup result: ' + JSON.stringify(rows));
+    if (!rows || rows.length === 0) { debugLog('claimDeviceCode: code not found'); alert(t('invalid_code')); return; }
     const row = rows[0];
-    if (row.used) { alert(t('code_used')); return; }
-    if (new Date(row.expires_at) < new Date()) { alert(t('code_expired')); return; }
+    if (row.used) { debugLog('claimDeviceCode: already used'); alert(t('code_used')); return; }
+    if (new Date(row.expires_at) < new Date()) { debugLog('claimDeviceCode: expired'); alert(t('code_expired')); return; }
+    debugLog('claimDeviceCode: about to show confirm() dialog');
     const ok = confirm('Link this new device to your account?');
+    debugLog('claimDeviceCode: confirm() returned ' + ok);
     if (!ok) return;
+    debugLog('claimDeviceCode: sending PATCH to approve...');
     const res = await fetch(SUPABASE_URL + '/rest/v1/device_link_codes?code=eq.' + encodeURIComponent(code), {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ used: true, seller_id: SELLER_CHAT_ID })
     });
+    debugLog('claimDeviceCode: PATCH responded, status=' + res.status + ' ok=' + res.ok);
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
+      debugLog('claimDeviceCode: PATCH FAILED body=' + errText);
       alert(t('link_failed') + 'Server rejected the update (status ' + res.status + '). ' + errText);
       return;
     }
+    debugLog('claimDeviceCode: SUCCESS - refreshing device list');
     stopDeviceScanner();
     await renderDevicesList();
+    debugLog('claimDeviceCode: about to show success alert');
     alert(t('device_linked_success'));
+    debugLog('claimDeviceCode: DONE, function complete');
   } catch (e) {
+    debugLog('claimDeviceCode: EXCEPTION: ' + e.message);
     alert(t('link_failed') + e.message);
   }
 }
