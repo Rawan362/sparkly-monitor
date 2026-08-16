@@ -895,6 +895,26 @@
     justify-content: center;
   }
   #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .composer-swap-wrap {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+  .composer-swap-wrap #mic-btn,
+  .composer-swap-wrap #send-btn {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease;
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  .composer-swap-wrap .btn-hidden {
+    transform: scale(0.3) rotate(-75deg);
+    opacity: 0;
+    pointer-events: none;
+  }
   #mic-btn {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -2471,8 +2491,8 @@ function toggleComposerButtons(textarea) {
   if (!micBtn) return; // this composer has no mic (e.g. Ahmad chat) — send button always stays visible
   const hasText = !!(textarea && textarea.value.trim().length > 0);
   const sendBtn = document.getElementById('send-btn');
-  micBtn.style.display = hasText ? 'none' : 'flex';
-  if (sendBtn) sendBtn.style.display = hasText ? 'flex' : 'none';
+  micBtn.classList.toggle('btn-hidden', hasText);
+  if (sendBtn) sendBtn.classList.toggle('btn-hidden', !hasText);
 }
 
 function escapeHtml(s) {
@@ -2708,8 +2728,10 @@ async function loadThread(phone, silent) {
       <button id="attach-btn" onclick="toggleAttachMenu()" title="Attach"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
       <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1" oninput="toggleComposerButtons(this)"></textarea>
-      <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
-      <button id="send-btn" onclick="sendReply('${phone}')" title="Send" style="display:none;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      <div class="composer-swap-wrap">
+        <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
+        <button id="send-btn" class="btn-hidden" onclick="sendReply('${phone}')" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      </div>
     </div>
   `;
   if (!silent) playScreenTransition();
@@ -2992,7 +3014,7 @@ window.toggleRecording = async function(phone) {
     bar.id = 'recording-bar';
     const waveBars = Array.from({ length: 24 }, (_, i) => `<span style="animation-delay:${(i % 6) * 0.12}s"></span>`).join('');
     bar.innerHTML = `<span class="rec-dot"></span><span id="rec-timer">0:00</span><span class="rec-waveform">${waveBars}</span><button id="rec-cancel" title="Cancel"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
-    composer.insertBefore(bar, micBtn);
+    composer.insertBefore(bar, micBtn.parentElement);
     document.getElementById('rec-cancel').onclick = () => {
       window._recordingCancelled = true;
       if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
