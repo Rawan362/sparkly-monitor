@@ -861,6 +861,52 @@
     flex-shrink: 0;
   }
   #emoji-picker .emoji-item:hover { background: var(--panel-2); }
+  #attach-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+  #attach-btn:hover { color: var(--accent); }
+  #attach-menu {
+    display: none;
+    position: fixed;
+    z-index: 55;
+    width: 190px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--elevate-lg, 0 12px 30px -10px rgba(42,42,38,0.3));
+    overflow: hidden;
+    padding: 6px 0;
+  }
+  #attach-menu.show { display: block; }
+  .attach-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    font-size: 13.5px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .attach-menu-item:hover { background: var(--panel-2); }
+  .attach-menu-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+  }
   @keyframes pulse-rec {
     0% { box-shadow: 0 0 0 0 rgba(210,72,63,0.45); }
     70% { box-shadow: 0 0 0 8px rgba(210,72,63,0); }
@@ -1377,6 +1423,10 @@
 </div>
 
 <div id="emoji-picker"></div>
+
+<div id="attach-menu"></div>
+<input type="file" id="photo-input" accept="image/*" style="display:none;" onchange="handleAttachFile(this, 'image')">
+<input type="file" id="file-input" style="display:none;" onchange="handleAttachFile(this, 'document')">
 
 <div id="scanner-overlay" onclick="if(event.target===this) closeDeviceScanner()">
   <div id="scanner-panel">
@@ -1973,6 +2023,126 @@ window.insertEmoji = function(emoji) {
   toggleComposerButtons(textarea);
 };
 
+// ═══ Attach menu: Photo, File, Location — sent as real WhatsApp media
+// messages through Meta's API, same pattern as voice notes. ═══
+window.toggleAttachMenu = function() {
+  const menu = document.getElementById('attach-menu');
+  if (menu.classList.contains('show')) { closeAttachMenu(); return; }
+
+  if (!menu.dataset.built) {
+    menu.innerHTML = `
+      <div class="attach-menu-item" onclick="closeAttachMenu(); document.getElementById('photo-input').click();">
+        <div class="attach-menu-icon" style="background:#8B5CF6;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        Photo
+      </div>
+      <div class="attach-menu-item" onclick="closeAttachMenu(); document.getElementById('file-input').click();">
+        <div class="attach-menu-icon" style="background:#2E4A87;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        File
+      </div>
+      <div class="attach-menu-item" onclick="closeAttachMenu(); sendLocation();">
+        <div class="attach-menu-icon" style="background:#2F9E6E;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        Location
+      </div>
+    `;
+    menu.dataset.built = '1';
+  }
+
+  const btn = document.getElementById('attach-btn');
+  const rect = btn.getBoundingClientRect();
+  menu.style.left = Math.max(8, rect.left) + 'px';
+  menu.style.top = (rect.top - 172) + 'px';
+  menu.classList.add('show');
+  setTimeout(() => document.addEventListener('click', attachOutsideClick), 0);
+};
+
+window.closeAttachMenu = function() {
+  document.getElementById('attach-menu').classList.remove('show');
+  document.removeEventListener('click', attachOutsideClick);
+};
+
+function attachOutsideClick(e) {
+  const menu = document.getElementById('attach-menu');
+  const btn = document.getElementById('attach-btn');
+  if (menu && !menu.contains(e.target) && e.target !== btn && !(btn && btn.contains(e.target))) {
+    closeAttachMenu();
+  }
+}
+
+window.handleAttachFile = function(input, kind) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 15 * 1024 * 1024) {
+    alert('File is too large (max 15MB).');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onloadend = async () => {
+    await sendAttachment(reader.result, file.type || 'application/octet-stream', kind, file.name);
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+async function sendAttachment(dataUrl, mimeType, kind, fileName) {
+  if (!activePhone) return;
+  try {
+    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: activePhone,
+        sellerChatId: SELLER_CHAT_ID,
+        attachmentBase64: dataUrl,
+        attachmentMimeType: mimeType,
+        attachmentKind: kind,
+        attachmentFileName: fileName || ''
+      })
+    });
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (data && data.success) {
+      await loadConversations();
+      await loadThread(activePhone);
+    } else {
+      alert('Failed to send: ' + (data && data.reason ? data.reason : 'unknown error'));
+    }
+  } catch (e) {
+    alert('Failed to send: ' + e.message);
+  }
+}
+
+window.sendLocation = async function() {
+  if (!activePhone) return;
+  if (!navigator.geolocation) { alert('Location is not available on this device.'); return; }
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      const res = await fetch(MANUAL_SEND_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: activePhone,
+          sellerChatId: SELLER_CHAT_ID,
+          locationLat: pos.coords.latitude,
+          locationLng: pos.coords.longitude
+        })
+      });
+      const rawData = await res.json();
+      const data = Array.isArray(rawData) ? rawData[0] : rawData;
+      if (data && data.success) {
+        await loadConversations();
+        await loadThread(activePhone);
+      } else {
+        alert('Failed to send location: ' + (data && data.reason ? data.reason : 'unknown error'));
+      }
+    } catch (e) {
+      alert('Failed to send location: ' + e.message);
+    }
+  }, (err) => {
+    alert('Could not get your location: ' + err.message);
+  });
+};
+
 function toggleComposerButtons(textarea) {
   const micBtn = document.getElementById('mic-btn');
   if (!micBtn) return; // this composer has no mic (e.g. Ahmad chat) — send button always stays visible
@@ -2207,6 +2377,7 @@ async function loadThread(phone, silent) {
     <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="${t('jump_to_latest')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
     ${!isActive ? `<div id="ai-paused-banner"><span>${t('ai_paused')}</span><button onclick="resumeAI('${phone}')">${t('turn_ai_on')}</button></div>` : ''}
     <div id="composer">
+      <button id="attach-btn" onclick="toggleAttachMenu()" title="Attach"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
       <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1" oninput="toggleComposerButtons(this)"></textarea>
       <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
