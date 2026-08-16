@@ -743,6 +743,101 @@
   .ts .ticks { display: inline-flex; }
   .ts .ticks svg { display: block; }
   .ts .ticks.read { color: #4FB3F6; }
+
+  .msg-badges { display: inline-flex; gap: 3px; opacity: 0.6; vertical-align: -1px; margin-right: 4px; }
+  .msg-reply-quote {
+    border-left: 3px solid var(--accent);
+    background: rgba(0,0,0,0.05);
+    border-radius: 6px;
+    padding: 4px 8px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .msg-row { position: relative; }
+  .msg-row.long-press-active .bubble { filter: brightness(0.93); }
+
+  #reply-preview-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--panel-2);
+    border-top: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+  }
+  #reply-preview-bar.show { display: flex; }
+  #reply-preview-bar .reply-preview-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #reply-preview-bar .reply-preview-label { color: var(--accent); font-weight: 600; display: block; font-size: 11.5px; }
+  #reply-preview-bar button { border: none; background: none; color: var(--text-muted); cursor: pointer; display: flex; flex-shrink: 0; }
+
+  #msg-action-menu {
+    display: none;
+    position: fixed;
+    z-index: 65;
+    width: 200px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--elevate-lg, 0 12px 30px -10px rgba(42,42,38,0.3));
+    overflow: hidden;
+    padding: 6px 0;
+  }
+  #msg-action-menu.show { display: block; }
+  .msg-action-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    font-size: 13.5px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .msg-action-item:hover { background: var(--panel-2); }
+  .msg-action-item.danger { color: var(--danger); }
+  .msg-action-item svg { flex-shrink: 0; opacity: 0.75; }
+
+  #forward-picker-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20,18,14,0.4);
+    z-index: 70;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #forward-picker-overlay.show { display: flex; }
+  #forward-picker-panel {
+    width: 100%;
+    max-width: 420px;
+    background: var(--panel);
+    border-radius: 18px 18px 0 0;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+  }
+  #forward-picker-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14.5px; }
+  #forward-picker-list { overflow-y: auto; padding: 6px 0; }
+  .forward-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13.5px;
+  }
+  .forward-picker-item:hover { background: var(--panel-2); }
   .bubble.private-note { background: var(--badge-gold-bg); color: var(--badge-gold-text); border: 1px solid var(--badge-gold-border); }
   .typing-bubble { display: flex; align-items: center; gap: 4px; padding: 12px 16px !important; }
   .typing-bubble .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); animation: typing-bounce 1.2s infinite ease-in-out; }
@@ -1425,6 +1520,15 @@
 <div id="emoji-picker"></div>
 
 <div id="attach-menu"></div>
+
+<div id="msg-action-menu"></div>
+
+<div id="forward-picker-overlay" onclick="if(event.target===this) closeForwardPicker()">
+  <div id="forward-picker-panel">
+    <div id="forward-picker-header">Forward to...</div>
+    <div id="forward-picker-list"></div>
+  </div>
+</div>
 <input type="file" id="photo-input" accept="image/*" style="display:none;" onchange="handleAttachFile(this, 'image')">
 <input type="file" id="file-input" style="display:none;" onchange="handleAttachFile(this, 'document')">
 
@@ -2143,6 +2247,225 @@ window.sendLocation = async function() {
   });
 };
 
+// ═══ Per-message actions: long-press (mobile) or right-click (desktop) opens
+// Reply/Forward/Star/Pin/Info/Delete. Double-click/double-tap jumps straight
+// to Reply, matching WhatsApp/Telegram Web. ═══
+let replyingTo = null; // { id, text }
+let msgLongPressTimer = null;
+let msgLongPressRow = null;
+
+function cancelLongPress() {
+  clearTimeout(msgLongPressTimer);
+  if (msgLongPressRow) msgLongPressRow.classList.remove('long-press-active');
+  msgLongPressRow = null;
+}
+
+(function() {
+  const container = document; // delegate at document level - messages re-render often
+  document.addEventListener('touchstart', (e) => {
+    const row = e.target.closest('.msg-row');
+    if (!row || !row.closest('#messages')) return;
+    msgLongPressRow = row;
+    const touch = e.touches[0];
+    msgLongPressTimer = setTimeout(() => {
+      if (!msgLongPressRow) return;
+      msgLongPressRow.classList.add('long-press-active');
+      openMessageActionMenu(row, touch.clientX, touch.clientY);
+      msgLongPressRow = null;
+    }, 480);
+  }, { passive: true });
+  document.addEventListener('touchmove', cancelLongPress, { passive: true });
+  document.addEventListener('touchend', cancelLongPress, { passive: true });
+
+  document.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.msg-row');
+    if (!row || !row.closest('#messages')) return;
+    e.preventDefault();
+    openMessageActionMenu(row, e.clientX, e.clientY);
+  });
+
+  document.addEventListener('dblclick', (e) => {
+    const row = e.target.closest('.msg-row');
+    if (!row || !row.closest('#messages')) return;
+    const text = row.querySelector('.msg-text');
+    startReplyMode(row.dataset.msgId, text ? text.textContent : '');
+  });
+})();
+
+let msgMenuContext = null; // { id, table, role, text, timestamp }
+
+function openMessageActionMenu(row, x, y) {
+  const menu = document.getElementById('msg-action-menu');
+  const textEl = row.querySelector('.msg-text');
+  const tsEl = row.querySelector('.ts');
+  msgMenuContext = {
+    id: row.dataset.msgId,
+    table: row.dataset.table,
+    role: row.dataset.role,
+    text: textEl ? textEl.textContent : '',
+    timestamp: tsEl ? tsEl.textContent : ''
+  };
+
+  const showForward = msgMenuContext.table === 'conversations';
+  menu.innerHTML = `
+    <div class="msg-action-item" data-action="reply">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+      Reply
+    </div>
+    ${showForward ? `<div class="msg-action-item" data-action="forward">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+      Forward
+    </div>` : ''}
+    <div class="msg-action-item" data-action="star">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Star
+    </div>
+    <div class="msg-action-item" data-action="pin">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+      Pin
+    </div>
+    <div class="msg-action-item" data-action="info">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      Info
+    </div>
+    <div class="msg-action-item danger" data-action="delete">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
+      Delete
+    </div>
+  `;
+  menu.querySelectorAll('.msg-action-item').forEach(item => {
+    item.addEventListener('click', () => handleMsgMenuAction(item.dataset.action));
+  });
+
+  const menuWidth = 200, menuHeight = menu.children.length * 42 + 12;
+  menu.style.left = Math.min(x, window.innerWidth - menuWidth - 10) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - menuHeight - 10) + 'px';
+  menu.classList.add('show');
+  setTimeout(() => document.addEventListener('click', msgMenuOutsideClick), 0);
+}
+
+function handleMsgMenuAction(action) {
+  const ctx = msgMenuContext;
+  if (!ctx) return;
+  closeMessageActionMenu();
+  if (action === 'reply') startReplyMode(ctx.id, ctx.text);
+  else if (action === 'forward') openForwardPicker(ctx.text);
+  else if (action === 'star') toggleStarMessage(ctx.id, ctx.table);
+  else if (action === 'pin') togglePinMessage(ctx.id, ctx.table);
+  else if (action === 'info') showMessageInfo(ctx.role, ctx.timestamp);
+  else if (action === 'delete') deleteMessage(ctx.id, ctx.table);
+}
+
+window.closeMessageActionMenu = function() {
+  document.getElementById('msg-action-menu').classList.remove('show');
+  document.removeEventListener('click', msgMenuOutsideClick);
+  if (msgLongPressRow) msgLongPressRow.classList.remove('long-press-active');
+  document.querySelectorAll('.msg-row.long-press-active').forEach(r => r.classList.remove('long-press-active'));
+};
+
+function msgMenuOutsideClick(e) {
+  const menu = document.getElementById('msg-action-menu');
+  if (menu && !menu.contains(e.target)) closeMessageActionMenu();
+}
+
+window.startReplyMode = function(id, text) {
+  closeMessageActionMenu();
+  replyingTo = { id, text };
+  const bar = document.getElementById('reply-preview-bar');
+  const snippet = document.getElementById('reply-preview-snippet');
+  if (snippet) snippet.textContent = (text || '').slice(0, 70);
+  if (bar) bar.classList.add('show');
+  const textarea = document.getElementById('reply-text');
+  if (textarea) textarea.focus();
+};
+
+window.cancelReplyMode = function() {
+  replyingTo = null;
+  const bar = document.getElementById('reply-preview-bar');
+  if (bar) bar.classList.remove('show');
+};
+
+window.toggleStarMessage = async function(id, table) {
+  closeMessageActionMenu();
+  try {
+    const rows = await sb(table + '?id=eq.' + id + '&select=starred');
+    const current = rows && rows[0] ? rows[0].starred : false;
+    await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ starred: !current })
+    });
+  } catch (e) {}
+  if (ahmadChatOpen) renderAhmadChatPanel(true);
+  else if (activePhone) loadThread(activePhone, true);
+};
+
+window.togglePinMessage = async function(id, table) {
+  closeMessageActionMenu();
+  try {
+    const rows = await sb(table + '?id=eq.' + id + '&select=pinned');
+    const current = rows && rows[0] ? rows[0].pinned : false;
+    await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ pinned: !current })
+    });
+  } catch (e) {}
+  if (ahmadChatOpen) renderAhmadChatPanel(true);
+  else if (activePhone) loadThread(activePhone, true);
+};
+
+window.showMessageInfo = function(role, timestamp) {
+  alert((role === 'assistant' ? 'Sent by you' : 'Received from customer') + '\nTime: ' + timestamp);
+};
+
+window.deleteMessage = async function(id, table) {
+  closeMessageActionMenu();
+  const ok = confirm('Delete this message?');
+  if (!ok) return;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+  } catch (e) {}
+  if (ahmadChatOpen) renderAhmadChatPanel(true);
+  else if (activePhone) loadThread(activePhone, true);
+};
+
+window.openForwardPicker = function(text) {
+  window._forwardText = text;
+  const list = document.getElementById('forward-picker-list');
+  list.innerHTML = conversations.map(c => `
+    <div class="forward-picker-item" onclick="forwardMessageTo('${c.phone_number}')">
+      <div class="convo-avatar" style="width:32px;height:32px;min-width:32px;font-size:12px;background:${avatarColor(c.phone_number)}">${initials(c.phone_number)}</div>
+      ${escapeHtml(c.displayName)}
+    </div>
+  `).join('') || '<div style="padding:16px;color:var(--text-muted);font-size:13px;">No conversations to forward to.</div>';
+  document.getElementById('forward-picker-overlay').classList.add('show');
+};
+
+window.closeForwardPicker = function() {
+  document.getElementById('forward-picker-overlay').classList.remove('show');
+};
+
+window.forwardMessageTo = async function(phone) {
+  closeForwardPicker();
+  try {
+    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID })
+    });
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (!data || !data.success) alert('Failed to forward: ' + (data && data.reason ? data.reason : 'unknown error'));
+    await loadConversations();
+  } catch (e) {
+    alert('Failed to forward: ' + e.message);
+  }
+};
+
 function toggleComposerButtons(textarea) {
   const micBtn = document.getElementById('mic-btn');
   if (!micBtn) return; // this composer has no mic (e.g. Ahmad chat) — send button always stays visible
@@ -2272,6 +2595,7 @@ window.toggleSidebar = function() {
 
 window.selectConvo = function(phone) {
   saveCurrentDraft();
+  cancelReplyMode();
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.add('sidebar-hidden');
   }
@@ -2318,7 +2642,7 @@ async function loadThread(phone, silent) {
 
   const rows = await sb(
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=role,message,timestamp&order=timestamp.asc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned&order=timestamp.asc&limit=200'
   );
   let isTypingNow = false;
   try {
@@ -2343,7 +2667,7 @@ async function loadThread(phone, silent) {
       bubblesHtml += `<div class="date-divider">${formatDateDivider(m.timestamp)}</div>`;
       lastDate = dateStr;
     }
-    bubblesHtml += renderBubble(m);
+    bubblesHtml += renderBubble({ ...m, table: 'conversations' });
   });
   if (isTypingNow) {
     bubblesHtml += `<div class="msg-row in"><div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>`;
@@ -2376,6 +2700,10 @@ async function loadThread(phone, silent) {
     <div id="messages">${bubblesHtml}</div>
     <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="${t('jump_to_latest')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
     ${!isActive ? `<div id="ai-paused-banner"><span>${t('ai_paused')}</span><button onclick="resumeAI('${phone}')">${t('turn_ai_on')}</button></div>` : ''}
+    <div id="reply-preview-bar">
+      <div class="reply-preview-text"><span class="reply-preview-label">Replying to</span><span id="reply-preview-snippet"></span></div>
+      <button onclick="cancelReplyMode()" title="Cancel"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
     <div id="composer">
       <button id="attach-btn" onclick="toggleAttachMenu()" title="Attach"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
@@ -2408,13 +2736,19 @@ function renderBubble(m) {
   const isNote = (m.message || '').startsWith('📩 Customer:');
   const time = new Date(m.timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const ticks = isOut ? `<span class="ticks${m.read ? ' read' : ''}"><svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg></span>` : '';
-  return `<div class="msg-row ${isOut ? 'out' : 'in'}">
-    <div class="bubble ${isNote ? 'private-note' : ''}"><span class="msg-text" dir="auto">${escapeHtml(m.message)}</span><span class="ts">${time}${ticks}</span></div>
+  const badges = [
+    m.pinned ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>' : '',
+    m.starred ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : ''
+  ].filter(Boolean).join('');
+  const replyQuoteHtml = m.replyToText ? `<div class="msg-reply-quote">${escapeHtml(m.replyToText.slice(0, 80))}</div>` : '';
+  return `<div class="msg-row ${isOut ? 'out' : 'in'}" data-msg-id="${m.id || ''}" data-table="${m.table || ''}" data-role="${m.role}">
+    <div class="bubble ${isNote ? 'private-note' : ''}">${replyQuoteHtml}${badges ? '<span class="msg-badges">' + badges + '</span>' : ''}<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span><span class="ts">${time}${ticks}</span></div>
   </div>`;
 }
 
 window.openAhmadChat = async function() {
   saveCurrentDraft();
+  cancelReplyMode();
   ahmadChatOpen = true;
   activePhone = null;
   if (window.innerWidth <= 720) {
@@ -2432,7 +2766,7 @@ window.openAhmadChat = async function() {
 
 async function renderAhmadChatPanel(silent) {
   const rows = await sb(
-    'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=role,message,created_at&order=created_at.asc&limit=300'
+    'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.asc&limit=300'
   ).catch(() => []);
 
   const oldBox = document.getElementById('messages');
@@ -2454,7 +2788,7 @@ async function renderAhmadChatPanel(silent) {
         bubblesHtml += `<div class="date-divider">${formatDateDivider(m.created_at)}</div>`;
         lastDate = dateStr;
       }
-      bubblesHtml += renderBubble({ role: m.role === 'ahmad' ? 'assistant' : 'user', message: m.message, timestamp: m.created_at });
+      bubblesHtml += renderBubble({ id: m.id, role: m.role === 'ahmad' ? 'assistant' : 'user', message: m.message, timestamp: m.created_at, starred: m.starred, pinned: m.pinned, table: 'seller_web_chat_log' });
     });
   }
 
@@ -2479,6 +2813,10 @@ async function renderAhmadChatPanel(silent) {
     </div>
     <div id="messages">${bubblesHtml}</div>
     <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="${t('jump_to_latest')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
+    <div id="reply-preview-bar">
+      <div class="reply-preview-text"><span class="reply-preview-label">Replying to</span><span id="reply-preview-snippet"></span></div>
+      <button onclick="cancelReplyMode()" title="Cancel"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
     <div id="composer">
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
       <textarea id="reply-text" placeholder="${t('ai_reply_placeholder')}" rows="1"></textarea>
@@ -2506,12 +2844,16 @@ async function renderAhmadChatPanel(silent) {
 
 window.sendAhmadMessage = async function() {
   const textarea = document.getElementById('reply-text');
-  const message = textarea.value.trim();
+  let message = textarea.value.trim();
   if (!message) return;
+  if (replyingTo) {
+    message = '↪️ "' + replyingTo.text.slice(0, 60) + '"\n' + message;
+  }
   const btn = document.getElementById('send-btn');
   if (btn) btn.disabled = true;
   textarea.value = '';
   delete drafts['ahmad'];
+  cancelReplyMode();
   try {
     await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
       method: 'POST',
@@ -2693,8 +3035,11 @@ async function sendVoiceNote(phone, dataUrl) {
 
 window.sendReply = async function(phone) {
   const textarea = document.getElementById('reply-text');
-  const message = textarea.value.trim();
+  let message = textarea.value.trim();
   if (!message) return;
+  if (replyingTo) {
+    message = '↪️ "' + replyingTo.text.slice(0, 60) + '"\n' + message;
+  }
   const btn = document.getElementById('send-btn');
   btn.disabled = true;
   try {
@@ -2708,6 +3053,7 @@ window.sendReply = async function(phone) {
     if (data && data.success) {
       textarea.value = '';
       delete drafts[phone];
+      cancelReplyMode();
       await loadConversations();
       await loadThread(phone);
       const freshTextarea = document.getElementById('reply-text');
@@ -3438,6 +3784,7 @@ function applyTranslations() {
 
 window.goToChats = function() {
   saveCurrentDraft();
+  cancelReplyMode();
   ahmadChatOpen = false;
   activePhone = null;
   const pinned = document.getElementById('ahmad-pinned');
