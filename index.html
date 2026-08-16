@@ -3265,8 +3265,15 @@ document.addEventListener('DOMContentLoaded', initAuth);
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').then(reg => {
+      debugLog('SW registered, scriptURL=' + (reg.active ? reg.active.scriptURL : 'none yet'));
       reg.update(); // always check for a newer version on load, don't trust the cached one
-    }).catch(() => {});
+      reg.addEventListener('updatefound', () => {
+        debugLog('SW updatefound — a new version is installing');
+      });
+    }).catch((e) => { debugLog('SW registration failed: ' + e.message); });
+  });
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    debugLog('SW active registrations: ' + regs.length);
   });
 }
 
