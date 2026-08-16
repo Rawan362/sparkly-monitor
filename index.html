@@ -1883,6 +1883,15 @@ async function clearChatNow(phone) {
   await loadConversations();
 }
 
+function toggleComposerButtons(textarea) {
+  const micBtn = document.getElementById('mic-btn');
+  if (!micBtn) return; // this composer has no mic (e.g. Ahmad chat) — send button always stays visible
+  const hasText = !!(textarea && textarea.value.trim().length > 0);
+  const sendBtn = document.getElementById('send-btn');
+  micBtn.style.display = hasText ? 'none' : 'flex';
+  if (sendBtn) sendBtn.style.display = hasText ? 'flex' : 'none';
+}
+
 function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
@@ -2108,8 +2117,9 @@ async function loadThread(phone, silent) {
     <button id="scroll-bottom-btn" onclick="scrollMessagesToBottom()" title="${t('jump_to_latest')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
     ${!isActive ? `<div id="ai-paused-banner"><span>${t('ai_paused')}</span><button onclick="resumeAI('${phone}')">${t('turn_ai_on')}</button></div>` : ''}
     <div id="composer">
-      <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1"></textarea>
+      <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1" oninput="toggleComposerButtons(this)"></textarea>
       <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
+      <button id="send-btn" onclick="sendReply('${phone}')" title="Send" style="display:none;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
     </div>
   `;
   if (!silent) playScreenTransition();
@@ -2124,6 +2134,7 @@ async function loadThread(phone, silent) {
 
   const newTextarea = document.getElementById('reply-text');
   if (newTextarea && draftText) newTextarea.value = draftText;
+  if (newTextarea) toggleComposerButtons(newTextarea);
   if (newTextarea && wasFocused) {
     newTextarea.focus();
     if (cursorPos !== null) newTextarea.setSelectionRange(cursorPos, cursorPos);
@@ -2223,6 +2234,7 @@ async function renderAhmadChatPanel(silent) {
 
   const newTextarea = document.getElementById('reply-text');
   if (newTextarea && draftText) newTextarea.value = draftText;
+  if (newTextarea) toggleComposerButtons(newTextarea);
   if (newTextarea && wasFocused) {
     newTextarea.focus();
     if (cursorPos !== null) newTextarea.setSelectionRange(cursorPos, cursorPos);
