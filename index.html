@@ -2945,7 +2945,12 @@ function resumeLinkCodeDisplay(code, expiresAt) {
         SELLER_CHAT_ID = rows[0].seller_id;
         localStorage.setItem('sparkly_seller_chat_id', rows[0].seller_id);
         document.getElementById('link-device-overlay').classList.remove('show');
-        debugLog('checkLinkApproval: SUCCESS - calling startApp()');
+        document.removeEventListener('keydown', loginKeyHandler);
+        const loginOverlay = document.getElementById('login-overlay');
+        if (loginOverlay) loginOverlay.remove();
+        const landing = document.getElementById('landing');
+        if (landing) landing.remove();
+        debugLog('checkLinkApproval: SUCCESS - cleaned up landing/login, calling startApp()');
         startApp();
       }
     } catch (e) {
