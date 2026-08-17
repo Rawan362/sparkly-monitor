@@ -2271,6 +2271,10 @@ async function sendAttachment(dataUrl, mimeType, kind, fileName) {
 window.sendLocation = async function() {
   if (!activePhone) return;
   if (!navigator.geolocation) { alert('Location is not available on this device.'); return; }
+  if (!window.isSecureContext) {
+    alert('Location only works over a secure (https) connection.');
+    return;
+  }
   navigator.geolocation.getCurrentPosition(async (pos) => {
     try {
       const res = await fetch(MANUAL_SEND_WEBHOOK, {
@@ -2295,8 +2299,13 @@ window.sendLocation = async function() {
       alert('Failed to send location: ' + e.message);
     }
   }, (err) => {
-    alert('Could not get your location: ' + err.message);
-  });
+    let reason = err.message || '';
+    if (err.code === 1) reason = 'Permission denied — location access is blocked for this site. Check your browser/phone Settings → Privacy → Location Services, and make sure this site is allowed.';
+    else if (err.code === 2) reason = 'Your device could not determine its position right now (GPS/location services may be off).';
+    else if (err.code === 3) reason = 'Location request timed out. Try again.';
+    else if (!reason) reason = 'Unknown error (code ' + err.code + ').';
+    alert('Could not get your location: ' + reason);
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 };
 
 // ═══ Per-message actions: long-press (mobile) or right-click (desktop) opens
