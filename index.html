@@ -3132,6 +3132,7 @@ window.sendReply = async function(phone) {
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
     if (data && data.success) {
       textarea.value = '';
+      toggleComposerButtons(textarea);
       delete drafts[phone];
       cancelReplyMode();
       await loadConversations();
