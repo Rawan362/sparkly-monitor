@@ -2518,6 +2518,43 @@ window.forwardMessageTo = async function(phone) {
   }
 };
 
+let aiSpeechRecognition = null;
+window.toggleAiVoiceInput = function() {
+  const micBtn = document.getElementById('mic-btn');
+  const textarea = document.getElementById('reply-text');
+  if (aiSpeechRecognition) {
+    aiSpeechRecognition.stop();
+    return;
+  }
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    alert('Voice input is not supported in this browser yet — try Chrome or Edge.');
+    return;
+  }
+  aiSpeechRecognition = new SpeechRec();
+  aiSpeechRecognition.lang = (LANGUAGES.find(l => l.code === currentLang) || {}).code === 'ar' ? 'ar-SA' : 'en-US';
+  aiSpeechRecognition.interimResults = true;
+  aiSpeechRecognition.continuous = true;
+  const baseText = textarea.value ? textarea.value.trim() + ' ' : '';
+  micBtn.classList.add('recording');
+
+  aiSpeechRecognition.onresult = (e) => {
+    let transcript = '';
+    for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+    textarea.value = baseText + transcript;
+    toggleComposerButtons(textarea);
+  };
+  aiSpeechRecognition.onerror = () => {
+    micBtn.classList.remove('recording');
+    aiSpeechRecognition = null;
+  };
+  aiSpeechRecognition.onend = () => {
+    micBtn.classList.remove('recording');
+    aiSpeechRecognition = null;
+  };
+  aiSpeechRecognition.start();
+};
+
 function toggleComposerButtons(textarea) {
   const micBtn = document.getElementById('mic-btn');
   if (!micBtn) return; // this composer has no mic (e.g. Ahmad chat) — send button always stays visible
@@ -2898,9 +2935,12 @@ async function renderAhmadChatPanel(silent) {
       <button onclick="cancelReplyMode()" title="Cancel"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div id="composer">
-      <textarea id="reply-text" placeholder="${t('ai_reply_placeholder')}" rows="1"></textarea>
+      <textarea id="reply-text" placeholder="${t('ai_reply_placeholder')}" rows="1" oninput="toggleComposerButtons(this)"></textarea>
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
-      <button id="send-btn" onclick="sendAhmadMessage()" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      <div class="composer-swap-wrap">
+        <button id="mic-btn" onclick="toggleAiVoiceInput()" title="Voice input"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
+        <button id="send-btn" class="btn-hidden" onclick="sendAhmadMessage()" title="Send"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      </div>
     </div>
   `;
   if (!silent) playTabSlide(document.getElementById('main'), 'ai');
