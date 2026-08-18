@@ -2131,6 +2131,35 @@ async function clearChatNow(phone) {
 
 const EMOJI_LIST = ['😀','😁','😂','🤣','😊','😍','😘','😉','😎','🤔','😅','😢','😭','😡','😴','🥳','🙏','👍','👎','👏','🙌','💪','🤝','✋','👌','✌️','🤞','👋','❤️','🔥','⭐','✅','❌','⚠️','📌','📎','📦','🚚','💰','💵','💳','🛒','📞','📱','📩','⏰','📅','🎉','😇','🤗','😐','😔','🥺','😤','🤩','🙄','😏','🤷','🙈','💯','🎁','🏆','✨','⚡','🌟','👀','💬','✍️','📝','🤙','👇','👆','👉','👈'];
 
+// Positions a floating panel (emoji picker, attach menu, etc.) anchored to a
+// button, always keeping it fully within the viewport — flips above/below
+// and clamps left/right so it can never be cut off or run offscreen,
+// regardless of screen size or where the button sits.
+function positionFloatingPanel(panel, anchorBtn, panelWidth, panelHeight) {
+  const rect = anchorBtn.getBoundingClientRect();
+  const margin = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = rect.left;
+  if (left + panelWidth > vw - margin) left = vw - panelWidth - margin;
+  if (left < margin) left = margin;
+
+  const spaceAbove = rect.top;
+  const spaceBelow = vh - rect.bottom;
+  let top;
+  if (spaceAbove >= panelHeight + margin || spaceAbove >= spaceBelow) {
+    top = rect.top - panelHeight - 8;
+    if (top < margin) top = margin;
+  } else {
+    top = rect.bottom + 8;
+    if (top + panelHeight > vh - margin) top = Math.max(margin, vh - panelHeight - margin);
+  }
+
+  panel.style.left = left + 'px';
+  panel.style.top = top + 'px';
+}
+
 function toggleEmojiPicker() {
   const picker = document.getElementById('emoji-picker');
   if (picker.classList.contains('show')) { closeEmojiPicker(); return; }
@@ -2143,9 +2172,7 @@ function toggleEmojiPicker() {
   }
 
   const btn = document.getElementById('emoji-btn');
-  const rect = btn.getBoundingClientRect();
-  picker.style.left = Math.max(8, rect.left) + 'px';
-  picker.style.top = (rect.top - 268) + 'px';
+  positionFloatingPanel(picker, btn, 300, 260);
   picker.classList.add('show');
 
   setTimeout(() => document.addEventListener('click', emojiOutsideClick), 0);
@@ -2201,9 +2228,7 @@ window.toggleAttachMenu = function() {
   }
 
   const btn = document.getElementById('attach-btn');
-  const rect = btn.getBoundingClientRect();
-  menu.style.left = Math.max(8, rect.left) + 'px';
-  menu.style.top = (rect.top - 172) + 'px';
+  positionFloatingPanel(menu, btn, 190, 164);
   menu.classList.add('show');
   setTimeout(() => document.addEventListener('click', attachOutsideClick), 0);
 };
