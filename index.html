@@ -2256,6 +2256,38 @@ window.handleAttachFile = function(input, kind) {
     input.value = '';
     return;
   }
+
+  if (kind === 'image') {
+    // WhatsApp's API only accepts JPEG/PNG for image messages — convert
+    // everything else (HEIC from iPhone/Mac photos, WebP, etc.) to JPEG so
+    // it always works regardless of source format.
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      await sendAttachment(jpegDataUrl, 'image/jpeg', kind, (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg');
+      input.value = '';
+    };
+    img.onerror = async () => {
+      URL.revokeObjectURL(objectUrl);
+      // Browser couldn't decode it for canvas (e.g. HEIC without native
+      // decode support) — fall back to sending the original as-is.
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        await sendAttachment(reader.result, file.type || 'image/jpeg', kind, file.name);
+        input.value = '';
+      };
+      reader.readAsDataURL(file);
+    };
+    img.src = objectUrl;
+    return;
+  }
+
   const reader = new FileReader();
   reader.onloadend = async () => {
     await sendAttachment(reader.result, file.type || 'application/octet-stream', kind, file.name);
