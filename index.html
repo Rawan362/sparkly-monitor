@@ -1549,6 +1549,7 @@
       <div id="lang-header">
         <button onclick="closeDevicesPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <span style="font-weight:600;font-size:14.5px;">Linked Devices</span>
+        <button onclick="openDeviceScanner()" title="Link a new device" style="margin-left:auto;border:none;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       </div>
       <div id="devices-list"></div>
     </div>
@@ -3715,17 +3716,11 @@ async function renderDevicesList() {
   list.innerHTML = '<div id="loading"><div class="spinner"></div></div>';
   const rows = await sb('sessions?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,session_token,device_label,last_seen_at&order=last_seen_at.desc').catch(() => []);
 
-  const linkBtnHtml = `
-    <div class="link-device-btn" onclick="openDeviceScanner()">
-      <div class="device-icon" style="background:var(--accent-soft);color:var(--accent);"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-      <span>${t('link_new_device')}</span>
-    </div>`;
-
   if (!rows || rows.length === 0) {
-    list.innerHTML = linkBtnHtml + '<div id="loading">' + t('no_devices_found') + '</div>';
+    list.innerHTML = '<div id="loading">' + t('no_devices_found') + '</div>';
     return;
   }
-  list.innerHTML = linkBtnHtml + rows.map(r => {
+  list.innerHTML = rows.map(r => {
     const isThis = r.session_token === myToken;
     return `
     <div class="device-row">
