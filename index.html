@@ -255,6 +255,8 @@
   #lang-list { flex: 1; overflow-y: auto; padding: 4px 0; }
   #debug-log-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
   #debug-log-content { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.6; }
+  #error-log-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #error-log-content { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.6; user-select: text; -webkit-user-select: text; }
   .debug-log-line { color: var(--text); border-bottom: 1px solid var(--border); padding: 4px 0; word-break: break-word; }
   .debug-log-line .debug-time { color: var(--accent); margin-right: 6px; }
   .debug-log-line.debug-error { color: var(--danger); }
@@ -1520,7 +1522,8 @@
       <div id="lang-header">
         <button onclick="closeErrorLog()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <span style="font-weight:600;font-size:14.5px;">Error Log</span>
-        <button onclick="renderErrorLog()" style="margin-left:auto;border:none;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;">Refresh</button>
+        <button onclick="copyErrorLog()" style="margin-left:auto;border:none;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;">Copy</button>
+        <button onclick="renderErrorLog()" style="border:none;background:var(--panel-2);color:var(--text);font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;">Refresh</button>
       </div>
       <div id="error-log-content"></div>
     </div>
@@ -3596,6 +3599,7 @@ window.renderErrorLog = async function() {
   content.innerHTML = '<div id="loading"><div class="spinner"></div></div>';
   try {
     const rows = await sb('system_errors?seller_id=eq.' + SELLER_CHAT_ID + '&select=source,error_message,context,created_at&order=created_at.desc&limit=100');
+    window._errorLogRows = rows || [];
     if (!rows || rows.length === 0) {
       content.innerHTML = '<div style="color:var(--text-muted);padding:20px 0;text-align:center;">No errors logged — everything\'s been running clean.</div>';
       return;
@@ -3609,6 +3613,19 @@ window.renderErrorLog = async function() {
     `).join('');
   } catch (e) {
     content.innerHTML = '<div style="color:var(--danger);padding:20px 0;text-align:center;">Could not load the error log: ' + escapeHtml(e.message) + '</div>';
+  }
+};
+
+window.copyErrorLog = function() {
+  const rows = window._errorLogRows || [];
+  if (rows.length === 0) { alert('Nothing to copy — the log is empty.'); return; }
+  const text = rows.map(r =>
+    new Date(r.created_at).toLocaleString() + '  ' + r.source + ': ' + r.error_message + (r.context ? '  ' + JSON.stringify(r.context) : '')
+  ).join('\n\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => alert('Copied — paste it in chat.')).catch(() => promptCopyFallback(text));
+  } else {
+    promptCopyFallback(text);
   }
 };
 
