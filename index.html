@@ -897,6 +897,8 @@
     font-family: inherit;
     max-height: 120px;
     min-height: 42px;
+    overflow-y: auto;
+    line-height: 1.35;
     background: var(--panel);
     color: var(--text);
   }
@@ -2657,12 +2659,21 @@ window.toggleAiVoiceInput = function() {
 };
 
 function toggleComposerButtons(textarea) {
+  autoGrowTextarea(textarea);
   const micBtn = document.getElementById('mic-btn');
   if (!micBtn) return; // this composer has no mic (e.g. Ahmad chat) — send button always stays visible
   const hasText = !!(textarea && textarea.value.trim().length > 0);
   const sendBtn = document.getElementById('send-btn');
   micBtn.classList.toggle('btn-hidden', hasText);
   if (sendBtn) sendBtn.classList.toggle('btn-hidden', !hasText);
+}
+
+// Grows the composer box as you type, up to the CSS max-height, then lets
+// it scroll internally instead — matching WhatsApp/Telegram.
+function autoGrowTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = 'auto';
+  textarea.style.height = textarea.scrollHeight + 'px';
 }
 
 function escapeHtml(s) {
