@@ -256,6 +256,38 @@
   #debug-log-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
   #debug-log-content { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.6; }
   #error-log-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #devices-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #devices-back-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #devices-back-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #devices-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #devices-title-row span { font-weight: 600; font-size: 15px; }
+  #devices-title-row button {
+    border: none;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #devices-list { flex: 1; overflow-y: auto; }
   #error-log-content { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.6; user-select: text; -webkit-user-select: text; }
   .debug-log-line { color: var(--text); border-bottom: 1px solid var(--border); padding: 4px 0; word-break: break-word; }
   .debug-log-line .debug-time { color: var(--accent); margin-right: 6px; }
@@ -1546,10 +1578,12 @@
       <div id="appearance-list"></div>
     </div>
     <div id="devices-tab-content" style="display:none;">
-      <div id="lang-header">
+      <div id="devices-back-row">
         <button onclick="closeDevicesPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-        <span style="font-weight:600;font-size:14.5px;">Linked Devices</span>
-        <button onclick="openDeviceScanner()" title="Link a new device" style="margin-left:auto;border:none;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="devices-title-row">
+        <span>Linked Devices</span>
+        <button onclick="openDeviceScanner()" title="Link a new device"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       </div>
       <div id="devices-list"></div>
     </div>
