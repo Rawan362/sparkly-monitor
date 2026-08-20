@@ -3409,6 +3409,13 @@ async function loadThread(phone, silent) {
     newTextarea.focus();
     if (cursorPos !== null) newTextarea.setSelectionRange(cursorPos, cursorPos);
   }
+  // A staged photo/video/file survives in memory across refreshes, but the
+  // visual preview bar gets rebuilt blank each time (same as the composer
+  // itself) — re-show it so it doesn't look like the file vanished.
+  if (window._stagedAttachment) {
+    const s = window._stagedAttachment;
+    stageAttachment(s.dataUrl, s.mimeType, s.kind, s.fileName);
+  }
 }
 
 function renderAttachmentContent(message) {
