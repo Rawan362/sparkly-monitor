@@ -1557,9 +1557,46 @@
     .convo-preview { max-width: 55vw; }
     #profile-panel { width: 100vw; max-width: 100vw; right: -100vw; }
   }
+  #photo-viewer-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  #photo-viewer-overlay.open { display: flex; }
+  #photo-viewer-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+  }
+  #photo-viewer-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    border: none;
+    background: rgba(255,255,255,0.12);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
+<div id="photo-viewer-overlay" onclick="closePhotoViewer()">
+  <button id="photo-viewer-close" onclick="closePhotoViewer()" title="Close">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <img id="photo-viewer-img" src="" alt="Photo" onclick="event.stopPropagation();">
+</div>
 <div id="app">
   <div id="sidebar">
     <div id="sidebar-header">
@@ -2898,6 +2935,23 @@ function triggerBlobDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
 }
 
+// Fullscreen in-app photo viewer, matching WhatsApp/Telegram - tapping a
+// photo opens it overlaid on the same page instead of a new browser tab.
+window.openPhotoViewer = function(src) {
+  const overlay = document.getElementById('photo-viewer-overlay');
+  document.getElementById('photo-viewer-img').src = src;
+  overlay.classList.add('open');
+};
+
+window.closePhotoViewer = function() {
+  document.getElementById('photo-viewer-overlay').classList.remove('open');
+  document.getElementById('photo-viewer-img').src = '';
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closePhotoViewer();
+});
+
 function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
@@ -3174,8 +3228,8 @@ function renderAttachmentContent(message) {
   if (photoUrlMatch) {
     const url = photoUrlMatch[1];
     const caption = photoUrlMatch[2] || '';
-    return `<a href="${url}" target="_blank" class="msg-attachment-photo" onclick="return false;" style="cursor:default;">
-      <img src="${url}" loading="lazy" alt="Photo" onload="ensureMediaCached('${url}')" onerror="useLocalMediaFallback(this, '${url}')" onclick="event.stopPropagation(); window.open(this.src, '_blank');" style="cursor:pointer;">
+    return `<a href="javascript:void(0)" class="msg-attachment-photo" onclick="return false;" style="cursor:default;">
+      <img src="${url}" loading="lazy" alt="Photo" onload="ensureMediaCached('${url}')" onerror="useLocalMediaFallback(this, '${url}')" onclick="event.stopPropagation(); openPhotoViewer(this.src);" style="cursor:pointer;">
       ${caption ? '<div class="msg-attachment-photo-caption">' + escapeHtml(caption) + '</div>' : ''}
     </a>`;
   }
@@ -3873,7 +3927,7 @@ window.renderMediaBackup = async function() {
     content.innerHTML = window._mediaBackupItems.map((it, i) => `
       <div class="media-backup-item">
         ${it.isImage
-          ? `<img src="${it.url}" loading="lazy">`
+          ? `<img src="${it.url}" loading="lazy" onclick="openPhotoViewer('${it.url}')" style="cursor:pointer;">`
           : `<div class="media-backup-item-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>`}
         <div class="media-backup-item-info">
           <div class="media-backup-item-name">${escapeHtml(it.name.split('-').slice(1).join('-') || it.name)}</div>
