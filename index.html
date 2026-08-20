@@ -288,6 +288,51 @@
     flex-shrink: 0;
   }
   #devices-list { flex: 1; overflow-y: auto; }
+  #media-backup-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #media-backup-header-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #media-backup-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #media-backup-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 10px;
+  }
+  #media-backup-title-row span { font-weight: 600; font-size: 15px; }
+  #media-backup-download-all-btn {
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  #media-backup-content { flex: 1; overflow-y: auto; padding: 10px 14px; }
+  .media-backup-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .media-backup-item img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+  .media-backup-item-icon { width: 44px; height: 44px; border-radius: 8px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text-muted); }
+  .media-backup-item-info { flex: 1; min-width: 0; }
+  .media-backup-item-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .media-backup-item-date { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .media-backup-item-download { border: none; background: var(--panel-2); color: var(--text); font-size: 11.5px; font-weight: 600; padding: 6px 10px; border-radius: 12px; cursor: pointer; flex-shrink: 0; }
   #error-log-content { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: monospace; font-size: 11px; line-height: 1.6; user-select: text; -webkit-user-select: text; }
   .debug-log-line { color: var(--text); border-bottom: 1px solid var(--border); padding: 4px 0; word-break: break-word; }
   .debug-log-line .debug-time { color: var(--accent); margin-right: 6px; }
@@ -1552,6 +1597,10 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span>Error Log</span>
       </div>
+      <div class="settings-row" onclick="openMediaBackup()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Media Backup</span>
+      </div>
       <div class="settings-section-label" id="settings-label-account">Account</div>
       <div class="settings-row danger" onclick="logout()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -1561,6 +1610,16 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span id="settings-label-delete">Delete my account</span>
       </div>
+    </div>
+    <div id="media-backup-tab-content" style="display:none;">
+      <div id="media-backup-header-row">
+        <button onclick="closeMediaBackup()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+      </div>
+      <div id="media-backup-title-row">
+        <span>Media Backup</span>
+        <button id="media-backup-download-all-btn" onclick="downloadAllMedia()">Download All</button>
+      </div>
+      <div id="media-backup-content"></div>
     </div>
     <div id="error-log-tab-content" style="display:none;">
       <div id="lang-header">
@@ -3582,7 +3641,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -3657,6 +3716,89 @@ window.selectAppearance = function(mode) {
   applyTheme();
   renderAppearanceList();
   closeAppearancePicker();
+};
+
+window.openMediaBackup = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('media-backup-tab-content');
+  panel.style.display = 'flex';
+  renderMediaBackup();
+};
+
+window.closeMediaBackup = function() {
+  document.getElementById('media-backup-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+window.renderMediaBackup = async function() {
+  const content = document.getElementById('media-backup-content');
+  content.innerHTML = '<div id="loading"><div class="spinner"></div></div>';
+  try {
+    const res = await fetch(SUPABASE_URL + '/storage/v1/object/list/chat-media', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefix: SELLER_CHAT_ID + '/', limit: 500, sortBy: { column: 'created_at', order: 'desc' } })
+    });
+    const items = await res.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      content.innerHTML = '<div style="color:var(--text-muted);padding:20px 0;text-align:center;">No photos or files saved yet.</div>';
+      window._mediaBackupItems = [];
+      return;
+    }
+    window._mediaBackupItems = items.map(it => ({
+      name: it.name,
+      url: SUPABASE_URL + '/storage/v1/object/public/chat-media/' + SELLER_CHAT_ID + '/' + it.name,
+      isImage: /\.(jpe?g|png|gif|webp)$/i.test(it.name),
+      date: it.created_at
+    }));
+    content.innerHTML = window._mediaBackupItems.map((it, i) => `
+      <div class="media-backup-item">
+        ${it.isImage
+          ? `<img src="${it.url}" loading="lazy">`
+          : `<div class="media-backup-item-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>`}
+        <div class="media-backup-item-info">
+          <div class="media-backup-item-name">${escapeHtml(it.name.split('-').slice(1).join('-') || it.name)}</div>
+          <div class="media-backup-item-date">${new Date(it.date).toLocaleDateString()}</div>
+        </div>
+        <button class="media-backup-item-download" onclick="downloadOneMedia(${i})">Save</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    content.innerHTML = '<div style="color:var(--danger);padding:20px 0;text-align:center;">Could not load media: ' + escapeHtml(e.message) + '</div>';
+  }
+};
+
+window.downloadOneMedia = async function(index) {
+  const item = (window._mediaBackupItems || [])[index];
+  if (!item) return;
+  try {
+    const res = await fetch(item.url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = item.name.split('-').slice(1).join('-') || item.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+  } catch (e) {
+    alert('Could not download that file: ' + e.message);
+  }
+};
+
+window.downloadAllMedia = async function() {
+  const items = window._mediaBackupItems || [];
+  if (items.length === 0) { alert('Nothing to download yet.'); return; }
+  const btn = document.getElementById('media-backup-download-all-btn');
+  const originalText = btn.textContent;
+  for (let i = 0; i < items.length; i++) {
+    btn.textContent = 'Downloading ' + (i + 1) + '/' + items.length;
+    await downloadOneMedia(i);
+    await new Promise(r => setTimeout(r, 400)); // small gap so the browser doesn't block rapid downloads
+  }
+  btn.textContent = originalText;
+  alert('Done — ' + items.length + ' file(s) saved to your device.');
 };
 
 window.openErrorLog = function() {
