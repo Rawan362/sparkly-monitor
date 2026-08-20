@@ -1059,6 +1059,11 @@
     justify-content: center;
   }
   #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #send-btn.sending { opacity: 0.7; animation: send-btn-pulse 0.8s ease-in-out infinite; }
+  @keyframes send-btn-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.88); }
+  }
   .composer-swap-wrap {
     position: relative;
     width: 40px;
@@ -3330,6 +3335,20 @@ async function loadThread(phone, silent) {
       isTypingNow = new Date(statusRows[0].ai_typing_until) > new Date();
     }
   } catch (e) {}
+
+  // Background polling (every 8s) was rebuilding the entire message list
+  // every single time, even when nothing changed — that's what was killing
+  // video playback and making photos flicker. A silent refresh now only
+  // rebuilds the DOM if the actual message data or typing state changed;
+  // otherwise it does nothing, leaving playing videos and rendered media
+  // completely untouched.
+  const fingerprint = JSON.stringify({ n: rows.length, last: rows[rows.length - 1], typing: isTypingNow, starred: rows.map(r => r.starred), pinned: rows.map(r => r.pinned) });
+  if (silent && window._lastThreadFingerprint && window._lastThreadFingerprint[phone] === fingerprint) {
+    return; // nothing actually changed — leave the DOM exactly as it is
+  }
+  if (!window._lastThreadFingerprint) window._lastThreadFingerprint = {};
+  window._lastThreadFingerprint[phone] = fingerprint;
+
   const convo = conversations.find(c => c.phone_number === phone);
   const isActive = convo ? convo.aiActive : true;
   const displayName = convo ? convo.displayName : phone;
@@ -3384,7 +3403,7 @@ async function loadThread(phone, silent) {
     <div id="attachment-preview-bar" style="display:none;"></div>
     <div id="composer">
       <button id="attach-btn" onclick="toggleAttachMenu()" title="Attach"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-      <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1" oninput="toggleComposerButtons(this)"></textarea>
+      <textarea id="reply-text" placeholder="${t('reply_placeholder')}" rows="1" enterkeyhint="send" oninput="toggleComposerButtons(this)"></textarea>
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
       <div class="composer-swap-wrap">
         <button id="mic-btn" onclick="toggleRecording('${phone}')" title="Record voice note"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
@@ -3562,7 +3581,7 @@ async function renderAhmadChatPanel(silent) {
       <button onclick="cancelReplyMode()" title="Cancel"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div id="composer">
-      <textarea id="reply-text" placeholder="${t('ai_reply_placeholder')}" rows="1" oninput="toggleComposerButtons(this)"></textarea>
+      <textarea id="reply-text" placeholder="${t('ai_reply_placeholder')}" rows="1" enterkeyhint="send" oninput="toggleComposerButtons(this)"></textarea>
       <button id="emoji-btn" onclick="toggleEmojiPicker()" title="Emoji"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
       <div class="composer-swap-wrap">
         <button id="mic-btn" onclick="toggleAiVoiceInput()" title="Voice input"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
@@ -3786,6 +3805,7 @@ async function sendVoiceNote(phone, dataUrl) {
 }
 
 window.sendReply = async function(phone) {
+  if (window._isSending) return; // blocks duplicate sends from Enter + tap racing each other
   const textarea = document.getElementById('reply-text');
   let message = textarea.value.trim();
 
@@ -3794,8 +3814,10 @@ window.sendReply = async function(phone) {
   // where attaching something and typing takes priority over a bare reply.
   if (window._stagedAttachment) {
     const staged = window._stagedAttachment;
+    window._isSending = true;
     const btn = document.getElementById('send-btn');
     btn.disabled = true;
+    btn.classList.add('sending');
     const ok = await sendAttachment(staged.dataUrl, staged.mimeType, staged.kind, staged.fileName, message);
     if (ok) {
       window._stagedAttachment = null;
@@ -3810,7 +3832,8 @@ window.sendReply = async function(phone) {
       if (freshTextarea) freshTextarea.focus();
     }
     const freshBtn = document.getElementById('send-btn');
-    if (freshBtn) freshBtn.disabled = false;
+    if (freshBtn) { freshBtn.disabled = false; freshBtn.classList.remove('sending'); }
+    window._isSending = false;
     return;
   }
 
@@ -3818,8 +3841,10 @@ window.sendReply = async function(phone) {
   if (replyingTo) {
     message = '↪️ "' + replyingTo.text.slice(0, 60) + '"\n' + message;
   }
+  window._isSending = true;
   const btn = document.getElementById('send-btn');
   btn.disabled = true;
+  btn.classList.add('sending');
   try {
     const res = await fetch(MANUAL_SEND_WEBHOOK, {
       method: 'POST',
@@ -3846,16 +3871,18 @@ window.sendReply = async function(phone) {
     logSystemError('sendReply', e.message, { phone });
     alert(t('send_failed') + e.message);
   }
+  window._isSending = false;
   const freshBtn = document.getElementById('send-btn');
-  if (freshBtn) freshBtn.disabled = false;
+  if (freshBtn) { freshBtn.disabled = false; freshBtn.classList.remove('sending'); }
 };
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.id === 'reply-text' && e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    if (ahmadChatOpen) sendAhmadMessage();
-    else if (activePhone) sendReply(activePhone);
-  }
+  if (e.target.id !== 'reply-text' || e.shiftKey) return;
+  const isEnter = e.key === 'Enter' || e.keyCode === 13;
+  if (!isEnter) return;
+  e.preventDefault();
+  if (ahmadChatOpen) sendAhmadMessage();
+  else if (activePhone) sendReply(activePhone);
 });
 
 function initAuth() {
