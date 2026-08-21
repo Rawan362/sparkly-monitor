@@ -825,6 +825,12 @@
   .optimistic-pending { display: inline-flex; opacity: 0.7; }
   .optimistic-pending svg { display: block; }
 
+  @keyframes msg-bubble-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .msg-row.entering { animation: msg-bubble-in 0.28s cubic-bezier(0.2, 0.8, 0.3, 1); }
+
   .msg-badges { display: inline-flex; gap: 3px; opacity: 0.6; vertical-align: -1px; margin-right: 4px; }
   .msg-reply-quote {
     border-left: 3px solid var(--accent);
@@ -982,6 +988,7 @@
     padding: 10px 16px;
     background: var(--panel);
     border-top: 1px solid var(--border);
+    transition: opacity 0.15s ease;
   }
   #attachment-preview-bar img {
     width: 52px;
@@ -1044,6 +1051,7 @@
     line-height: 1.35;
     background: var(--panel);
     color: var(--text);
+    transition: height 0.12s ease, border-color 0.15s ease;
   }
   #composer textarea:focus { outline: none; border-color: var(--accent); }
   #send-btn {
@@ -2564,11 +2572,22 @@ window.stageAttachment = function(dataUrl, mimeType, kind, fileName) {
   if (textarea) { toggleComposerButtons(textarea); textarea.focus(); }
 };
 
+// Fades the attachment preview bar out smoothly instead of vanishing
+// instantly, matching the polish of the rest of the send flow.
+function hideAttachmentPreviewBar() {
+  const bar = document.getElementById('attachment-preview-bar');
+  if (!bar) return;
+  bar.style.opacity = '0';
+  setTimeout(() => {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    bar.style.opacity = '1';
+  }, 150);
+}
+
 window.cancelStagedAttachment = function() {
   window._stagedAttachment = null;
-  const bar = document.getElementById('attachment-preview-bar');
-  bar.style.display = 'none';
-  bar.innerHTML = '';
+  hideAttachmentPreviewBar();
   const textarea = document.getElementById('reply-text');
   if (textarea) toggleComposerButtons(textarea);
 };
@@ -3503,13 +3522,13 @@ function appendOptimisticBubble(bodyHtml) {
   if (!box) return null;
   const tempId = 'optimistic-' + Date.now();
   const time = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const html = `<div class="msg-row out" data-optimistic-id="${tempId}">
+  const html = `<div class="msg-row out entering" data-optimistic-id="${tempId}">
     <div class="bubble">${bodyHtml}<span class="ts">${time} <span class="optimistic-pending" title="Sending...">
       <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     </span></span></div>
   </div>`;
   box.insertAdjacentHTML('beforeend', html);
-  box.scrollTop = box.scrollHeight;
+  box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
   return tempId;
 }
 
@@ -3857,9 +3876,7 @@ window.sendReply = async function(phone) {
     // Clear the composer immediately — the send is now happening invisibly
     // in the background, matching how WhatsApp/Telegram feel instant.
     window._stagedAttachment = null;
-    const bar = document.getElementById('attachment-preview-bar');
-    bar.style.display = 'none';
-    bar.innerHTML = '';
+    hideAttachmentPreviewBar();
     textarea.value = '';
     toggleComposerButtons(textarea);
     delete drafts[phone];
