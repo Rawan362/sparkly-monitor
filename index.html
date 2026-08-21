@@ -3520,11 +3520,19 @@ async function loadThread(phone, silent) {
       el.addEventListener('error', resolve, { once: true });
     }));
     // Cap the wait so a slow/broken image can never delay opening the chat
-    const timeout = new Promise(resolve => setTimeout(resolve, 700));
+    const timeout = new Promise(resolve => setTimeout(resolve, 1000));
     Promise.race([Promise.all(waitForMedia), timeout]).then(() => {
       box.scrollTop = box.scrollHeight;
       box.style.visibility = 'visible';
       updateScrollBtn();
+      // Safety net: correct once more shortly after in case anything (a
+      // slow image past the timeout, a font swap, etc.) shifted the layout
+      // right at the moment of reveal.
+      setTimeout(() => {
+        if (box.scrollHeight - box.scrollTop - box.clientHeight > 4) {
+          box.scrollTop = box.scrollHeight;
+        }
+      }, 250);
     });
   } else if (shouldStickToBottom) {
     box.scrollTop = box.scrollHeight;
