@@ -826,22 +826,18 @@
     height: 22px;
     border: none;
     border-radius: 50%;
-    background: var(--panel);
+    background: transparent;
     color: var(--text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    opacity: 0;
+    opacity: 0.55;
     transition: opacity 0.12s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
     z-index: 2;
   }
   .msg-row.in .msg-actions-arrow { right: auto; left: 4px; }
-  .bubble:hover .msg-actions-arrow { opacity: 1; }
-  @media (hover: none) {
-    .msg-actions-arrow { opacity: 0.55; background: transparent; box-shadow: none; }
-  }
+  .msg-actions-arrow:hover { opacity: 1; background: rgba(0,0,0,0.06); }
   .msg-row.out .bubble .ts { color: rgba(46,74,135,0.7); }
   .ts .ticks { display: inline-flex; }
   .ts .ticks svg { display: block; }
@@ -2871,18 +2867,61 @@ window.showMessageInfo = function(role, timestamp) {
   alert((role === 'assistant' ? 'Sent by you' : 'Received from customer') + '\nTime: ' + timestamp);
 };
 
-window.deleteMessage = async function(id, table) {
+// "Delete for me" hides a message only in THIS browser (stored locally),
+// without touching the shared database — matching WhatsApp's actual
+// behavior where "delete for me" only affects your own view.
+function getLocallyDeletedIds() {
+  try { return new Set(JSON.parse(localStorage.getItem('sparkly_locally_deleted_msgs') || '[]')); }
+  catch (e) { return new Set(); }
+}
+function addLocallyDeletedId(id) {
+  const ids = getLocallyDeletedIds();
+  ids.add(String(id));
+  localStorage.setItem('sparkly_locally_deleted_msgs', JSON.stringify([...ids]));
+}
+
+window.deleteMessage = function(id, table) {
   closeMessageActionMenu();
-  const ok = confirm('Delete this message?');
-  if (!ok) return;
-  try {
-    await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-  } catch (e) {}
-  if (ahmadChatOpen) renderAhmadChatPanel(true);
-  else if (activePhone) loadThread(activePhone, true);
+  const items = [
+    {
+      icon: '<circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/>',
+      label: 'Delete for me',
+      action: () => {
+        addLocallyDeletedId(id);
+        if (ahmadChatOpen) renderAhmadChatPanel(true);
+        else if (activePhone) loadThread(activePhone, true);
+      }
+    },
+    {
+      icon: '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>',
+      label: 'Delete for everyone',
+      danger: true,
+      action: async () => {
+        try {
+          await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
+            method: 'DELETE',
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+          });
+        } catch (e) {}
+        if (ahmadChatOpen) renderAhmadChatPanel(true);
+        else if (activePhone) loadThread(activePhone, true);
+      }
+    },
+    {
+      icon: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+      label: 'Cancel',
+      action: () => {} // just closes the sheet, nothing else happens
+    }
+  ];
+  const container = document.getElementById('action-sheet-items');
+  container.innerHTML = items.map((it, i) => `
+    <div class="action-sheet-item ${it.danger ? 'danger' : ''}" style="animation-delay:${i * 0.035}s" onclick="window._sheetActions[${i}]()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${it.icon}</svg>
+      ${it.label}
+    </div>
+  `).join('');
+  window._sheetActions = items.map(it => () => { it.action(); closeConvoActionSheet(); });
+  document.getElementById('action-sheet-overlay').classList.add('show');
 };
 
 window.openForwardPicker = function(text) {
@@ -3406,7 +3445,8 @@ async function loadThread(phone, silent) {
   // Build message list with date dividers
   let lastDate = null;
   let bubblesHtml = '';
-  rows.forEach(m => {
+  const hiddenIds = getLocallyDeletedIds();
+  rows.filter(m => !hiddenIds.has(String(m.id))).forEach(m => {
     const dateStr = new Date(m.timestamp).toDateString();
     if (dateStr !== lastDate) {
       bubblesHtml += `<div class="date-divider">${formatDateDivider(m.timestamp)}</div>`;
@@ -3638,10 +3678,12 @@ async function renderAhmadChatPanel(silent) {
 
   let lastDate = null;
   let bubblesHtml = '';
-  if (!rows || rows.length === 0) {
+  const hiddenAhmadIds = getLocallyDeletedIds();
+  const visibleRows = (rows || []).filter(m => !hiddenAhmadIds.has(String(m.id)));
+  if (!visibleRows || visibleRows.length === 0) {
     bubblesHtml = '<div class="date-divider">Ask Ahmad to set up products, delivery rules, MOQ, or anything about your business</div>';
   } else {
-    rows.forEach(m => {
+    visibleRows.forEach(m => {
       const dateStr = new Date(m.created_at).toDateString();
       if (dateStr !== lastDate) {
         bubblesHtml += `<div class="date-divider">${formatDateDivider(m.created_at)}</div>`;
