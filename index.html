@@ -3504,24 +3504,32 @@ async function loadThread(phone, silent) {
   if (!silent) playScreenTransition();
   const box = document.getElementById('messages');
   const shouldStickToBottom = !silent || wasNearBottom;
-  if (shouldStickToBottom) {
+
+  if (!silent && shouldStickToBottom) {
+    // Fresh chat open: hide everything until images/videos have loaded and
+    // we know the TRUE final height, then reveal already positioned at the
+    // bottom — avoids ever showing the wrong spot first, matching how
+    // WhatsApp/Telegram just open already scrolled with no visible jump.
+    box.style.visibility = 'hidden';
+    const mediaEls = Array.from(box.querySelectorAll('img, video'));
+    const waitForMedia = mediaEls.map(el => new Promise(resolve => {
+      const isLoaded = el.tagName === 'IMG' ? el.complete : el.readyState >= 1;
+      if (isLoaded) { resolve(); return; }
+      el.addEventListener('load', resolve, { once: true });
+      el.addEventListener('loadedmetadata', resolve, { once: true });
+      el.addEventListener('error', resolve, { once: true });
+    }));
+    // Cap the wait so a slow/broken image can never delay opening the chat
+    const timeout = new Promise(resolve => setTimeout(resolve, 700));
+    Promise.race([Promise.all(waitForMedia), timeout]).then(() => {
+      box.scrollTop = box.scrollHeight;
+      box.style.visibility = 'visible';
+      updateScrollBtn();
+    });
+  } else if (shouldStickToBottom) {
     box.scrollTop = box.scrollHeight;
   } else {
     box.scrollTop = Math.min(oldScrollTop, box.scrollHeight);
-  }
-  // Photos/videos don't have their final height known until they actually
-  // load, so the scroll-to-bottom above can land short if any are still
-  // loading — this catches each one as it finishes and corrects the
-  // position, so opening a chat reliably lands on the true last message.
-  if (shouldStickToBottom) {
-    box.querySelectorAll('img, video').forEach(el => {
-      const isLoaded = el.tagName === 'IMG' ? el.complete : el.readyState >= 1;
-      if (!isLoaded) {
-        const reScroll = () => { box.scrollTop = box.scrollHeight; };
-        el.addEventListener('load', reScroll, { once: true });
-        el.addEventListener('loadedmetadata', reScroll, { once: true });
-      }
-    });
   }
   updateScrollBtn();
   box.addEventListener('scroll', updateScrollBtn);
