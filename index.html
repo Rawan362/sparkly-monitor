@@ -3577,6 +3577,15 @@ async function renderAhmadChatPanel(silent) {
     'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.asc&limit=300'
   ).catch(() => []);
 
+  // Same fix as the customer chat: skip rebuilding the DOM entirely on a
+  // silent background refresh when nothing actually changed, so scroll
+  // position, playing media, etc. are never disturbed for no reason.
+  const fingerprint = JSON.stringify({ n: rows.length, last: rows[rows.length - 1] });
+  if (silent && window._lastAhmadFingerprint === fingerprint) {
+    return;
+  }
+  window._lastAhmadFingerprint = fingerprint;
+
   const oldBox = document.getElementById('messages');
   let oldScrollTop = 0;
   let wasNearBottom = true;
