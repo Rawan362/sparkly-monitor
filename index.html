@@ -818,6 +818,30 @@
     opacity: 0.7;
   }
   .msg-row.in .bubble .ts { color: var(--text-muted); }
+  .msg-actions-arrow {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: var(--panel);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    z-index: 2;
+  }
+  .msg-row.in .msg-actions-arrow { right: auto; left: 4px; }
+  .bubble:hover .msg-actions-arrow { opacity: 1; }
+  @media (hover: none) {
+    .msg-actions-arrow { opacity: 0.55; background: transparent; box-shadow: none; }
+  }
   .msg-row.out .bubble .ts { color: rgba(46,74,135,0.7); }
   .ts .ticks { display: inline-flex; }
   .ts .ticks svg { display: block; }
@@ -3564,8 +3588,11 @@ function renderBubble(m) {
   const replyQuoteHtml = m.replyToText ? `<div class="msg-reply-quote">${escapeHtml(m.replyToText.slice(0, 80))}</div>` : '';
   const attachmentHtml = renderAttachmentContent(m.message || '');
   const bodyHtml = attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`;
+  const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>`;
   return `<div class="msg-row ${isOut ? 'out' : 'in'}" data-msg-id="${m.id || ''}" data-table="${m.table || ''}" data-role="${m.role}">
-    <div class="bubble ${isNote ? 'private-note' : ''}">${replyQuoteHtml}${badges ? '<span class="msg-badges">' + badges + '</span>' : ''}${bodyHtml}<span class="ts">${time}${ticks}</span></div>
+    <div class="bubble ${isNote ? 'private-note' : ''}">${arrowBtn}${replyQuoteHtml}${badges ? '<span class="msg-badges">' + badges + '</span>' : ''}${bodyHtml}<span class="ts">${time}${ticks}</span></div>
   </div>`;
 }
 
@@ -3678,17 +3705,24 @@ async function renderAhmadChatPanel(silent) {
 }
 
 window.sendAhmadMessage = async function() {
+  if (window._isSending) return;
   const textarea = document.getElementById('reply-text');
   let message = textarea.value.trim();
   if (!message) return;
   if (replyingTo) {
     message = '↪️ "' + replyingTo.text.slice(0, 60) + '"\n' + message;
   }
-  const btn = document.getElementById('send-btn');
-  if (btn) btn.disabled = true;
+  window._isSending = true;
+
+  // Show it instantly, matching the customer chat — no waiting for the
+  // network round-trip before anything appears.
+  const tempId = appendOptimisticBubble(`<span class="msg-text" dir="auto">${escapeHtml(message)}</span>`);
   textarea.value = '';
+  toggleComposerButtons(textarea);
   delete drafts['ahmad'];
   cancelReplyMode();
+  textarea.focus(); // the old renderAhmadChatPanel() rebuild was destroying and recreating this element, losing focus every time — this fixes that
+
   try {
     await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
       method: 'POST',
@@ -3701,13 +3735,17 @@ window.sendAhmadMessage = async function() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sellerChatId: SELLER_CHAT_ID, message })
     }).catch(() => {});
-    await renderAhmadChatPanel();
+    markOptimisticSent(tempId);
+    // Not calling renderAhmadChatPanel() here on purpose — it would force a
+    // full rebuild right after sending, causing the same scroll jump and
+    // focus loss this fix addresses. The background poll reconciles quietly
+    // a little later instead, and also picks up Ahmad's reply once ready.
   } catch (e) {
     logSystemError('sendAhmadMessage', e.message);
+    markOptimisticFailed(tempId);
     alert(t('send_failed') + e.message);
   }
-  const freshBtn = document.getElementById('send-btn');
-  if (freshBtn) freshBtn.disabled = false;
+  window._isSending = false;
 };
 
 window.resumeAI = async function(phone) {
