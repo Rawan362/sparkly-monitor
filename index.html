@@ -3585,12 +3585,13 @@ function renderAttachmentContent(message) {
 // completes, matching WhatsApp — the actual send happens in the
 // background, and the next real refresh naturally replaces this with the
 // confirmed version from the server (or removes it, on failure).
-function appendOptimisticBubble(bodyHtml) {
+function appendOptimisticBubble(bodyHtml, side) {
   const box = document.getElementById('messages');
   if (!box) return null;
   const tempId = 'optimistic-' + Date.now();
   const time = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const html = `<div class="msg-row out entering" data-optimistic-id="${tempId}">
+  const sideClass = side || 'out'; // customer chat: seller messages are 'out' (right). AI chat passes 'in' since Ahmad is 'out' there instead.
+  const html = `<div class="msg-row ${sideClass} entering" data-optimistic-id="${tempId}">
     <div class="bubble">${bodyHtml}<span class="ts">${time} <span class="optimistic-pending" title="Sending...">
       <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     </span></span></div>
@@ -3757,8 +3758,12 @@ window.sendAhmadMessage = async function() {
   window._isSending = true;
 
   // Show it instantly, matching the customer chat — no waiting for the
-  // network round-trip before anything appears.
-  const tempId = appendOptimisticBubble(`<span class="msg-text" dir="auto">${escapeHtml(message)}</span>`);
+  // network round-trip before anything appears. Ahmad chat uses the
+  // OPPOSITE side convention from the customer chat (Ahmad is 'out'/right,
+  // the seller's own messages are 'in'/left) — passing 'in' here matches
+  // that, otherwise the bubble would flash on the wrong side until the
+  // background poll corrected it.
+  const tempId = appendOptimisticBubble(`<span class="msg-text" dir="auto">${escapeHtml(message)}</span>`, 'in');
   textarea.value = '';
   toggleComposerButtons(textarea);
   delete drafts['ahmad'];
