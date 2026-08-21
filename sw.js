@@ -2,7 +2,7 @@
 // Caches the app shell so it opens instantly even on a flaky connection;
 // live data (conversations, messages) always comes fresh from Supabase,
 // this only caches the static shell itself.
-const CACHE_NAME = 'sparkly-shell-v6';
+const CACHE_NAME = 'sparkly-shell-v7';
 const SHELL_FILES = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {

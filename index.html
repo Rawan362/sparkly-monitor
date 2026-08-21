@@ -5011,6 +5011,10 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(reg => {
       debugLog('SW registered, scriptURL=' + (reg.active ? reg.active.scriptURL : 'none yet'));
       reg.update(); // always check for a newer version on load, don't trust the cached one
+      // Also check periodically while the app stays open, so a fix pushed
+      // while someone is mid-session still gets picked up soon after,
+      // instead of only ever checking on the very first load.
+      setInterval(() => reg.update(), 60000);
       reg.addEventListener('updatefound', () => {
         debugLog('SW updatefound — a new version is installing');
       });
@@ -5018,6 +5022,21 @@ if ('serviceWorker' in navigator) {
   });
   navigator.serviceWorker.getRegistrations().then(regs => {
     debugLog('SW active registrations: ' + regs.length);
+  });
+
+  // This is the actual fix for needing a manual cache-clear after every
+  // update: once a NEW service worker takes control (which it does almost
+  // immediately, thanks to skipWaiting/clients.claim in sw.js), reload the
+  // page automatically so it actually starts using the new version -
+  // instead of silently continuing to run the old JS already in memory
+  // until someone manually clears site data. Guarded so it can only ever
+  // fire once per page load, since controllerchange can fire more than once.
+  let hasReloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hasReloadedForUpdate) return;
+    hasReloadedForUpdate = true;
+    debugLog('SW controllerchange — reloading to pick up the new version');
+    location.reload();
   });
 }
 
