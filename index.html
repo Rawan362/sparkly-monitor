@@ -3556,6 +3556,14 @@ async function loadThread(phone, silent) {
     const s = window._stagedAttachment;
     stageAttachment(s.dataUrl, s.mimeType, s.kind, s.fileName);
   }
+  // Restoring a multi-line draft (or the attachment preview bar above) can
+  // grow the composer taller AFTER the scroll position above was already
+  // set — that shrinks how much of the messages area is visible, pushing
+  // the last message up out of view even though scrollTop itself didn't
+  // change. Re-correct once everything has settled.
+  if (shouldStickToBottom) {
+    requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
+  }
 }
 
 function renderAttachmentContent(message) {
