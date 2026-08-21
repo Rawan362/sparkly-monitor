@@ -932,10 +932,11 @@
     padding: 6px 0;
     transform-origin: top center;
   }
-  #msg-action-menu.show { display: block; animation: msg-menu-in 0.16s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+  #msg-action-menu.show { display: block; animation: msg-menu-in 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
   @keyframes msg-menu-in {
-    from { opacity: 0; transform: scale(0.85) translateY(-6px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+    0% { opacity: 0; transform: scale(0.7) translateY(-10px); }
+    60% { opacity: 1; }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
   }
   .msg-action-item {
     display: flex;
@@ -3502,10 +3503,25 @@ async function loadThread(phone, silent) {
   `;
   if (!silent) playScreenTransition();
   const box = document.getElementById('messages');
-  if (!silent || wasNearBottom) {
+  const shouldStickToBottom = !silent || wasNearBottom;
+  if (shouldStickToBottom) {
     box.scrollTop = box.scrollHeight;
   } else {
     box.scrollTop = Math.min(oldScrollTop, box.scrollHeight);
+  }
+  // Photos/videos don't have their final height known until they actually
+  // load, so the scroll-to-bottom above can land short if any are still
+  // loading — this catches each one as it finishes and corrects the
+  // position, so opening a chat reliably lands on the true last message.
+  if (shouldStickToBottom) {
+    box.querySelectorAll('img, video').forEach(el => {
+      const isLoaded = el.tagName === 'IMG' ? el.complete : el.readyState >= 1;
+      if (!isLoaded) {
+        const reScroll = () => { box.scrollTop = box.scrollHeight; };
+        el.addEventListener('load', reScroll, { once: true });
+        el.addEventListener('loadedmetadata', reScroll, { once: true });
+      }
+    });
   }
   updateScrollBtn();
   box.addEventListener('scroll', updateScrollBtn);
