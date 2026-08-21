@@ -2611,8 +2611,12 @@ async function sendAttachment(dataUrl, mimeType, kind, fileName, caption) {
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
     if (data && data.success) {
-      await loadConversations();
-      await loadThread(activePhone);
+      // Not calling loadConversations()/loadThread() here on purpose — either
+      // would immediately detect the new message and force a full rebuild,
+      // causing the same jarring scroll jump right after the message
+      // appears. The natural 8s background poll will quietly pick up the
+      // confirmed version and update the sidebar preview shortly, without
+      // disrupting what the user is currently looking at.
       return true;
     } else {
       const reason = data && data.reason ? data.reason : 'unknown error';
@@ -3537,6 +3541,17 @@ function markOptimisticFailed(tempId) {
   if (el) el.querySelector('.bubble').style.opacity = '0.5';
 }
 
+// Swaps the pending clock icon for a sent checkmark directly on the
+// existing bubble — no rebuild, no scroll movement. The next natural
+// background poll will quietly reconcile with the confirmed server copy
+// later, once the user isn't actively watching this exact moment.
+function markOptimisticSent(tempId) {
+  const el = document.querySelector(`[data-optimistic-id="${tempId}"] .optimistic-pending`);
+  if (!el) return;
+  el.innerHTML = `<svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg>`;
+  el.title = 'Sent';
+}
+
 function renderBubble(m) {
   const isOut = m.role === 'assistant';
   const isNote = (m.message || '').startsWith('📩 Customer:');
@@ -3894,7 +3909,8 @@ window.sendReply = async function(phone) {
     window._isSending = false;
 
     const ok = await sendAttachment(staged.dataUrl, staged.mimeType, staged.kind, staged.fileName, message);
-    if (!ok) markOptimisticFailed(tempId);
+    if (ok) markOptimisticSent(tempId);
+    else markOptimisticFailed(tempId);
     return;
   }
 
@@ -3925,7 +3941,11 @@ window.sendReply = async function(phone) {
       markOptimisticFailed(tempId);
       alert(t('send_failed') + reason);
     } else {
-      loadConversations(); // update the sidebar preview in the background, not blocking
+      // Not calling loadConversations() here on purpose — it would
+      // immediately detect the new message and force a full rebuild,
+      // causing a jarring scroll jump right after the message appears. The
+      // natural background poll picks it up quietly a little later instead.
+      markOptimisticSent(tempId);
     }
   } catch (e) {
     logSystemError('sendReply', e.message, { phone });
