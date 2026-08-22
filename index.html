@@ -4336,22 +4336,38 @@ window.doSignUp = async function() {
       body: JSON.stringify({ email, password })
     });
     const authData = await authRes.json();
-    if (!authRes.ok || !authData.user) {
+    // Supabase's response shape differs depending on whether email
+    // confirmation is required: with it OFF, the user is nested under
+    // authData.user alongside a session. With it ON (our current setup),
+    // the user's own fields (id, aud, email, etc.) come back directly at
+    // the top level instead, and there's no session yet until they click
+    // the confirmation link. Handling both shapes here, rather than only
+    // the nested one, is the actual fix - the flat shape was being
+    // mistaken for an error before.
+    const user = authData.user || (authData.id ? authData : null);
+    if (!authRes.ok || !user) {
       const realReason = authData.msg || authData.error_description || authData.error || authData.message || JSON.stringify(authData).slice(0, 150) || ('HTTP ' + authRes.status);
       logSystemError(null, 'doSignUp', 'Auth signup failed: ' + realReason, { email });
       showSignUpScreen(realReason);
       return;
     }
-    const newChatId = 'web_' + authData.user.id;
+    const newChatId = 'web_' + user.id;
     const sellerRes = await fetch(SUPABASE_URL + '/rest/v1/sellers', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ chat_id: newChatId, auth_user_id: authData.user.id, email, business_name: businessName })
+      body: JSON.stringify({ chat_id: newChatId, auth_user_id: user.id, email, business_name: businessName })
     });
     if (!sellerRes.ok) {
       const sellerErrText = await sellerRes.text().catch(() => '');
       logSystemError(newChatId, 'doSignUp', 'Failed to create sellers row: HTTP ' + sellerRes.status + ' - ' + sellerErrText.slice(0, 300));
       showSignUpScreen('Account created, but profile setup failed: ' + sellerErrText.slice(0, 150));
+      return;
+    }
+    if (!authData.access_token) {
+      // Email confirmation is required and hasn't happened yet - this is
+      // success, just not signed-in-yet success. Tell them clearly instead
+      // of silently trying (and failing) to open the dashboard.
+      showLoginScreen('Account created! Check ' + email + ' and click the confirmation link, then sign in below.');
       return;
     }
     localStorage.setItem('sparkly_seller_chat_id', newChatId);
@@ -4491,18 +4507,23 @@ window.doMigrateStep2 = async function() {
       body: JSON.stringify({ email, password })
     });
     const authData = await authRes.json();
-    if (!authRes.ok || !authData.user) {
+    const user = authData.user || (authData.id ? authData : null);
+    if (!authRes.ok || !user) {
       showMigrateAccountScreen(2, authData.msg || authData.error_description || 'Could not set up email — it may already be in use.');
       return;
     }
     const updateRes = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + _migratingChatId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ auth_user_id: authData.user.id, email })
+      body: JSON.stringify({ auth_user_id: user.id, email })
     });
     if (!updateRes.ok) {
       showMigrateAccountScreen(2, 'Email setup succeeded, but linking to your account failed — contact support.');
       logSystemError(_migratingChatId, 'doMigrateStep2', 'Failed to link auth_user_id to existing seller row');
+      return;
+    }
+    if (!authData.access_token) {
+      showLoginScreen('Almost done! Check ' + email + ' and click the confirmation link, then sign in below.');
       return;
     }
     localStorage.setItem('sparkly_seller_chat_id', _migratingChatId);
