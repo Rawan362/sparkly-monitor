@@ -4349,8 +4349,9 @@ window.doSignUp = async function() {
       body: JSON.stringify({ chat_id: newChatId, auth_user_id: authData.user.id, email, business_name: businessName })
     });
     if (!sellerRes.ok) {
-      showSignUpScreen('Account created, but setup failed — contact support.');
-      logSystemError(newChatId, 'doSignUp', 'Failed to create sellers row after auth signup');
+      const sellerErrText = await sellerRes.text().catch(() => '');
+      logSystemError(newChatId, 'doSignUp', 'Failed to create sellers row: HTTP ' + sellerRes.status + ' - ' + sellerErrText.slice(0, 300));
+      showSignUpScreen('Account created, but profile setup failed: ' + sellerErrText.slice(0, 150));
       return;
     }
     localStorage.setItem('sparkly_seller_chat_id', newChatId);
@@ -4361,7 +4362,8 @@ window.doSignUp = async function() {
     document.getElementById('app').style.display = 'flex';
     startApp();
   } catch (e) {
-    showSignUpScreen('Something went wrong — try again.');
+    logSystemError(null, 'doSignUp', 'Exception during sign-up: ' + e.message + ' | ' + (e.stack || '').slice(0, 300));
+    showSignUpScreen('Something went wrong: ' + e.message);
   }
 };
 
