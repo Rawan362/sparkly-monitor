@@ -4337,7 +4337,9 @@ window.doSignUp = async function() {
     });
     const authData = await authRes.json();
     if (!authRes.ok || !authData.user) {
-      showSignUpScreen(authData.msg || authData.error_description || 'Could not create account — that email may already be in use.');
+      const realReason = authData.msg || authData.error_description || authData.error || authData.message || JSON.stringify(authData).slice(0, 150) || ('HTTP ' + authRes.status);
+      logSystemError(null, 'doSignUp', 'Auth signup failed: ' + realReason, { email });
+      showSignUpScreen(realReason);
       return;
     }
     const newChatId = 'web_' + authData.user.id;
