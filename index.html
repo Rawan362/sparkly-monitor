@@ -1892,6 +1892,10 @@
       </div>
 
       <div class="settings-section-label">Referral</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Referral program</span><span class="biz-sub">On whenever a reward is set</span></div>
+        <button class="biz-toggle" id="biz-toggle-referral" onclick="toggleReferralActive(this)"></button>
+      </div>
       <div class="biz-fields" style="padding-top:14px;">
         <div class="biz-field"><label>Reward</label><input type="text" id="biz-referral-reward" data-key="referral_reward" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>Discount</label><input type="text" id="biz-referral-discount" data-key="referral_discount" onchange="saveBizField(this)"></div>
@@ -4818,6 +4822,13 @@ async function loadBizSettings() {
       btn.classList.toggle('on', isOn);
     });
 
+    // Referral has no dedicated on/off flag in the backend — it's driven
+    // purely by whether a reward is set, so derive the toggle from that.
+    const referralToggle = document.getElementById('biz-toggle-referral');
+    if (referralToggle) {
+      referralToggle.classList.toggle('on', !!(settingsMap['referral_reward'] && settingsMap['referral_reward'].trim() !== ''));
+    }
+
     // Populate every text/number/select field bound to bot_settings
     document.querySelectorAll('#business-tab-content .biz-field input[data-key], #business-tab-content .biz-field select[data-key]').forEach(el => {
       const key = el.dataset.key;
@@ -4852,6 +4863,33 @@ window.toggleBizSetting = async function(btn) {
   }
 };
 
+// Referral has no dedicated active flag on the backend (Build Prompt only
+// checks whether referral_reward is non-empty) — so "off" means clearing
+// the reward and discount, which is exactly what already disables it for
+// the AI. "On" just unlocks the fields for entry; nothing is written until
+// the seller actually types a reward.
+window.toggleReferralActive = async function(btn) {
+  const turningOn = !btn.classList.contains('on');
+  btn.disabled = true;
+  try {
+    if (!turningOn) {
+      await saveBotSetting('referral_reward', '');
+      await saveBotSetting('referral_discount', '');
+      const rewardEl = document.getElementById('biz-referral-reward');
+      const discountEl = document.getElementById('biz-referral-discount');
+      if (rewardEl) rewardEl.value = '';
+      if (discountEl) discountEl.value = '';
+    }
+    btn.classList.toggle('on', turningOn);
+    showBizSaveHint();
+  } catch (e) {
+    debugLog('toggleReferralActive failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 window.saveBizField = async function(el) {
   const key = el.dataset.key;
   const value = el.value;
@@ -4864,6 +4902,11 @@ window.saveBizField = async function(el) {
       });
     } else {
       await saveBotSetting(key, value);
+    }
+    // Keep the referral toggle in sync if the reward field was edited directly
+    if (key === 'referral_reward') {
+      const referralToggle = document.getElementById('biz-toggle-referral');
+      if (referralToggle) referralToggle.classList.toggle('on', value.trim() !== '');
     }
     showBizSaveHint();
   } catch (e) {
