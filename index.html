@@ -1624,6 +1624,64 @@
   .settings-row:hover { background: var(--panel-2); }
   .settings-row.danger { color: var(--danger); }
   .settings-row svg { flex-shrink: 0; opacity: 0.75; }
+
+  /* ═══ BUSINESS SETTINGS ═══ */
+  .biz-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    font-size: 14.5px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+  }
+  .biz-row-label { flex: 1; min-width: 0; }
+  .biz-row-label .biz-title { display: block; }
+  .biz-row-label .biz-sub { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .biz-toggle {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--border);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: background-color 0.15s ease;
+  }
+  .biz-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--panel);
+    box-shadow: 0 1px 3px rgba(var(--shadow-color), 0.3);
+    transition: transform 0.15s ease;
+  }
+  .biz-toggle.on { background: var(--accent-2); }
+  .biz-toggle.on::after { transform: translateX(18px); }
+  .biz-toggle:disabled { opacity: 0.5; cursor: wait; }
+  .biz-fields { padding: 4px 20px 16px; border-bottom: 1px solid var(--border); }
+  .biz-fields.hidden { display: none; }
+  .biz-field { margin-bottom: 10px; }
+  .biz-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .biz-field input, .biz-field select {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--font-ui);
+  }
+  .biz-field input:focus, .biz-field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .biz-save-hint { font-size: 11px; color: var(--accent-2); opacity: 0; transition: opacity 0.2s ease; padding: 0 20px 6px; margin-top: -8px; }
+  .biz-save-hint.show { opacity: 1; }
   .settings-section-label {
     font-size: 11.5px;
     font-weight: 600;
@@ -1741,6 +1799,101 @@
         <span id="settings-label-delete">Delete my account</span>
       </div>
     </div>
+    <div id="business-tab-content" style="display:none;">
+      <div class="settings-section-label" style="padding-top:16px;">AI Assistant</div>
+      <div class="biz-field" style="padding:4px 20px 14px;border-bottom:1px solid var(--border);">
+        <label>Assistant name</label>
+        <input type="text" id="biz-ai-name" data-key="ai_name" data-table="seller_sales_config" placeholder="e.g. Ahmad" onchange="saveBizField(this)">
+      </div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">AI replies (all customers)</span><span class="biz-sub">Turn off to pause every automatic reply</span></div>
+        <button class="biz-toggle" id="biz-toggle-global_ai_active" data-key="global_ai_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
+        <label>Message shown while paused (optional)</label>
+        <input type="text" id="biz-pause-message" data-key="global_pause_message" placeholder="e.g. Thanks, we'll reply soon" onchange="saveBizField(this)">
+      </div>
+
+      <div class="settings-section-label">Broadcast</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Recurring broadcast</span></div>
+        <button class="biz-toggle" id="biz-toggle-broadcast_active" data-key="broadcast_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Message</label><input type="text" id="biz-broadcast-message" data-key="broadcast_message" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Repeat every (days)</label><input type="number" min="1" id="biz-broadcast-interval" data-key="broadcast_interval" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Audience</label>
+          <select id="biz-audience" data-key="target_audience" onchange="saveBizField(this)">
+            <option value="both">Everyone</option>
+            <option value="wholesale">Wholesale only</option>
+            <option value="retail">Retail only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section-label">Follow-up sequence</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Send follow-ups</span></div>
+        <button class="biz-toggle" id="biz-toggle-followup_active" data-key="followup_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Follow-up 1 — message</label><input type="text" id="biz-fu1-msg" data-key="followup1_message" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Follow-up 1 — hours after last message</label><input type="number" min="1" id="biz-fu1-hrs" data-key="followup1_hours" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Follow-up 2 — message</label><input type="text" id="biz-fu2-msg" data-key="followup2_message" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Follow-up 2 — hours after last message</label><input type="number" min="1" id="biz-fu2-hrs" data-key="followup2_hours" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Follow-up 3 — message</label><input type="text" id="biz-fu3-msg" data-key="followup3_message" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Follow-up 3 — hours after last message</label><input type="number" min="1" id="biz-fu3-hrs" data-key="followup3_hours" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Offers</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Bump offer</span><span class="biz-sub">Shown right after a purchase</span></div>
+        <button class="biz-toggle" id="biz-toggle-bump_active" data-key="bump_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Product</label><input type="text" id="biz-bump-product" data-key="bump_product" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Price</label><input type="text" id="biz-bump-price" data-key="bump_price" onchange="saveBizField(this)"></div>
+      </div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Upsell offer</span></div>
+        <button class="biz-toggle" id="biz-toggle-upsell_active" data-key="upsell_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Product</label><input type="text" id="biz-upsell-product" data-key="upsell_product" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Price</label><input type="text" id="biz-upsell-price" data-key="upsell_price" onchange="saveBizField(this)"></div>
+      </div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Cross-sell offer</span></div>
+        <button class="biz-toggle" id="biz-toggle-crosssell_active" data-key="crosssell_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Product</label><input type="text" id="biz-crosssell-product" data-key="crosssell_product" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Price</label><input type="text" id="biz-crosssell-price" data-key="crosssell_price" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Referral</div>
+      <div class="biz-fields" style="padding-top:14px;">
+        <div class="biz-field"><label>Reward</label><input type="text" id="biz-referral-reward" data-key="referral_reward" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Discount</label><input type="text" id="biz-referral-discount" data-key="referral_discount" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Win-back</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Re-engage inactive customers</span></div>
+        <button class="biz-toggle" id="biz-toggle-winback_active" data-key="winback_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+
+      <div class="settings-section-label">VIP</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">VIP program</span></div>
+        <button class="biz-toggle" id="biz-toggle-vip_active" data-key="vip_active" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Orders needed to become VIP</label><input type="number" min="1" id="biz-vip-threshold" data-key="vip_threshold" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>VIP offer message</label><input type="text" id="biz-vip-message" data-key="vip_offer_text" onchange="saveBizField(this)"></div>
+      </div>
+      <div id="biz-save-hint" class="biz-save-hint">Saved</div>
+    </div>
     <div id="media-backup-tab-content" style="display:none;">
       <div id="media-backup-header-row">
         <button onclick="closeMediaBackup()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
@@ -1801,6 +1954,10 @@
       <div class="bottom-nav-item" id="nav-ai" onclick="openAhmadChat()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
         <span id="nav-ai-label">AI</span>
+      </div>
+      <div class="bottom-nav-item" id="nav-business" onclick="openBusiness()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <span id="nav-business-label">Business</span>
       </div>
       <div class="bottom-nav-item" id="nav-settings" onclick="openSettings()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -4575,7 +4732,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -4600,6 +4757,130 @@ window.openSettings = function() {
     document.getElementById('app').classList.remove('sidebar-hidden');
   }
 };
+
+// ═══ BUSINESS SETTINGS (replaces the Telegram "quick settings" intents) ═══
+// Mirrors the n8n control panel's updateSetting/getSettings: one row per
+// (chat_id, key) in bot_settings, upserted on change. seller_sales_config
+// holds the one non-bot_settings field (ai_name) the same way the Telegram
+// set_ai_name handler does.
+let bizSettingsLoaded = false;
+
+window.openBusiness = function() {
+  saveCurrentDraft();
+  ahmadChatOpen = false;
+  activePhone = null;
+  const pinned = document.getElementById('ahmad-pinned');
+  if (pinned) pinned.classList.remove('active');
+  document.querySelectorAll('#sidebar-bottom-nav .bottom-nav-item').forEach(el => el.classList.remove('active'));
+  const navBusiness = document.getElementById('nav-business');
+  if (navBusiness) navBusiness.classList.add('active');
+
+  hideAllSidebarPanels();
+  const bizTab = document.getElementById('business-tab-content');
+  bizTab.style.display = 'block';
+  playTabSlide(bizTab, 'business');
+
+  if (window.innerWidth <= 720) {
+    document.getElementById('app').classList.remove('sidebar-hidden');
+  }
+
+  loadBizSettings();
+};
+
+async function loadBizSettings() {
+  if (!SELLER_CHAT_ID) return;
+  try {
+    const [settingsRes, configRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json())
+    ]);
+
+    const settingsMap = {};
+    (settingsRes || []).forEach(r => { settingsMap[r.key] = r.value; });
+
+    // Populate every toggle
+    document.querySelectorAll('#business-tab-content .biz-toggle').forEach(btn => {
+      const key = btn.dataset.key;
+      const isOn = settingsMap[key] === 'true';
+      btn.classList.toggle('on', isOn);
+    });
+
+    // Populate every text/number/select field bound to bot_settings
+    document.querySelectorAll('#business-tab-content .biz-field input[data-key], #business-tab-content .biz-field select[data-key]').forEach(el => {
+      const key = el.dataset.key;
+      if (el.dataset.table === 'seller_sales_config') return; // handled below
+      if (settingsMap[key] !== undefined) el.value = settingsMap[key];
+    });
+
+    // ai_name lives in a different table
+    if (configRes && configRes[0] && configRes[0].ai_name) {
+      document.getElementById('biz-ai-name').value = configRes[0].ai_name;
+    }
+
+    bizSettingsLoaded = true;
+  } catch (e) {
+    debugLog('loadBizSettings failed: ' + (e && e.message));
+  }
+}
+
+window.toggleBizSetting = async function(btn) {
+  const key = btn.dataset.key;
+  const turningOn = !btn.classList.contains('on');
+  btn.disabled = true;
+  try {
+    await saveBotSetting(key, turningOn ? 'true' : 'false');
+    btn.classList.toggle('on', turningOn);
+    showBizSaveHint();
+  } catch (e) {
+    debugLog('toggleBizSetting failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+window.saveBizField = async function(el) {
+  const key = el.dataset.key;
+  const value = el.value;
+  try {
+    if (el.dataset.table === 'seller_sales_config') {
+      await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: value })
+      });
+    } else {
+      await saveBotSetting(key, value);
+    }
+    showBizSaveHint();
+  } catch (e) {
+    debugLog('saveBizField failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  }
+};
+
+async function saveBotSetting(key, value) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/bot_settings?on_conflict=chat_id,key', {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ chat_id: SELLER_CHAT_ID, key: key, value: value })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+
+let bizHintTimer = null;
+function showBizSaveHint() {
+  const hint = document.getElementById('biz-save-hint');
+  if (!hint) return;
+  hint.textContent = currentLang === 'ar' ? 'تم الحفظ' : 'Saved';
+  hint.classList.add('show');
+  clearTimeout(bizHintTimer);
+  bizHintTimer = setTimeout(() => hint.classList.remove('show'), 1500);
+}
 
 window.openLanguagePicker = function() {
   document.getElementById('settings-tab-content').style.display = 'none';
