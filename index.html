@@ -1906,6 +1906,11 @@
         <div class="biz-row-label"><span class="biz-title">Re-engage inactive customers</span></div>
         <button class="biz-toggle" id="biz-toggle-winback_active" data-key="winback_active" onclick="toggleBizSetting(this)"></button>
       </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>First check-in after (days inactive)</label><input type="number" min="1" id="biz-winback-days1" data-key="winback_days1" placeholder="14" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Second check-in after (days inactive)</label><input type="number" min="1" id="biz-winback-days2" data-key="winback_days2" placeholder="21" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Final offer after (days inactive)</label><input type="number" min="1" id="biz-winback-days3" data-key="winback_days3" placeholder="30" onchange="saveBizField(this)"></div>
+      </div>
 
       <div class="settings-section-label">VIP</div>
       <div class="biz-row">
