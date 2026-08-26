@@ -2443,6 +2443,16 @@ async function loadConversations() {
   renderConvoList();
   if (activePhone) await loadThread(activePhone, true);
   if (ahmadChatOpen) await renderAhmadChatPanel(true);
+
+  // Keep Products in sync even when changes come from the AI chat (Ahmad)
+  // rather than the Products screen itself — only refresh the list view,
+  // never while a product is actively being edited/added, so an in-progress
+  // form never gets silently overwritten.
+  const productsPanel = document.getElementById('products-tab-content');
+  const productsListView = document.getElementById('products-list-view');
+  if (productsPanel && productsPanel.style.display !== 'none' && productsListView && productsListView.style.display !== 'none') {
+    loadProducts();
+  }
 }
 
 function renderChannelPills() {
