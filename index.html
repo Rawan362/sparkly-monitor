@@ -5013,16 +5013,41 @@ window.saveProductForm = async function() {
   btn.textContent = currentLang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...';
 
   try {
+    const numericFields = ['wholesale_price', 'retail_price', 'cost_price', 'stock_quantity', 'low_stock_threshold'];
     const payload = { chat_id: SELLER_CHAT_ID };
+    let parseErrorField = null;
+
     PRODUCT_FIELDS.forEach(f => {
       const el = document.getElementById('pf-' + f);
       const val = el.value.trim();
-      if (['wholesale_price', 'retail_price', 'cost_price', 'stock_quantity', 'low_stock_threshold'].includes(f)) {
-        payload[f] = val === '' ? null : Number(val);
+      if (numericFields.includes(f)) {
+        if (val === '') {
+          payload[f] = null;
+        } else {
+          // Strip anything that isn't a digit, minus sign, or decimal point —
+          // handles "$50", "50 USD", "50,000", "١٠٠" typed with currency
+          // labels or thousands separators, so a real number still saves.
+          const cleaned = val.replace(/[^\d.-]/g, '');
+          const num = cleaned === '' ? NaN : Number(cleaned);
+          if (isNaN(num)) {
+            parseErrorField = el;
+          } else {
+            payload[f] = num;
+          }
+        }
       } else {
         payload[f] = val === '' ? null : val;
       }
     });
+
+    if (parseErrorField) {
+      const label = parseErrorField.closest('.biz-field')?.querySelector('label')?.textContent || 'This field';
+      alert((currentLang === 'ar' ? 'الرجاء إدخال رقم صحيح في: ' : "Please enter a valid number for: ") + label);
+      btn.disabled = false;
+      btn.textContent = currentLang === 'ar' ? 'حفظ المنتج' : 'Save Product';
+      return;
+    }
+
     payload.track_stock = document.getElementById('pf-track_stock-toggle').classList.contains('on');
     payload.is_active = document.getElementById('pf-is_active-toggle').classList.contains('on');
     payload.updated_at = new Date().toISOString();
