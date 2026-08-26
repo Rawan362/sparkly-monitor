@@ -1,0 +1,52 @@
+{
+  "id": "Nfe0lVPVkeoUfgrc",
+  "name": "Storage Guardian",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3e935ca4-28ab-4352-9a4b-958f855e56a9",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs every hour. True WhatsApp-style behavior: any photo/file gets\n// deleted from OUR storage exactly 48 hours after it was sent \u2014 the\n// customer already has their own permanent copy on their phone via\n// WhatsApp, same as real WhatsApp servers do. The chat bubble/history\n// stays forever; only the actual file bytes on our side get cleaned up.\n\nconst anonKey = '[REDACTED_SUPABASE_ANON_KEY]';\nconst botToken = '[REDACTED_TELEGRAM_BOT_TOKEN]';\n\nconst RETENTION_HOURS = 48; // change this one number to adjust the window\n\nfunction httpJson(method, path, bodyObj) {\n  return new Promise((resolve) => {\n    const https = require('https');\n    const bodyStr = JSON.stringify(bodyObj);\n    const req = https.request({\n      hostname: 'qfmmoobwzuhiimmjixes.supabase.co',\n      path,\n      method,\n      headers: {\n        'Authorization': 'Bearer ' + anonKey,\n        'apikey': anonKey,\n        'Content-Type': 'application/json',\n        'Content-Length': Buffer.byteLength(bodyStr)\n      }\n    }, (res) => {\n      let raw = '';\n      res.on('data', (c) => { raw += c; });\n      res.on('end', () => {\n        try { resolve(JSON.parse(raw)); } catch (e) { resolve(null); }\n      });\n    });\n    req.on('error', () => resolve(null));\n    req.write(bodyStr);\n    req.end();\n  });\n}\n\nasync function listAllObjects() {\n  const topLevel = await httpJson('POST', '/storage/v1/object/list/chat-media', { prefix: '', limit: 1000 });\n  const folders = (topLevel || []).filter(o => !o.id);\n  let all = [];\n  for (const folder of folders) {\n    const items = await httpJson('POST', '/storage/v1/object/list/chat-media', { prefix: folder.name + '/', limit: 1000 });\n    (items || []).forEach(it => {\n      if (it.id) {\n        all.push({\n          path: folder.name + '/' + it.name,\n          sellerId: folder.name,\n          createdAt: it.created_at || it.updated_at\n        });\n      }\n    });\n  }\n  return all;\n}\n\nasync function deleteObjects(paths) {\n  if (paths.length === 0) return;\n  await httpJson('DELETE', '/storage/v1/object/chat-media', { prefixes: paths });\n}\n\nconst objects = await listAllObjects();\nconst now = Date.now();\nconst hourMs = 60 * 60 * 1000;\n\nconst expired = objects.filter(o => (now - new Date(o.createdAt).getTime()) >= RETENTION_HOURS * hourMs);\n\nif (expired.length > 0) {\n  await deleteObjects(expired.map(o => o.path));\n}\n\nreturn [{ json: { checked: objects.length, deleted: expired.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "ab368e29-1abb-49fa-ada5-e268084e7843",
+      "name": "storage_guardian"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "storage_guardian",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
