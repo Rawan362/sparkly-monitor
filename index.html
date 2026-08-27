@@ -150,6 +150,19 @@
   }
   #app.sidebar-hidden #sidebar { margin-left: -340px; }
 
+  /* On desktop, Settings and everything under it (Products, Orders, Alerts,
+     Reports, Business settings, Devices, etc.) currently render inside the
+     narrow 340px sidebar — cramped, since it was designed for a chat list.
+     This expands the sidebar to fill the same wide space #main normally
+     uses whenever one of those detail panels is open, matching how the AI
+     chat and customer conversations already correctly use that space.
+     Mobile is untouched — the sidebar there is already full-width (100vw)
+     via the rule below, so this only applies above the mobile breakpoint. */
+  @media (min-width: 721px) {
+    #app.wide-panel-mode #sidebar { flex: 1; width: auto; min-width: 0; }
+    #app.wide-panel-mode #main { display: none; }
+  }
+
   #sidebar-header {
     padding: calc(22px + env(safe-area-inset-top)) 20px 16px;
     display: flex;
@@ -4233,6 +4246,7 @@ window.openAhmadChat = async function() {
   cancelReplyMode();
   ahmadChatOpen = true;
   activePhone = null;
+  document.getElementById('app').classList.remove('wide-panel-mode');
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.add('sidebar-hidden');
   }
@@ -5130,6 +5144,7 @@ window.openSettings = function() {
   settingsTab.style.display = 'block';
   playTabSlide(settingsTab, 'settings');
 
+  document.getElementById('app').classList.add('wide-panel-mode');
   if (window.innerWidth <= 720) {
     document.getElementById('app').classList.remove('sidebar-hidden');
   }
@@ -6503,6 +6518,7 @@ window.goToChats = function() {
   if (navChats) navChats.classList.add('active');
   renderConvoList();
 
+  document.getElementById('app').classList.remove('wide-panel-mode');
   hideAllSidebarPanels();
   const chatsTab = document.getElementById('chats-tab-content');
   chatsTab.style.display = 'flex';
