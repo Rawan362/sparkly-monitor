@@ -1865,6 +1865,45 @@
   #order-amount-received-field { margin-top: 14px; }
   #order-amount-received-field label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 6px; }
   #order-amount-received-field input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font-size: 14px; }
+
+  /* ═══ ALERTS ═══ */
+  #alerts-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #alerts-header-row, #reports-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #alerts-header-row button, #reports-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #alerts-title, #reports-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #alerts-loading, #reports-loading { display: flex; align-items: center; gap: 10px; padding: 30px 20px; color: var(--text-muted); font-size: 13.5px; }
+  #alerts-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13.5px; }
+  .alert-card {
+    margin: 12px 16px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border-left: 4px solid var(--danger);
+    background: var(--panel-2);
+  }
+  .alert-card.alert-info { border-left-color: var(--accent-2); }
+  .alert-card-title { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .alert-card-body { font-size: 13px; color: var(--text); white-space: pre-line; line-height: 1.5; }
+
+  /* ═══ REPORTS ═══ */
+  #reports-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .report-section { margin-bottom: 22px; }
+  .report-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
+  .report-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .report-stat-card { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; }
+  .report-stat-value { font-size: 19px; font-weight: 700; font-family: var(--font-display); }
+  .report-stat-label { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .report-stat-value.positive { color: var(--accent-2); }
+  .report-stat-value.negative { color: var(--danger); }
+  .report-list-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .report-list-row .label { color: var(--text); }
+  .report-list-row .value { font-weight: 600; color: var(--text-muted); }
   .settings-section-label {
     font-size: 11.5px;
     font-weight: 600;
@@ -2015,6 +2054,22 @@
         <div id="order-detail-fields"></div>
       </div>
     </div>
+    <div id="alerts-tab-content" style="display:none;">
+      <div id="alerts-header-row">
+        <button onclick="closeAlertsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="alerts-title">Alerts</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="alerts-list"><div id="alerts-loading"><div class="spinner"></div>Checking for anything that needs attention...</div></div>
+    </div>
+    <div id="reports-tab-content" style="display:none;">
+      <div id="reports-header-row">
+        <button onclick="closeReportsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="reports-title">Reports</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="reports-content"><div id="reports-loading"><div class="spinner"></div>Crunching the numbers...</div></div>
+    </div>
     <div id="settings-tab-content" style="display:none;">
       <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
       <div class="settings-row" onclick="openAppearancePicker()">
@@ -2051,6 +2106,14 @@
       <div class="settings-row" onclick="openOrdersPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
         <span id="settings-label-orders-row">Orders</span>
+      </div>
+      <div class="settings-row" onclick="openAlertsPanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="settings-label-alerts-row">Alerts</span>
+      </div>
+      <div class="settings-row" onclick="openReportsPanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        <span id="settings-label-reports-row">Reports</span>
       </div>
       <div class="settings-row" onclick="openBusinessPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -2174,6 +2237,31 @@
       <div class="biz-fields">
         <div class="biz-field"><label>Orders needed to become VIP</label><input type="number" min="1" id="biz-vip-threshold" data-key="vip_threshold" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>VIP offer message</label><input type="text" id="biz-vip-message" data-key="vip_offer_text" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Point of Sale (POS)</div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Inventory tracking</span><span class="biz-sub">Enables stock quantity tracking across products</span></div>
+        <button class="biz-toggle" id="biz-toggle-pos_inventory" data-key="inventory_tracking_active" data-table="pos_settings" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Low stock alerts</span></div>
+        <button class="biz-toggle" id="biz-toggle-pos_low_stock" data-key="low_stock_alerts_active" data-table="pos_settings" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Default low stock threshold</label><input type="number" min="0" id="biz-pos-low-stock-threshold" data-key="low_stock_default_threshold" data-table="pos_settings" data-numeric="true" placeholder="5" onchange="saveBizField(this)"></div>
+      </div>
+      <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Auto invoices</span></div>
+        <button class="biz-toggle" id="biz-toggle-pos_auto_invoice" data-key="auto_invoice_active" data-table="pos_settings" onclick="toggleBizSetting(this)"></button>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Invoice number prefix</label><input type="text" id="biz-pos-invoice-prefix" data-key="invoice_prefix" data-table="pos_settings" placeholder="INV" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Ads</div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Meta Ad Account ID</label><input type="text" id="biz-ad-account-id" data-key="ad_account_id" data-table="seller_ad_config" placeholder="e.g. 123456789 (without act_)" onchange="saveBizField(this)"></div>
       </div>
       <div id="biz-save-hint" class="biz-save-hint">Saved</div>
     </div>
@@ -5021,7 +5109,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -5399,6 +5487,227 @@ window.updateOrderStatus = async function(newStatus) {
   }
 };
 
+// ═══ ALERTS (replaces Telegram's proactive alerts / "show alerts") ═══
+window.openAlertsPanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('alerts-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  await loadAlerts();
+};
+
+window.closeAlertsPanel = function() {
+  document.getElementById('alerts-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+async function loadAlerts() {
+  const listEl = document.getElementById('alerts-list');
+  listEl.innerHTML = '<div id="alerts-loading"><div class="spinner"></div>Checking for anything that needs attention...</div>';
+  const alerts = [];
+
+  try {
+    // Overdue pending orders (2+ days) — mirrors the same threshold n8n uses
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const overdueRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.PENDING&created_at=lte.' + twoDaysAgo + '&select=phone,product_name,order_total,created_at&limit=10', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const overdue = await overdueRes.json() || [];
+    if (overdue.length > 0) {
+      const body = overdue.map(o => `• ${o.phone} — ${o.product_name || '—'} — ${(o.order_total || 0).toLocaleString()}`).join('\n');
+      alerts.push({ title: `⚠️ Overdue Orders (${overdue.length})`, body, danger: true });
+    }
+  } catch (e) { debugLog('alerts: overdue orders check failed: ' + (e && e.message)); }
+
+  try {
+    // Silent WARM customers (14+ days) — mirrors the same threshold n8n uses
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&list_status=eq.WARM&select=phone,name,total_orders&limit=10', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const silent = await silentRes.json() || [];
+    if (silent.length > 0) {
+      const body = silent.map(c => `• ${c.phone}${c.name ? ' (' + c.name + ')' : ''} — ${c.total_orders || 0} previous orders`).join('\n');
+      alerts.push({ title: `😴 Silent Customers (${silent.length})`, body });
+    }
+  } catch (e) { debugLog('alerts: silent customers check failed: ' + (e && e.message)); }
+
+  try {
+    // Cash not yet collected — only ever appears if this seller has actually
+    // used mark_cod themselves; nothing auto-populates this anymore, so a
+    // fully-prepaid business will never see this alert at all.
+    const codRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.DELIVERED&cod_collected=eq.false&select=phone,product_name,order_total&limit=10', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const codPending = await codRes.json() || [];
+    if (codPending.length > 0) {
+      const total = codPending.reduce((s, o) => s + (o.order_total || 0), 0);
+      const body = `You have ${total.toLocaleString()} not yet collected:\n` + codPending.map(o => `• ${o.phone} — ${(o.order_total || 0).toLocaleString()}`).join('\n');
+      alerts.push({ title: `💰 Cash Not Collected (${codPending.length})`, body, danger: true });
+    }
+  } catch (e) { debugLog('alerts: COD check failed: ' + (e && e.message)); }
+
+  try {
+    // Low stock — only for products that actually have stock tracking turned on
+    const stockRes = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&track_stock=eq.true&select=product_name,stock_quantity,low_stock_threshold', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const tracked = await stockRes.json() || [];
+    const low = tracked.filter(p => p.low_stock_threshold != null && p.stock_quantity != null && p.stock_quantity <= p.low_stock_threshold);
+    if (low.length > 0) {
+      const body = low.map(p => `• ${p.product_name}: ${p.stock_quantity} left (threshold ${p.low_stock_threshold})`).join('\n');
+      alerts.push({ title: `📦 Low Stock (${low.length})`, body, danger: true });
+    }
+  } catch (e) { debugLog('alerts: low stock check failed: ' + (e && e.message)); }
+
+  if (alerts.length === 0) {
+    listEl.innerHTML = '<div id="alerts-empty">✅ All good! Nothing needs your attention right now.</div>';
+    return;
+  }
+
+  listEl.innerHTML = alerts.map(a => `
+    <div class="alert-card${a.danger ? '' : ' alert-info'}">
+      <div class="alert-card-title">${escapeHtml(a.title)}</div>
+      <div class="alert-card-body">${escapeHtml(a.body)}</div>
+    </div>
+  `).join('');
+}
+
+// ═══ REPORTS (replaces Telegram's weekly report / order analytics) ═══
+window.openReportsPanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('reports-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  await loadReports();
+};
+
+window.closeReportsPanel = function() {
+  document.getElementById('reports-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+async function loadReports() {
+  const contentEl = document.getElementById('reports-content');
+  contentEl.innerHTML = '<div id="reports-loading"><div class="spinner"></div>Crunching the numbers...</div>';
+
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [thisWeekRes, lastWeekRes, allTimeRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + weekAgo + '&select=order_total,order_status,product_name,bump_accepted,bump_value,upsell_accepted,upsell_value', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + twoWeeksAgo + '&created_at=lte.' + weekAgo + '&select=order_total', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=order_total,order_status', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json())
+    ]);
+
+    const thisWeek = thisWeekRes || [];
+    const lastWeek = lastWeekRes || [];
+    const allTime = allTimeRes || [];
+
+    const thisRevenue = thisWeek.reduce((s, o) => s + (o.order_total || 0), 0);
+    const lastRevenue = lastWeek.reduce((s, o) => s + (o.order_total || 0), 0);
+    const revenueChangePct = lastRevenue > 0 ? Math.round(((thisRevenue - lastRevenue) / lastRevenue) * 100) : null;
+
+    const delivered = thisWeek.filter(o => o.order_status === 'DELIVERED').length;
+    const pending = thisWeek.filter(o => o.order_status === 'PENDING').length;
+    const bumpAccepted = thisWeek.filter(o => o.bump_accepted).length;
+    const upsellAccepted = thisWeek.filter(o => o.upsell_accepted).length;
+    const bumpRevenue = thisWeek.reduce((s, o) => s + (o.bump_value || 0), 0);
+    const upsellRevenue = thisWeek.reduce((s, o) => s + (o.upsell_value || 0), 0);
+
+    const productCount = {};
+    thisWeek.forEach(o => { if (o.product_name) productCount[o.product_name] = (productCount[o.product_name] || 0) + 1; });
+    const topProducts = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    const allTimeRevenue = allTime.reduce((s, o) => s + (o.order_total || 0), 0);
+    const allTimeDelivered = allTime.filter(o => o.order_status === 'DELIVERED').length;
+    const avgOrder = allTime.length > 0 ? Math.round(allTimeRevenue / allTime.length) : 0;
+
+    const fourteenDaysAgo = twoWeeksAgo;
+    const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&select=phone&limit=200', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const silentCount = ((await silentRes.json()) || []).length;
+
+    contentEl.innerHTML = `
+      <div class="report-section">
+        <div class="report-section-title">This Week</div>
+        <div class="report-stat-grid">
+          <div class="report-stat-card">
+            <div class="report-stat-value">${thisWeek.length}</div>
+            <div class="report-stat-label">Orders</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value${revenueChangePct != null ? (revenueChangePct >= 0 ? ' positive' : ' negative') : ''}">${thisRevenue.toLocaleString()}</div>
+            <div class="report-stat-label">Revenue${revenueChangePct != null ? ` (${revenueChangePct >= 0 ? '+' : ''}${revenueChangePct}% vs last week)` : ''}</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value">${delivered}</div>
+            <div class="report-stat-label">Delivered</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value">${pending}</div>
+            <div class="report-stat-label">Pending</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">Revenue Boosters (This Week)</div>
+        <div class="report-list-row"><span class="label">Bump accepted</span><span class="value">${bumpAccepted} → +${bumpRevenue.toLocaleString()}</span></div>
+        <div class="report-list-row"><span class="label">Upsell accepted</span><span class="value">${upsellAccepted} → +${upsellRevenue.toLocaleString()}</span></div>
+      </div>
+
+      ${topProducts.length > 0 ? `
+      <div class="report-section">
+        <div class="report-section-title">Top Products (This Week)</div>
+        ${topProducts.map(([name, count]) => `<div class="report-list-row"><span class="label">${escapeHtml(name)}</span><span class="value">${count} orders</span></div>`).join('')}
+      </div>` : ''}
+
+      <div class="report-section">
+        <div class="report-section-title">All Time</div>
+        <div class="report-stat-grid">
+          <div class="report-stat-card">
+            <div class="report-stat-value">${allTime.length}</div>
+            <div class="report-stat-label">Total Orders</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value">${allTimeRevenue.toLocaleString()}</div>
+            <div class="report-stat-label">Total Revenue</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value">${allTimeDelivered}</div>
+            <div class="report-stat-label">Delivered</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value">${avgOrder.toLocaleString()}</div>
+            <div class="report-stat-label">Avg Order</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">Customer Health</div>
+        <div class="report-list-row"><span class="label">Silent 14+ days</span><span class="value">${silentCount}</span></div>
+      </div>
+    `;
+  } catch (e) {
+    debugLog('loadReports failed: ' + (e && e.message));
+    contentEl.innerHTML = '<div id="alerts-empty">Could not load reports. Try again.</div>';
+  }
+}
+
 window.openBusinessPanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
   const panel = document.getElementById('business-tab-content');
@@ -5417,22 +5726,33 @@ window.closeBusinessPanel = function() {
 async function loadBizSettings() {
   if (!SELLER_CHAT_ID) return;
   try {
-    const [settingsRes, configRes] = await Promise.all([
+    const [settingsRes, configRes, posRes, adConfigRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/seller_ad_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ad_account_id', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json())
     ]);
 
     const settingsMap = {};
     (settingsRes || []).forEach(r => { settingsMap[r.key] = r.value; });
+    const posData = (posRes && posRes[0]) || {};
+    const adData = (adConfigRes && adConfigRes[0]) || {};
 
-    // Populate every toggle
+    // Populate every toggle — bot_settings-backed toggles use string 'true'/
+    // 'false', pos_settings-backed ones use real booleans, so each type
+    // needs its own source.
     document.querySelectorAll('#business-tab-content .biz-toggle').forEach(btn => {
       const key = btn.dataset.key;
-      const isOn = settingsMap[key] === 'true';
+      const table = btn.dataset.table;
+      const isOn = table === 'pos_settings' ? posData[key] === true : settingsMap[key] === 'true';
       btn.classList.toggle('on', isOn);
     });
 
@@ -5446,7 +5766,16 @@ async function loadBizSettings() {
     // Populate every text/number/select field bound to bot_settings
     document.querySelectorAll('#business-tab-content .biz-field input[data-key], #business-tab-content .biz-field select[data-key]').forEach(el => {
       const key = el.dataset.key;
-      if (el.dataset.table === 'seller_sales_config') return; // handled below
+      const table = el.dataset.table;
+      if (table === 'seller_sales_config') return; // handled below
+      if (table === 'pos_settings') {
+        if (posData[key] !== undefined && posData[key] !== null) el.value = posData[key];
+        return;
+      }
+      if (table === 'seller_ad_config') {
+        if (adData[key] !== undefined && adData[key] !== null) el.value = adData[key];
+        return;
+      }
       if (settingsMap[key] !== undefined) el.value = settingsMap[key];
     });
 
@@ -5463,10 +5792,19 @@ async function loadBizSettings() {
 
 window.toggleBizSetting = async function(btn) {
   const key = btn.dataset.key;
+  const table = btn.dataset.table;
   const turningOn = !btn.classList.contains('on');
   btn.disabled = true;
   try {
-    await saveBotSetting(key, turningOn ? 'true' : 'false');
+    if (table) {
+      await fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: turningOn })
+      });
+    } else {
+      await saveBotSetting(key, turningOn ? 'true' : 'false');
+    }
     btn.classList.toggle('on', turningOn);
     showBizSaveHint();
   } catch (e) {
@@ -5508,11 +5846,15 @@ window.saveBizField = async function(el) {
   const key = el.dataset.key;
   const value = el.value;
   try {
-    if (el.dataset.table === 'seller_sales_config') {
-      await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+    const table = el.dataset.table;
+    if (table) {
+      // Numeric fields (pos_settings thresholds, invoice numbers) need real
+      // numbers, not strings, or PostgREST rejects the write.
+      const finalValue = el.dataset.numeric === 'true' ? (value.trim() === '' ? null : Number(value.trim().replace(/[^\d.-]/g, ''))) : value;
+      await fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: value })
+        body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: finalValue })
       });
     } else {
       await saveBotSetting(key, value);
