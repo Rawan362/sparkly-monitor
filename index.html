@@ -1764,6 +1764,107 @@
     cursor: pointer;
   }
   #product-save-btn:disabled { opacity: 0.6; cursor: wait; }
+
+  /* ═══ ORDERS ═══ */
+  #orders-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #orders-list-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #orders-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #orders-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #orders-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #orders-filter-row {
+    display: flex;
+    gap: 6px;
+    padding: 10px 14px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .order-filter-pill {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-muted);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .order-filter-pill.active { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+  #orders-loading { display: flex; align-items: center; gap: 10px; padding: 30px 20px; color: var(--text-muted); font-size: 13.5px; }
+  #orders-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13.5px; }
+
+  .order-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .order-card:hover { background: var(--panel-2); }
+  .order-card-main { min-width: 0; flex: 1; }
+  .order-card-phone { font-weight: 600; font-size: 14.5px; }
+  .order-card-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .order-card-right { text-align: right; flex-shrink: 0; }
+  .order-card-total { font-size: 13px; font-weight: 600; color: var(--accent-2); }
+  .order-status-pill {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .order-status-PENDING { background: #fef3c7; color: #92400e; }
+  .order-status-SHIPPED { background: #dbeafe; color: #1e40af; }
+  .order-status-DELIVERED { background: #d1fae5; color: #065f46; }
+  .order-status-CANCELLED { background: #fee2e2; color: #991b1b; }
+
+  #order-detail-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #order-detail-back-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #order-detail-back-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #order-detail-back-row span:not(:first-child):not(:last-child) { font-weight: 600; font-size: 15px; }
+  #order-detail-fields { padding: 16px 20px 30px; }
+  .order-detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .order-detail-row .label { color: var(--text-muted); }
+  .order-detail-row .value { font-weight: 600; text-align: right; }
+  .order-action-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .order-action-btn.primary { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+  .order-action-btn.danger { background: none; color: var(--danger); border-color: var(--danger); }
+  .order-action-btn:disabled { opacity: 0.6; cursor: wait; }
+  #order-amount-received-field { margin-top: 14px; }
+  #order-amount-received-field label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 6px; }
+  #order-amount-received-field input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font-size: 14px; }
   .settings-section-label {
     font-size: 11.5px;
     font-weight: 600;
@@ -1889,6 +1990,31 @@
         </div>
       </div>
     </div>
+    <div id="orders-tab-content" style="display:none;">
+      <div id="orders-list-view">
+        <div id="orders-header-row">
+          <button onclick="closeOrdersPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+          <span id="orders-title">Orders</span>
+          <span style="width:32px;"></span>
+        </div>
+        <div id="orders-filter-row">
+          <button class="order-filter-pill active" data-status="" onclick="filterOrders('', this)">All</button>
+          <button class="order-filter-pill" data-status="PENDING" onclick="filterOrders('PENDING', this)">Pending</button>
+          <button class="order-filter-pill" data-status="SHIPPED" onclick="filterOrders('SHIPPED', this)">Shipped</button>
+          <button class="order-filter-pill" data-status="DELIVERED" onclick="filterOrders('DELIVERED', this)">Delivered</button>
+          <button class="order-filter-pill" data-status="CANCELLED" onclick="filterOrders('CANCELLED', this)">Cancelled</button>
+        </div>
+        <div id="orders-list"><div id="orders-loading"><div class="spinner"></div>Loading orders...</div></div>
+      </div>
+      <div id="order-detail-view" style="display:none;">
+        <div id="order-detail-back-row">
+          <button onclick="closeOrderDetail()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+          <span>Order Details</span>
+          <span style="width:32px;"></span>
+        </div>
+        <div id="order-detail-fields"></div>
+      </div>
+    </div>
     <div id="settings-tab-content" style="display:none;">
       <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
       <div class="settings-row" onclick="openAppearancePicker()">
@@ -1921,6 +2047,10 @@
       <div class="settings-row" onclick="openProductsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>
         <span id="settings-label-products-row">Products</span>
+      </div>
+      <div class="settings-row" onclick="openOrdersPanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span id="settings-label-orders-row">Orders</span>
       </div>
       <div class="settings-row" onclick="openBusinessPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -4891,7 +5021,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -5102,6 +5232,170 @@ window.deleteCurrentProduct = async function() {
   } catch (e) {
     debugLog('deleteCurrentProduct failed: ' + (e && e.message));
     alert((currentLang === 'ar' ? 'تعذر الحذف: ' : 'Could not delete: ') + (e && e.message ? e.message : 'unknown error'));
+  }
+};
+
+// ═══ ORDERS (replaces Telegram's SHOW_PENDING_ORDERS / order status updates) ═══
+let currentOrderStatusFilter = '';
+let currentOrderId = null;
+let allLoadedOrders = [];
+
+window.openOrdersPanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('orders-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  document.getElementById('orders-list-view').style.display = 'flex';
+  document.getElementById('order-detail-view').style.display = 'none';
+  await loadOrders();
+};
+
+window.closeOrdersPanel = function() {
+  document.getElementById('orders-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+window.filterOrders = function(status, btnEl) {
+  currentOrderStatusFilter = status;
+  document.querySelectorAll('.order-filter-pill').forEach(p => p.classList.remove('active'));
+  btnEl.classList.add('active');
+  renderOrdersList();
+};
+
+async function loadOrders() {
+  const listEl = document.getElementById('orders-list');
+  listEl.innerHTML = '<div id="orders-loading"><div class="spinner"></div>Loading orders...</div>';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*&order=created_at.desc&limit=200', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    allLoadedOrders = await res.json() || [];
+    renderOrdersList();
+  } catch (e) {
+    debugLog('loadOrders failed: ' + (e && e.message));
+    listEl.innerHTML = '<div id="orders-empty">Could not load orders. Try again.</div>';
+  }
+}
+
+function renderOrdersList() {
+  const listEl = document.getElementById('orders-list');
+  const orders = currentOrderStatusFilter
+    ? allLoadedOrders.filter(o => o.order_status === currentOrderStatusFilter)
+    : allLoadedOrders;
+
+  if (!orders || orders.length === 0) {
+    listEl.innerHTML = '<div id="orders-empty">No orders here yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  orders.forEach(o => {
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    card.onclick = () => openOrderDetail(o.id);
+    const date = o.created_at ? new Date(o.created_at).toLocaleDateString() : '';
+    card.innerHTML = `
+      <div class="order-card-main">
+        <div class="order-card-phone">${escapeHtml(o.phone || 'Unknown')}</div>
+        <div class="order-card-meta">${escapeHtml(o.product_name || '—')} · ${escapeHtml(date)}</div>
+      </div>
+      <div class="order-card-right">
+        <div class="order-card-total">${(o.order_total || 0).toLocaleString()}</div>
+        <span class="order-status-pill order-status-${o.order_status || 'PENDING'}">${escapeHtml(o.order_status || 'PENDING')}</span>
+      </div>
+    `;
+    listEl.appendChild(card);
+  });
+}
+
+window.openOrderDetail = function(orderId) {
+  currentOrderId = orderId;
+  const o = allLoadedOrders.find(x => x.id === orderId);
+  if (!o) return;
+
+  document.getElementById('orders-list-view').style.display = 'none';
+  document.getElementById('order-detail-view').style.display = 'flex';
+
+  const rows = [
+    ['Phone', o.phone || '—'],
+    ['Product', o.product_name || '—'],
+    ['Quantity', o.quantity ?? '—'],
+    ['Total', (o.order_total || 0).toLocaleString()],
+    ['Amount Received', o.amount_received != null ? o.amount_received.toLocaleString() : 'Not recorded'],
+    ['Payment Method', o.payment_method || '—'],
+    ['Delivery Address', o.delivery_address || '—'],
+    ['Status', o.order_status || 'PENDING'],
+    ['Created', o.created_at ? new Date(o.created_at).toLocaleString() : '—'],
+  ];
+  if (o.bump_accepted) rows.push(['Bump Accepted', (o.bump_product || '') + ' +' + (o.bump_value || 0).toLocaleString()]);
+  if (o.upsell_accepted) rows.push(['Upsell Accepted', (o.upsell_product || '') + ' +' + (o.upsell_value || 0).toLocaleString()]);
+
+  let html = rows.map(([label, value]) =>
+    `<div class="order-detail-row"><span class="label">${escapeHtml(label)}</span><span class="value">${escapeHtml(String(value))}</span></div>`
+  ).join('');
+
+  // Amount-received is business-agnostic — works for COD, bank transfer,
+  // partial payment, or any other method a seller uses, without assuming
+  // cash-on-delivery is the only (or even a) relevant concept.
+  html += `
+    <div id="order-amount-received-field">
+      <label>Update amount received</label>
+      <input type="text" id="order-amount-received-input" placeholder="e.g. ${o.order_total || 0}" value="${o.amount_received != null ? o.amount_received : ''}">
+    </div>
+  `;
+
+  if (o.order_status !== 'SHIPPED' && o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED') {
+    html += `<button class="order-action-btn" onclick="updateOrderStatus('SHIPPED')">Mark Shipped</button>`;
+  }
+  if (o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED') {
+    html += `<button class="order-action-btn primary" onclick="updateOrderStatus('DELIVERED')">Mark Delivered</button>`;
+  }
+  if (o.order_status !== 'CANCELLED' && o.order_status !== 'DELIVERED') {
+    html += `<button class="order-action-btn danger" onclick="updateOrderStatus('CANCELLED')">Cancel Order</button>`;
+  }
+
+  document.getElementById('order-detail-fields').innerHTML = html;
+};
+
+window.closeOrderDetail = function() {
+  document.getElementById('order-detail-view').style.display = 'none';
+  document.getElementById('orders-list-view').style.display = 'flex';
+  currentOrderId = null;
+};
+
+window.updateOrderStatus = async function(newStatus) {
+  if (!currentOrderId) return;
+  const btns = document.querySelectorAll('.order-action-btn');
+  btns.forEach(b => b.disabled = true);
+
+  try {
+    const payload = { order_status: newStatus };
+    if (newStatus === 'SHIPPED') payload.shipped_at = new Date().toISOString();
+    if (newStatus === 'DELIVERED') payload.delivered_at = new Date().toISOString();
+
+    const amountInput = document.getElementById('order-amount-received-input');
+    if (amountInput && amountInput.value.trim() !== '') {
+      const cleaned = amountInput.value.trim().replace(/[^\d.-]/g, '');
+      const num = Number(cleaned);
+      if (!isNaN(num)) payload.amount_received = num;
+    }
+
+    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    closeOrderDetail();
+    await loadOrders();
+  } catch (e) {
+    debugLog('updateOrderStatus failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر التحديث: ' : 'Could not update: ') + (e && e.message ? e.message : 'unknown error'));
+  } finally {
+    btns.forEach(b => b.disabled = false);
   }
 };
 
