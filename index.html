@@ -4951,7 +4951,7 @@ async function loadProducts() {
   const listEl = document.getElementById('products-list');
   listEl.innerHTML = '<div id="products-loading"><div class="spinner"></div>Loading products...</div>';
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*&order=created_at.desc', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&select=*&order=created_at.desc', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const products = await res.json();
