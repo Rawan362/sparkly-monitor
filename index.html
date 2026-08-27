@@ -2489,8 +2489,12 @@ const APPEARANCE_OPTIONS = [
   { key: 'system', label: 'System', icon: '<rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>' }
 ];
 let appearanceMode = localStorage.getItem('sparkly_theme') || 'system';
+function isNightTimeNow() {
+  const hour = new Date().getHours();
+  return hour >= 18 || hour < 6; // dark from 6pm to 6am, light the rest of the day
+}
 function applyTheme() {
-  const isDark = appearanceMode === 'dark' || (appearanceMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const isDark = appearanceMode === 'dark' || (appearanceMode === 'system' && isNightTimeNow());
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   const label = document.getElementById('current-appearance-label');
   if (label) {
@@ -2498,11 +2502,12 @@ function applyTheme() {
     label.textContent = opt ? opt.label : 'System';
   }
 }
-if (window.matchMedia) {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (appearanceMode === 'system') applyTheme();
-  });
-}
+// "System" now means time-of-day (6pm–6am = dark), not the OS's own dark
+// mode setting — there's no native browser event for "the clock crossed
+// 6pm", so we just re-check every few minutes while System mode is active.
+setInterval(() => {
+  if (appearanceMode === 'system') applyTheme();
+}, 5 * 60 * 1000);
 
 // ═══ Debug log — persists in localStorage so it survives even if the page
 // unexpectedly reloads or crashes, which is exactly what we need to catch
