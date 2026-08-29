@@ -3310,6 +3310,10 @@ function openMessageActionMenu(row, x, y) {
 
   const showForward = msgMenuContext.table === 'conversations';
   menu.innerHTML = `
+    <div class="msg-action-item" data-action="copy">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy
+    </div>
     <div class="msg-action-item" data-action="reply">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
       Reply
@@ -3350,12 +3354,40 @@ function handleMsgMenuAction(action) {
   const ctx = msgMenuContext;
   if (!ctx) return;
   closeMessageActionMenu();
-  if (action === 'reply') startReplyMode(ctx.id, ctx.text);
+  if (action === 'copy') copyMessageText(ctx.text);
+  else if (action === 'reply') startReplyMode(ctx.id, ctx.text);
   else if (action === 'forward') openForwardPicker(ctx.text);
   else if (action === 'star') toggleStarMessage(ctx.id, ctx.table);
   else if (action === 'pin') togglePinMessage(ctx.id, ctx.table);
   else if (action === 'info') showMessageInfo(ctx.role, ctx.timestamp);
   else if (action === 'delete') deleteMessage(ctx.id, ctx.table);
+}
+
+async function copyMessageText(text) {
+  try {
+    await navigator.clipboard.writeText(text || '');
+  } catch (e) {
+    // Clipboard API can fail on non-HTTPS or without permission — fall back
+    // to a hidden textarea + execCommand, which works in more environments.
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text || '';
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (e2) {
+      debugLog('copyMessageText failed: ' + (e2 && e2.message));
+      return;
+    }
+  }
+  const toast = document.createElement('div');
+  toast.textContent = currentLang === 'ar' ? 'تم النسخ' : 'Copied';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--panel-2);color:var(--text);padding:8px 16px;border-radius:20px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,0.15);z-index:9999;';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1500);
 }
 
 window.closeMessageActionMenu = function() {
