@@ -1957,6 +1957,75 @@
     cursor: pointer;
   }
   #order-create-save-btn:disabled { opacity: 0.6; cursor: wait; }
+
+  #oc-item-picker-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  #oc-item-product-select {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+    min-width: 0;
+  }
+  #oc-item-quantity {
+    width: 60px;
+    padding: 10px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+    text-align: center;
+  }
+  #oc-add-item-btn {
+    width: 40px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent-2);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #oc-cart-list { margin-bottom: 10px; }
+  .oc-cart-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .oc-cart-item-name { font-weight: 600; }
+  .oc-cart-item-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .oc-cart-item-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .oc-cart-item-remove {
+    border: none;
+    background: none;
+    color: var(--danger);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+  }
+  #oc-cart-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--border);
+    font-weight: 700;
+    font-size: 15px;
+  }
+  #oc-cart-empty { padding: 16px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
   .order-detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
   .order-detail-row .label { color: var(--text-muted); }
   .order-detail-row .value { font-weight: 600; text-align: right; }
@@ -2175,9 +2244,16 @@
         </div>
         <div id="order-create-fields">
           <div class="biz-field"><label>Customer phone number *</label><input type="text" id="oc-phone" placeholder="e.g. 9647511228485"></div>
-          <div class="biz-field"><label>Product name *</label><input type="text" id="oc-product_name"></div>
-          <div class="biz-field"><label>Quantity</label><input type="text" id="oc-quantity" placeholder="1"></div>
-          <div class="biz-field"><label>Order total *</label><input type="text" id="oc-order_total"></div>
+
+          <div class="settings-section-label" style="padding-left:0;padding-right:0;">Items</div>
+          <div id="oc-item-picker-row">
+            <select id="oc-item-product-select"></select>
+            <input type="text" id="oc-item-quantity" placeholder="Qty" value="1">
+            <button id="oc-add-item-btn" onclick="addItemToCart()" title="Add">+</button>
+          </div>
+          <div id="oc-cart-list"></div>
+          <div id="oc-cart-total-row"><span>Order total</span><span id="oc-cart-total-value">0</span></div>
+
           <div class="biz-field"><label>Payment method</label><input type="text" id="oc-payment_method" placeholder="e.g. bank transfer, cash on delivery"></div>
           <div class="biz-field"><label>Delivery address</label><input type="text" id="oc-delivery_address"></div>
           <div class="biz-field">
@@ -5783,29 +5859,59 @@ function renderOrdersList() {
   });
 }
 
-window.openOrderDetail = function(orderId) {
+window.openOrderDetail = async function(orderId) {
   currentOrderId = orderId;
   const o = allLoadedOrders.find(x => x.id === orderId);
   if (!o) return;
 
   document.getElementById('orders-list-view').style.display = 'none';
   document.getElementById('order-detail-view').style.display = 'flex';
+  document.getElementById('order-detail-fields').innerHTML = '<div id="orders-loading"><div class="spinner"></div>Loading...</div>';
+
+  let items = [];
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=product_name,unit_price,quantity,line_total', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    items = await res.json();
+  } catch (e) {
+    debugLog('openOrderDetail item fetch failed: ' + (e && e.message));
+  }
 
   const rows = [
     ['Phone', o.phone || '—'],
-    ['Product', o.product_name || '—'],
-    ['Quantity', o.quantity ?? '—'],
+  ];
+  if (!items || items.length === 0) {
+    // No line items on record (an older single-product order) — fall back
+    // to the plain fields on the order itself, same as before.
+    rows.push(['Product', o.product_name || '—']);
+    rows.push(['Quantity', o.quantity ?? '—']);
+  }
+  rows.push(
     ['Total', (o.order_total || 0).toLocaleString()],
     ['Amount Received', o.amount_received != null ? o.amount_received.toLocaleString() : 'Not recorded'],
     ['Payment Method', o.payment_method || '—'],
     ['Delivery Address', o.delivery_address || '—'],
     ['Status', o.order_status || 'PENDING'],
     ['Created', o.created_at ? new Date(o.created_at).toLocaleString() : '—'],
-  ];
+  );
   if (o.bump_accepted) rows.push(['Bump Accepted', (o.bump_product || '') + ' +' + (o.bump_value || 0).toLocaleString()]);
   if (o.upsell_accepted) rows.push(['Upsell Accepted', (o.upsell_product || '') + ' +' + (o.upsell_value || 0).toLocaleString()]);
 
-  let html = rows.map(([label, value]) =>
+  let html = '';
+  if (items && items.length > 0) {
+    html += `<div class="settings-section-label" style="padding-left:0;padding-right:0;">Items</div>`;
+    html += items.map(item => `
+      <div class="oc-cart-item">
+        <div>
+          <div class="oc-cart-item-name">${escapeHtml(item.product_name || '—')}</div>
+          <div class="oc-cart-item-meta">${item.quantity} × ${item.unit_price} = ${(item.line_total || 0).toLocaleString()}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  html += rows.map(([label, value]) =>
     `<div class="order-detail-row"><span class="label">${escapeHtml(label)}</span><span class="value">${escapeHtml(String(value))}</span></div>`
   ).join('');
 
@@ -5838,15 +5944,96 @@ window.closeOrderDetail = function() {
   currentOrderId = null;
 };
 
-window.openOrderCreateForm = function() {
+let currentOrderCart = [];
+let cachedProductCatalog = null;
+
+window.openOrderCreateForm = async function() {
   document.getElementById('orders-list-view').style.display = 'none';
   document.getElementById('order-create-view').style.display = 'flex';
-  ['oc-phone', 'oc-product_name', 'oc-quantity', 'oc-order_total', 'oc-payment_method', 'oc-delivery_address'].forEach(id => {
+  ['oc-phone', 'oc-payment_method', 'oc-delivery_address'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   document.getElementById('oc-order_status').value = 'PENDING';
+  document.getElementById('oc-item-quantity').value = '1';
+  currentOrderCart = [];
+  renderOrderCart();
+
+  const select = document.getElementById('oc-item-product-select');
+  select.innerHTML = '<option value="">Loading products...</option>';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&select=id,product_name,wholesale_price,retail_price&order=product_name.asc', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    cachedProductCatalog = await res.json();
+    if (!cachedProductCatalog || cachedProductCatalog.length === 0) {
+      select.innerHTML = '<option value="">No products yet — add one in Products first</option>';
+      return;
+    }
+    select.innerHTML = cachedProductCatalog.map(p => {
+      const price = p.retail_price != null ? p.retail_price : p.wholesale_price;
+      return `<option value="${p.id}">${escapeHtml(p.product_name)}${price != null ? ' — ' + price : ''}</option>`;
+    }).join('');
+  } catch (e) {
+    debugLog('openOrderCreateForm product fetch failed: ' + (e && e.message));
+    select.innerHTML = '<option value="">Could not load products</option>';
+  }
 };
+
+window.addItemToCart = function() {
+  const select = document.getElementById('oc-item-product-select');
+  const productId = select.value;
+  if (!productId || !cachedProductCatalog) return;
+  const product = cachedProductCatalog.find(p => p.id === productId);
+  if (!product) return;
+
+  const qtyRaw = document.getElementById('oc-item-quantity').value.trim();
+  const quantity = qtyRaw === '' ? 1 : (Number(qtyRaw.replace(/[^\d]/g, '')) || 1);
+  const unitPrice = product.retail_price != null ? product.retail_price : (product.wholesale_price || 0);
+
+  const existing = currentOrderCart.find(item => item.product_id === productId);
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    currentOrderCart.push({ product_id: productId, product_name: product.product_name, unit_price: unitPrice, quantity });
+  }
+  document.getElementById('oc-item-quantity').value = '1';
+  renderOrderCart();
+};
+
+window.removeCartItem = function(index) {
+  currentOrderCart.splice(index, 1);
+  renderOrderCart();
+};
+
+function renderOrderCart() {
+  const listEl = document.getElementById('oc-cart-list');
+  const totalEl = document.getElementById('oc-cart-total-value');
+
+  if (currentOrderCart.length === 0) {
+    listEl.innerHTML = '<div id="oc-cart-empty">No items added yet</div>';
+    totalEl.textContent = '0';
+    return;
+  }
+
+  let total = 0;
+  listEl.innerHTML = currentOrderCart.map((item, i) => {
+    const lineTotal = item.unit_price * item.quantity;
+    total += lineTotal;
+    return `
+      <div class="oc-cart-item">
+        <div>
+          <div class="oc-cart-item-name">${escapeHtml(item.product_name)}</div>
+          <div class="oc-cart-item-meta">${item.quantity} × ${item.unit_price} = ${lineTotal.toLocaleString()}</div>
+        </div>
+        <div class="oc-cart-item-right">
+          <button class="oc-cart-item-remove" onclick="removeCartItem(${i})" title="Remove"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  totalEl.textContent = total.toLocaleString();
+}
 
 window.closeOrderCreateForm = function() {
   document.getElementById('order-create-view').style.display = 'none';
@@ -5855,21 +6042,13 @@ window.closeOrderCreateForm = function() {
 
 window.saveManualOrder = async function() {
   const phoneEl = document.getElementById('oc-phone');
-  const productEl = document.getElementById('oc-product_name');
-  const totalEl = document.getElementById('oc-order_total');
 
   if (!phoneEl.value.trim()) {
     alert(currentLang === 'ar' ? 'رقم هاتف الزبون مطلوب' : "Customer phone number is required");
     return;
   }
-  if (!productEl.value.trim()) {
-    alert(currentLang === 'ar' ? 'اسم المنتج مطلوب' : 'Product name is required');
-    return;
-  }
-  const cleanedTotal = totalEl.value.trim().replace(/[^\d.-]/g, '');
-  const orderTotal = cleanedTotal === '' ? NaN : Number(cleanedTotal);
-  if (isNaN(orderTotal)) {
-    alert(currentLang === 'ar' ? 'الرجاء إدخال إجمالي طلب صحيح' : 'Please enter a valid order total');
+  if (currentOrderCart.length === 0) {
+    alert(currentLang === 'ar' ? 'أضف منتج واحد على الأقل' : 'Add at least one item to the order');
     return;
   }
 
@@ -5878,14 +6057,20 @@ window.saveManualOrder = async function() {
   btn.textContent = currentLang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...';
 
   try {
-    const qtyRaw = document.getElementById('oc-quantity').value.trim();
-    const quantity = qtyRaw === '' ? 1 : (Number(qtyRaw.replace(/[^\d]/g, '')) || 1);
+    const orderTotal = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    const totalQuantity = currentOrderCart.reduce((sum, item) => sum + item.quantity, 0);
+    // product_name on the orders row itself is kept as a readable summary for
+    // list views that only look at this one field — the real breakdown lives
+    // in order_items.
+    const productSummary = currentOrderCart.length === 1
+      ? currentOrderCart[0].product_name
+      : currentOrderCart.map(i => i.product_name).join(', ');
 
     const payload = {
       seller_id: SELLER_CHAT_ID,
       phone: phoneEl.value.trim(),
-      product_name: productEl.value.trim(),
-      quantity,
+      product_name: productSummary,
+      quantity: totalQuantity,
       order_total: orderTotal,
       payment_method: document.getElementById('oc-payment_method').value.trim() || null,
       delivery_address: document.getElementById('oc-delivery_address').value.trim() || null,
@@ -5897,10 +6082,29 @@ window.saveManualOrder = async function() {
 
     const res = await fetch(SUPABASE_URL + '/rest/v1/orders', {
       method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
       body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    const createdOrders = await res.json();
+    const orderId = createdOrders && createdOrders[0] && createdOrders[0].id;
+
+    if (orderId) {
+      const itemsPayload = currentOrderCart.map(item => ({
+        order_id: orderId,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        unit_price: item.unit_price,
+        quantity: item.quantity,
+        line_total: item.unit_price * item.quantity
+      }));
+      const itemsRes = await fetch(SUPABASE_URL + '/rest/v1/order_items', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(itemsPayload)
+      });
+      if (!itemsRes.ok) throw new Error('Order saved, but line items failed: HTTP ' + itemsRes.status);
+    }
 
     closeOrderCreateForm();
     await loadOrders();
