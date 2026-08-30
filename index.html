@@ -2278,12 +2278,9 @@
         <div class="biz-field"><label>Currency you sell in</label><input type="text" id="biz-currency-label" data-key="currency_label" data-table="seller_sales_config" placeholder="e.g. USD, IQD, EUR" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>Alternate currency customers might ask for</label><input type="text" id="biz-alt-currency-label" data-key="alt_currency_label" data-table="seller_sales_config" placeholder="e.g. USD" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>Conversion rate</label><input type="text" id="biz-alt-currency-rate" data-key="alt_currency_rate" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 1310" onchange="saveBizField(this)"></div>
-        <div class="biz-field">
-          <label>How to apply the rate</label>
-          <select id="biz-alt-currency-operation" data-key="alt_currency_operation" data-table="seller_sales_config" onchange="saveBizField(this)">
-            <option value="multiply">Multiply main currency by rate</option>
-            <option value="divide">Divide main currency by rate</option>
-          </select>
+        <div class="biz-row" style="padding-left:0;padding-right:0;">
+          <div class="biz-row-label"><span class="biz-title" id="biz-alt-currency-op-label">Multiply main currency by rate</span><span class="biz-sub">Toggle to switch between multiply and divide</span></div>
+          <button class="biz-toggle" id="biz-alt-currency-operation" data-key="alt_currency_operation" data-table="seller_sales_config" onclick="toggleCurrencyOperation(this)"></button>
         </div>
       </div>
 
@@ -5822,7 +5819,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -5844,9 +5841,19 @@ async function loadBizSettings() {
     document.querySelectorAll('#business-tab-content .biz-toggle').forEach(btn => {
       const key = btn.dataset.key;
       const table = btn.dataset.table;
+      if (key === 'alt_currency_operation') return; // handled separately below, not a plain boolean
       const isOn = table === 'pos_settings' ? posData[key] === true : settingsMap[key] === 'true';
       btn.classList.toggle('on', isOn);
     });
+
+    // Currency operation toggle: 'on' = divide, off = multiply
+    const currencyOpToggle = document.getElementById('biz-alt-currency-operation');
+    if (currencyOpToggle) {
+      const isDivide = configRes && configRes[0] && configRes[0].alt_currency_operation === 'divide';
+      currencyOpToggle.classList.toggle('on', isDivide);
+      const opLabel = document.getElementById('biz-alt-currency-op-label');
+      if (opLabel) opLabel.textContent = isDivide ? 'Divide main currency by rate' : 'Multiply main currency by rate';
+    }
 
     // Referral has no dedicated on/off flag in the backend — it's driven
     // purely by whether a reward is set, so derive the toggle from that.
@@ -5881,6 +5888,27 @@ async function loadBizSettings() {
     debugLog('loadBizSettings failed: ' + (e && e.message));
   }
 }
+
+window.toggleCurrencyOperation = async function(btn) {
+  const turningToDivide = !btn.classList.contains('on'); // 'on' = divide, off = multiply (matches other toggles' on/off convention)
+  const newValue = turningToDivide ? 'divide' : 'multiply';
+  btn.disabled = true;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ chat_id: SELLER_CHAT_ID, alt_currency_operation: newValue })
+    });
+    btn.classList.toggle('on', turningToDivide);
+    document.getElementById('biz-alt-currency-op-label').textContent = turningToDivide ? 'Divide main currency by rate' : 'Multiply main currency by rate';
+    showBizSaveHint();
+  } catch (e) {
+    debugLog('toggleCurrencyOperation failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 window.toggleBizSetting = async function(btn) {
   const key = btn.dataset.key;
