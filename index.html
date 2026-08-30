@@ -4048,9 +4048,14 @@ async function loadThread(phone, silent) {
   }
 
   const rows = await sb(
+    // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
+    // the oldest — otherwise any customer conversation that grows past 200
+    // total messages would silently stop showing new messages forever,
+    // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,timestamp,starred,pinned&order=timestamp.asc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=200'
   );
+  rows.reverse();
   let isTypingNow = false;
   try {
     const statusRows = await sb(
@@ -4354,8 +4359,15 @@ async function renderAhmadChatPanel(silent) {
   let rows;
   try {
     rows = await sb(
-      'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.asc&limit=300'
+      // Fetch the NEWEST 300 (descending + limit), not the oldest — with
+      // ascending+limit, once total messages exceed 300, every message
+      // after that point becomes permanently invisible no matter how many
+      // times the page refreshes, since the query always returns the same
+      // oldest slice. Reverse afterward to restore chronological order for
+      // display (oldest at top, newest at bottom).
+      'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=300'
     );
+    rows.reverse();
     debugLog('renderAhmadChatPanel fetch OK, rows=' + rows.length + ', lastMsg=' + JSON.stringify((rows[rows.length-1]||{}).message||'').slice(0,80));
   } catch (e) {
     debugLog('renderAhmadChatPanel fetch FAILED: ' + (e && e.message));
