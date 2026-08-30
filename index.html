@@ -1689,6 +1689,20 @@
   .biz-toggle.on { background: var(--accent-2); }
   .biz-toggle.on::after { transform: translateX(18px); }
   .biz-toggle:disabled { opacity: 0.5; cursor: wait; }
+
+  /* Currency operation toggle only — shows × (multiply) on the left,
+     ÷ (divide) on the right, right inside the sliding knob. */
+  #biz-alt-currency-operation::after {
+    content: '×';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    line-height: 1;
+  }
+  #biz-alt-currency-operation.on::after { content: '÷'; }
   .biz-fields { padding: 4px 20px 16px; border-bottom: 1px solid var(--border); }
   .biz-fields.hidden { display: none; }
   .biz-field { margin-bottom: 10px; }
