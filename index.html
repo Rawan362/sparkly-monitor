@@ -1777,6 +1777,30 @@
     cursor: pointer;
   }
   #product-save-btn:disabled { opacity: 0.6; cursor: wait; }
+  .price-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .price-input-wrap .price-currency-symbol {
+    padding: 0 0 0 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .price-input-wrap input {
+    border: none;
+    background: none;
+    flex: 1;
+    padding: 10px 12px 10px 6px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .price-input-wrap input:focus { outline: none; }
 
   /* ═══ ORDERS ═══ */
   #orders-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
@@ -2016,9 +2040,9 @@
           <div class="biz-field"><label>Product name *</label><input type="text" id="pf-product_name"></div>
           <div class="biz-field"><label>Category</label><input type="text" id="pf-product_category"></div>
           <div class="biz-field"><label>Product code / SKU *</label><input type="text" id="pf-product_code"></div>
-          <div class="biz-field"><label>Wholesale price <span id="pf-currency-label-1"></span></label><input type="text" id="pf-wholesale_price"></div>
-          <div class="biz-field"><label>Retail price <span id="pf-currency-label-2"></span></label><input type="text" id="pf-retail_price"></div>
-          <div class="biz-field"><label>Cost price <span id="pf-currency-label-3"></span></label><input type="text" id="pf-cost_price"></div>
+          <div class="biz-field"><label>Wholesale price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-1"></span><input type="text" id="pf-wholesale_price"></div></div>
+          <div class="biz-field"><label>Retail price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-2"></span><input type="text" id="pf-retail_price"></div></div>
+          <div class="biz-field"><label>Cost price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-3"></span><input type="text" id="pf-cost_price"></div></div>
           <div class="biz-row" style="padding-left:0;padding-right:0;">
             <div class="biz-row-label"><span class="biz-title">Track stock</span></div>
             <button class="biz-toggle" id="pf-track_stock-toggle" onclick="this.classList.toggle('on')"></button>
@@ -5229,9 +5253,38 @@ window.closeProductsPanel = function() {
   document.getElementById('settings-tab-content').style.display = 'block';
 };
 
+let cachedSellerCurrency = null;
+
+function currencyCodeToSymbol(code) {
+  const map = {
+    USD: '$', EUR: '€', GBP: '£', JPY: '¥', CNY: '¥', INR: '₹', TRY: '₺',
+    IQD: 'IQD', AED: 'AED', SAR: 'SAR', EGP: 'E£', KWD: 'KWD', JOD: 'JOD',
+    QAR: 'QAR', BHD: 'BHD', OMR: 'OMR', LBP: 'L£', SYP: 'S£', CAD: 'CA$',
+    AUD: 'A$', CHF: 'CHF', RUB: '₽', KRW: '₩', BRL: 'R$', MXN: 'MX$'
+  };
+  const upper = (code || '').trim().toUpperCase();
+  return map[upper] || upper; // fall back to showing the code itself if no common symbol exists
+}
+
+async function ensureSellerCurrency() {
+  if (cachedSellerCurrency !== null) return cachedSellerCurrency;
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=currency_label', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const data = await res.json();
+    cachedSellerCurrency = (data && data[0] && data[0].currency_label) || '';
+  } catch (e) {
+    cachedSellerCurrency = '';
+  }
+  return cachedSellerCurrency;
+}
+
 async function loadProducts() {
   const listEl = document.getElementById('products-list');
   listEl.innerHTML = '<div id="products-loading"><div class="spinner"></div>Loading products...</div>';
+  const _currency = await ensureSellerCurrency();
+  const _symbol = _currency ? currencyCodeToSymbol(_currency) : '';
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&select=*&order=created_at.desc', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
@@ -5249,7 +5302,7 @@ async function loadProducts() {
       card.className = 'product-card';
       card.onclick = () => openProductForm(p);
 
-      const priceText = p.retail_price ? ('Retail ' + p.retail_price) : (p.wholesale_price ? ('Wholesale ' + p.wholesale_price) : '');
+      const priceText = p.retail_price ? ('Retail ' + _symbol + p.retail_price) : (p.wholesale_price ? ('Wholesale ' + _symbol + p.wholesale_price) : '');
       const isLowStock = p.track_stock && p.stock_quantity !== null && p.low_stock_threshold !== null && Number(p.stock_quantity) <= Number(p.low_stock_threshold);
       const stockText = p.track_stock ? (isLowStock ? `⚠ Low stock: ${p.stock_quantity}` : `Stock: ${p.stock_quantity ?? '—'}`) : '';
 
@@ -5268,8 +5321,6 @@ async function loadProducts() {
   }
 }
 
-let cachedSellerCurrency = null;
-
 window.openProductForm = async function(product) {
   currentEditingProductId = product ? product.id : null;
   document.getElementById('products-list-view').style.display = 'none';
@@ -5284,21 +5335,11 @@ window.openProductForm = async function(product) {
   document.getElementById('pf-track_stock-toggle').classList.toggle('on', !!(product && product.track_stock));
   document.getElementById('pf-is_active-toggle').classList.toggle('on', !product || product.is_active !== false);
 
-  if (cachedSellerCurrency === null) {
-    try {
-      const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=currency_label', {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-      });
-      const data = await res.json();
-      cachedSellerCurrency = (data && data[0] && data[0].currency_label) || '';
-    } catch (e) {
-      cachedSellerCurrency = '';
-    }
-  }
-  const currencyText = cachedSellerCurrency ? `(${cachedSellerCurrency})` : '';
-  ['pf-currency-label-1', 'pf-currency-label-2', 'pf-currency-label-3'].forEach(id => {
+  const _currency = await ensureSellerCurrency();
+  const symbol = _currency ? currencyCodeToSymbol(_currency) : '';
+  ['pf-currency-symbol-1', 'pf-currency-symbol-2', 'pf-currency-symbol-3'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.textContent = currencyText;
+    if (el) el.textContent = symbol;
   });
 };
 
