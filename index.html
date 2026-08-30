@@ -1015,6 +1015,23 @@
     margin: 12px 0;
   }
 
+  #ahmad-load-older-row, .load-older-row {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0 16px;
+  }
+  #ahmad-load-older-row button, .load-older-row button {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 7px 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #ahmad-load-older-row button:disabled, .load-older-row button:disabled { opacity: 0.6; cursor: wait; }
+
   #attachment-preview-bar {
     display: flex;
     align-items: center;
@@ -4038,6 +4055,64 @@ function formatDateDivider(ts) {
   return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+window.loadOlderThreadMessages = async function(phone) {
+  const oldest = window._threadOldestLoaded && window._threadOldestLoaded[phone];
+  if (!oldest) return;
+  const btn = document.querySelector('.load-older-row button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+
+  try {
+    const older = await sb(
+      'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
+      '&timestamp=lt.' + encodeURIComponent(oldest) +
+      '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=100'
+    );
+    older.reverse();
+
+    const hiddenIds = getLocallyDeletedIds();
+    const visibleOlder = older.filter(m => !hiddenIds.has(String(m.id)));
+
+    const box = document.getElementById('messages');
+    const oldScrollHeight = box.scrollHeight;
+
+    let olderHtml = '';
+    let lastDate = null;
+    visibleOlder.forEach(m => {
+      const dateStr = new Date(m.timestamp).toDateString();
+      if (dateStr !== lastDate) {
+        olderHtml += `<div class="date-divider">${formatDateDivider(m.timestamp)}</div>`;
+        lastDate = dateStr;
+      }
+      olderHtml += renderBubble({ id: m.id, role: m.role, message: m.message, timestamp: m.timestamp, starred: m.starred, pinned: m.pinned, table: 'conversations' });
+    });
+
+    if (older.length < 100) {
+      if (window._threadHasMoreOlder) window._threadHasMoreOlder[phone] = false;
+      const row = document.querySelector('.load-older-row');
+      if (row) row.remove();
+    } else if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Load older messages';
+    }
+
+    if (visibleOlder.length > 0) {
+      if (!window._threadOldestLoaded) window._threadOldestLoaded = {};
+      window._threadOldestLoaded[phone] = visibleOlder[0].timestamp;
+      const anchor = document.querySelector('.load-older-row');
+      const insertPoint = anchor ? anchor.nextSibling : box.firstChild;
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = olderHtml;
+      while (wrapper.firstChild) {
+        box.insertBefore(wrapper.firstChild, insertPoint);
+      }
+      box.scrollTop += (box.scrollHeight - oldScrollHeight);
+    }
+  } catch (e) {
+    debugLog('loadOlderThreadMessages failed: ' + (e && e.message));
+    if (btn) { btn.disabled = false; btn.textContent = 'Load older messages'; }
+  }
+};
+
 async function loadThread(phone, silent) {
   const oldBox = document.getElementById('messages');
   let oldScrollTop = 0;
@@ -4088,7 +4163,15 @@ async function loadThread(phone, silent) {
   let lastDate = null;
   let bubblesHtml = '';
   const hiddenIds = getLocallyDeletedIds();
-  rows.filter(m => !hiddenIds.has(String(m.id))).forEach(m => {
+  const visibleThreadRows = rows.filter(m => !hiddenIds.has(String(m.id)));
+  window._threadOldestLoaded = window._threadOldestLoaded || {};
+  window._threadHasMoreOlder = window._threadHasMoreOlder || {};
+  window._threadOldestLoaded[phone] = visibleThreadRows.length > 0 ? visibleThreadRows[0].timestamp : null;
+  window._threadHasMoreOlder[phone] = rows.length >= 200;
+  if (window._threadHasMoreOlder[phone]) {
+    bubblesHtml += `<div class="load-older-row"><button onclick="loadOlderThreadMessages('${phone}')">Load older messages</button></div>`;
+  }
+  visibleThreadRows.forEach(m => {
     const dateStr = new Date(m.timestamp).toDateString();
     if (dateStr !== lastDate) {
       bubblesHtml += `<div class="date-divider">${formatDateDivider(m.timestamp)}</div>`;
@@ -4397,9 +4480,14 @@ async function renderAhmadChatPanel(silent) {
   let bubblesHtml = '';
   const hiddenAhmadIds = getLocallyDeletedIds();
   const visibleRows = (rows || []).filter(m => !hiddenAhmadIds.has(String(m.id)));
+  window._ahmadOldestLoaded = visibleRows.length > 0 ? visibleRows[0].created_at : null;
+  window._ahmadHasMoreOlder = rows.length >= 300; // a full page means there's likely more before it
   if (!visibleRows || visibleRows.length === 0) {
     bubblesHtml = '<div class="date-divider">Ask Ahmad to set up products, delivery rules, MOQ, or anything about your business</div>';
   } else {
+    if (window._ahmadHasMoreOlder) {
+      bubblesHtml += '<div id="ahmad-load-older-row"><button onclick="loadOlderAhmadMessages()">Load older messages</button></div>';
+    }
     visibleRows.forEach(m => {
       const dateStr = new Date(m.created_at).toDateString();
       if (dateStr !== lastDate) {
@@ -4462,6 +4550,65 @@ async function renderAhmadChatPanel(silent) {
     if (cursorPos !== null) newTextarea.setSelectionRange(cursorPos, cursorPos);
   }
 }
+
+window.loadOlderAhmadMessages = async function() {
+  const oldest = window._ahmadOldestLoaded;
+  if (!oldest) return;
+  const btn = document.querySelector('#ahmad-load-older-row button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+
+  try {
+    const older = await sb(
+      'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&created_at=lt.' + encodeURIComponent(oldest) +
+      '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=100'
+    );
+    older.reverse();
+
+    const hiddenAhmadIds = getLocallyDeletedIds();
+    const visibleOlder = older.filter(m => !hiddenAhmadIds.has(String(m.id)));
+
+    const box = document.getElementById('messages');
+    const loadOlderRow = document.getElementById('ahmad-load-older-row');
+    const oldScrollHeight = box.scrollHeight;
+
+    let olderHtml = '';
+    let lastDate = null;
+    visibleOlder.forEach(m => {
+      const dateStr = new Date(m.created_at).toDateString();
+      if (dateStr !== lastDate) {
+        olderHtml += `<div class="date-divider">${formatDateDivider(m.created_at)}</div>`;
+        lastDate = dateStr;
+      }
+      olderHtml += renderBubble({ id: m.id, role: m.role === 'ahmad' ? 'assistant' : 'user', message: m.message, timestamp: m.created_at, starred: m.starred, pinned: m.pinned, table: 'seller_web_chat_log' });
+    });
+
+    if (older.length < 100) {
+      window._ahmadHasMoreOlder = false;
+      if (loadOlderRow) loadOlderRow.remove();
+    } else if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Load older messages';
+    }
+
+    if (visibleOlder.length > 0) {
+      window._ahmadOldestLoaded = visibleOlder[0].created_at;
+      // Insert right after the load-older button (or at the very top if it's gone)
+      const anchor = document.getElementById('ahmad-load-older-row');
+      const insertPoint = anchor ? anchor.nextSibling : box.firstChild;
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = olderHtml;
+      while (wrapper.firstChild) {
+        box.insertBefore(wrapper.firstChild, insertPoint);
+      }
+      // Preserve scroll position — without this, prepending content above
+      // the visible area would yank the view down/up unexpectedly.
+      box.scrollTop += (box.scrollHeight - oldScrollHeight);
+    }
+  } catch (e) {
+    debugLog('loadOlderAhmadMessages failed: ' + (e && e.message));
+    if (btn) { btn.disabled = false; btn.textContent = 'Load older messages'; }
+  }
+};
 
 window.sendAhmadMessage = async function() {
   if (window._isSending) return;
