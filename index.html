@@ -2015,10 +2015,10 @@
         <div id="product-form-fields">
           <div class="biz-field"><label>Product name *</label><input type="text" id="pf-product_name"></div>
           <div class="biz-field"><label>Category</label><input type="text" id="pf-product_category"></div>
-          <div class="biz-field"><label>Product code / SKU</label><input type="text" id="pf-product_code"></div>
-          <div class="biz-field"><label>Wholesale price</label><input type="text" id="pf-wholesale_price"></div>
-          <div class="biz-field"><label>Retail price</label><input type="text" id="pf-retail_price"></div>
-          <div class="biz-field"><label>Cost price</label><input type="text" id="pf-cost_price"></div>
+          <div class="biz-field"><label>Product code / SKU *</label><input type="text" id="pf-product_code"></div>
+          <div class="biz-field"><label>Wholesale price <span id="pf-currency-label-1"></span></label><input type="text" id="pf-wholesale_price"></div>
+          <div class="biz-field"><label>Retail price <span id="pf-currency-label-2"></span></label><input type="text" id="pf-retail_price"></div>
+          <div class="biz-field"><label>Cost price <span id="pf-currency-label-3"></span></label><input type="text" id="pf-cost_price"></div>
           <div class="biz-row" style="padding-left:0;padding-right:0;">
             <div class="biz-row-label"><span class="biz-title">Track stock</span></div>
             <button class="biz-toggle" id="pf-track_stock-toggle" onclick="this.classList.toggle('on')"></button>
@@ -2271,6 +2271,20 @@
       </div>
       <div class="biz-fields">
         <div class="biz-field"><label>Invoice number prefix</label><input type="text" id="biz-pos-invoice-prefix" data-key="invoice_prefix" data-table="pos_settings" placeholder="INV" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Currency</div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Currency you sell in</label><input type="text" id="biz-currency-label" data-key="currency_label" data-table="seller_sales_config" placeholder="e.g. USD, IQD, EUR" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Alternate currency customers might ask for</label><input type="text" id="biz-alt-currency-label" data-key="alt_currency_label" data-table="seller_sales_config" placeholder="e.g. USD" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Conversion rate</label><input type="text" id="biz-alt-currency-rate" data-key="alt_currency_rate" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 1310" onchange="saveBizField(this)"></div>
+        <div class="biz-field">
+          <label>How to apply the rate</label>
+          <select id="biz-alt-currency-operation" data-key="alt_currency_operation" data-table="seller_sales_config" onchange="saveBizField(this)">
+            <option value="multiply">Multiply main currency by rate</option>
+            <option value="divide">Divide main currency by rate</option>
+          </select>
+        </div>
       </div>
 
       <div class="settings-section-label">Ads</div>
@@ -5257,7 +5271,9 @@ async function loadProducts() {
   }
 }
 
-window.openProductForm = function(product) {
+let cachedSellerCurrency = null;
+
+window.openProductForm = async function(product) {
   currentEditingProductId = product ? product.id : null;
   document.getElementById('products-list-view').style.display = 'none';
   document.getElementById('product-form-view').style.display = 'flex';
@@ -5270,6 +5286,23 @@ window.openProductForm = function(product) {
   });
   document.getElementById('pf-track_stock-toggle').classList.toggle('on', !!(product && product.track_stock));
   document.getElementById('pf-is_active-toggle').classList.toggle('on', !product || product.is_active !== false);
+
+  if (cachedSellerCurrency === null) {
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=currency_label', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      const data = await res.json();
+      cachedSellerCurrency = (data && data[0] && data[0].currency_label) || '';
+    } catch (e) {
+      cachedSellerCurrency = '';
+    }
+  }
+  const currencyText = cachedSellerCurrency ? `(${cachedSellerCurrency})` : '';
+  ['pf-currency-label-1', 'pf-currency-label-2', 'pf-currency-label-3'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = currencyText;
+  });
 };
 
 window.closeProductForm = function() {
@@ -5282,6 +5315,12 @@ window.saveProductForm = async function() {
   const nameEl = document.getElementById('pf-product_name');
   if (!nameEl.value.trim()) {
     alert(currentLang === 'ar' ? 'اسم المنتج مطلوب' : 'Product name is required');
+    return;
+  }
+
+  const skuEl = document.getElementById('pf-product_code');
+  if (!skuEl.value.trim()) {
+    alert(currentLang === 'ar' ? 'رمز المنتج (SKU) مطلوب' : 'Product code (SKU) is required');
     return;
   }
 
