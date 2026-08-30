@@ -5875,7 +5875,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -5938,6 +5938,13 @@ async function loadBizSettings() {
     if (configRes && configRes[0] && configRes[0].ai_name) {
       document.getElementById('biz-ai-name').value = configRes[0].ai_name;
     }
+
+    // Currency fields also live on seller_sales_config — populate them
+    // explicitly, since the generic loop above skips this table on purpose.
+    const currencyData = (configRes && configRes[0]) || {};
+    if (currencyData.currency_label != null) document.getElementById('biz-currency-label').value = currencyData.currency_label;
+    if (currencyData.alt_currency_label != null) document.getElementById('biz-alt-currency-label').value = currencyData.alt_currency_label;
+    if (currencyData.alt_currency_rate != null) document.getElementById('biz-alt-currency-rate').value = currencyData.alt_currency_rate;
 
     bizSettingsLoaded = true;
   } catch (e) {
