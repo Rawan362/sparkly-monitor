@@ -2729,6 +2729,7 @@ async function loadConversations() {
   renderChannelPills();
   renderConvoList();
   if (activePhone) await loadThread(activePhone, true);
+  debugLog('poll tick: ahmadChatOpen=' + ahmadChatOpen);
   if (ahmadChatOpen) await renderAhmadChatPanel(true);
 
   // Keep Products in sync even when changes come from the AI chat (Ahmad)
@@ -4349,17 +4350,27 @@ window.openAhmadChat = async function() {
 };
 
 async function renderAhmadChatPanel(silent) {
-  const rows = await sb(
-    'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.asc&limit=300'
-  ).catch(() => []);
+  debugLog('renderAhmadChatPanel called, silent=' + silent + ', SELLER_CHAT_ID=' + SELLER_CHAT_ID);
+  let rows;
+  try {
+    rows = await sb(
+      'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.asc&limit=300'
+    );
+    debugLog('renderAhmadChatPanel fetch OK, rows=' + rows.length + ', lastMsg=' + JSON.stringify((rows[rows.length-1]||{}).message||'').slice(0,80));
+  } catch (e) {
+    debugLog('renderAhmadChatPanel fetch FAILED: ' + (e && e.message));
+    rows = [];
+  }
 
   // Same fix as the customer chat: skip rebuilding the DOM entirely on a
   // silent background refresh when nothing actually changed, so scroll
   // position, playing media, etc. are never disturbed for no reason.
   const fingerprint = JSON.stringify({ n: rows.length, last: rows[rows.length - 1] });
   if (silent && window._lastAhmadFingerprint === fingerprint) {
+    debugLog('renderAhmadChatPanel SKIPPED - fingerprint unchanged');
     return;
   }
+  debugLog('renderAhmadChatPanel PROCEEDING to render, fingerprint changed');
   window._lastAhmadFingerprint = fingerprint;
 
   const oldBox = document.getElementById('messages');
@@ -6768,6 +6779,7 @@ function startApp() {
   loadConversations();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadConversations, 8000);
+  debugLog('startApp: polling interval started (every 8s)');
 }
 
 let AI_NAME = null; // null = seller hasn't named their assistant yet
