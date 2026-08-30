@@ -1963,16 +1963,43 @@
     gap: 8px;
     margin-bottom: 10px;
   }
-  #oc-item-product-select {
+  #oc-item-search-wrap {
+    position: relative;
     flex: 1;
+    min-width: 0;
+  }
+  #oc-item-search {
+    width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--panel);
     color: var(--text);
     font-size: 14px;
-    min-width: 0;
   }
+  #oc-item-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 20;
+    box-shadow: 0 4px 14px rgba(var(--shadow-color), 0.15);
+  }
+  .oc-suggestion-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .oc-suggestion-item:last-child { border-bottom: none; }
+  .oc-suggestion-item:hover { background: var(--panel-2); }
+  .oc-suggestion-item .name { font-weight: 600; }
+  .oc-suggestion-item .meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
   #oc-item-quantity {
     width: 60px;
     padding: 10px 8px;
@@ -2247,7 +2274,11 @@
 
           <div class="settings-section-label" style="padding-left:0;padding-right:0;">Items</div>
           <div id="oc-item-picker-row">
-            <select id="oc-item-product-select"></select>
+            <div id="oc-item-search-wrap">
+              <input type="text" id="oc-item-search" placeholder="Search by name or SKU..." autocomplete="off" oninput="filterProductSearch(this.value)" onfocus="filterProductSearch(this.value)">
+              <input type="hidden" id="oc-item-selected-id">
+              <div id="oc-item-suggestions" style="display:none;"></div>
+            </div>
             <input type="text" id="oc-item-quantity" placeholder="Qty" value="1">
             <button id="oc-add-item-btn" onclick="addItemToCart()" title="Add">+</button>
           </div>
@@ -5956,34 +5987,87 @@ window.openOrderCreateForm = async function() {
   });
   document.getElementById('oc-order_status').value = 'PENDING';
   document.getElementById('oc-item-quantity').value = '1';
+  document.getElementById('oc-item-search').value = '';
+  document.getElementById('oc-item-selected-id').value = '';
+  document.getElementById('oc-item-suggestions').style.display = 'none';
   currentOrderCart = [];
   renderOrderCart();
 
-  const select = document.getElementById('oc-item-product-select');
-  select.innerHTML = '<option value="">Loading products...</option>';
+  const searchInput = document.getElementById('oc-item-search');
+  searchInput.placeholder = 'Loading products...';
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&select=id,product_name,wholesale_price,retail_price&order=product_name.asc', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&select=id,product_name,product_code,wholesale_price,retail_price&order=product_name.asc', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     cachedProductCatalog = await res.json();
-    if (!cachedProductCatalog || cachedProductCatalog.length === 0) {
-      select.innerHTML = '<option value="">No products yet — add one in Products first</option>';
-      return;
-    }
-    select.innerHTML = cachedProductCatalog.map(p => {
-      const price = p.retail_price != null ? p.retail_price : p.wholesale_price;
-      return `<option value="${p.id}">${escapeHtml(p.product_name)}${price != null ? ' — ' + price : ''}</option>`;
-    }).join('');
+    searchInput.placeholder = (cachedProductCatalog && cachedProductCatalog.length > 0)
+      ? 'Search by name or SKU...'
+      : 'No products yet — add one in Products first';
   } catch (e) {
     debugLog('openOrderCreateForm product fetch failed: ' + (e && e.message));
-    select.innerHTML = '<option value="">Could not load products</option>';
+    cachedProductCatalog = [];
+    searchInput.placeholder = 'Could not load products';
   }
 };
 
+window.filterProductSearch = function(query) {
+  const box = document.getElementById('oc-item-suggestions');
+  document.getElementById('oc-item-selected-id').value = '';
+  if (!cachedProductCatalog || cachedProductCatalog.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+
+  const q = (query || '').trim().toLowerCase();
+  // No text yet — show everything (a quick browsable list), otherwise match
+  // against product name OR SKU/product code, in any order.
+  const matches = q === ''
+    ? cachedProductCatalog
+    : cachedProductCatalog.filter(p =>
+        (p.product_name || '').toLowerCase().includes(q) ||
+        (p.product_code || '').toLowerCase().includes(q)
+      );
+
+  if (matches.length === 0) {
+    box.innerHTML = '<div class="oc-suggestion-item" style="cursor:default;color:var(--text-muted);">No matching products</div>';
+    box.style.display = 'block';
+    return;
+  }
+
+  box.innerHTML = matches.slice(0, 20).map(p => {
+    const price = p.retail_price != null ? p.retail_price : p.wholesale_price;
+    return `
+      <div class="oc-suggestion-item" onclick="selectProductSuggestion('${p.id}')">
+        <div class="name">${escapeHtml(p.product_name)}</div>
+        <div class="meta">${p.product_code ? 'SKU: ' + escapeHtml(p.product_code) : 'No SKU'}${price != null ? ' · ' + price : ''}</div>
+      </div>
+    `;
+  }).join('');
+  box.style.display = 'block';
+};
+
+window.selectProductSuggestion = function(productId) {
+  const product = cachedProductCatalog.find(p => p.id === productId);
+  if (!product) return;
+  document.getElementById('oc-item-search').value = product.product_name;
+  document.getElementById('oc-item-selected-id').value = productId;
+  document.getElementById('oc-item-suggestions').style.display = 'none';
+};
+
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('oc-item-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const box = document.getElementById('oc-item-suggestions');
+    if (box) box.style.display = 'none';
+  }
+});
+
 window.addItemToCart = function() {
-  const select = document.getElementById('oc-item-product-select');
-  const productId = select.value;
-  if (!productId || !cachedProductCatalog) return;
+  const productId = document.getElementById('oc-item-selected-id').value;
+  if (!productId || !cachedProductCatalog) {
+    alert(currentLang === 'ar' ? 'الرجاء اختيار منتج من القائمة أولاً' : 'Please select a product from the search results first');
+    return;
+  }
   const product = cachedProductCatalog.find(p => p.id === productId);
   if (!product) return;
 
@@ -5998,6 +6082,8 @@ window.addItemToCart = function() {
     currentOrderCart.push({ product_id: productId, product_name: product.product_name, unit_price: unitPrice, quantity });
   }
   document.getElementById('oc-item-quantity').value = '1';
+  document.getElementById('oc-item-search').value = '';
+  document.getElementById('oc-item-selected-id').value = '';
   renderOrderCart();
 };
 
