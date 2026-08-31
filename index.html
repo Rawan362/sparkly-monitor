@@ -1864,6 +1864,25 @@
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
+  #orders-phone-filter-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  #orders-phone-filter-banner button {
+    border: none;
+    background: none;
+    color: var(--accent-2);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 12.5px;
+  }
   .order-filter-pill {
     border: 1px solid var(--border);
     background: var(--panel);
@@ -2514,6 +2533,17 @@
   }
   #debts-total-banner .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.85; }
   #debts-total-banner .value { font-size: 22px; font-weight: 700; font-family: var(--font-display); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  #debts-search-row { padding: 10px 16px 4px; }
+  #debts-search-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13.5px;
+  }
+  .debt-card { cursor: pointer; }
   #debts-list { flex: 1; overflow-y: auto; padding: 8px 0 20px; }
   #debts-loading, #debts-empty { display: flex; align-items: center; gap: 10px; padding: 30px 20px; color: var(--text-muted); font-size: 13.5px; }
   #debts-empty { text-align: center; justify-content: center; }
@@ -2678,6 +2708,10 @@
           <button class="order-filter-pill" data-status="DELIVERED" onclick="filterOrders('DELIVERED', this)">Delivered</button>
           <button class="order-filter-pill" data-status="CANCELLED" onclick="filterOrders('CANCELLED', this)">Cancelled</button>
           <button class="order-filter-pill" data-status="RETURN" onclick="filterOrders('RETURN', this)">Return</button>
+        </div>
+        <div id="orders-phone-filter-banner" style="display:none;">
+          <span id="orders-phone-filter-text"></span>
+          <button onclick="clearOrderPhoneFilter()">Clear</button>
         </div>
         <div id="orders-list"><div id="orders-loading"><div class="spinner"></div>Loading orders...</div></div>
       </div>
@@ -2879,6 +2913,7 @@
         <span style="width:32px;"></span>
       </div>
       <div id="debts-total-banner"></div>
+      <div id="debts-search-row"><input type="text" id="debts-search-input" placeholder="Search by name or phone..." oninput="filterDebtsList(this.value)"></div>
       <div id="debts-list"><div id="debts-loading"><div class="spinner"></div>Adding up outstanding balances...</div></div>
     </div>
     <div id="settings-tab-content" style="display:none;">
@@ -6401,6 +6436,7 @@ window.deleteCurrentProduct = async function() {
 
 // ═══ ORDERS (replaces Telegram's SHOW_PENDING_ORDERS / order status updates) ═══
 let currentOrderStatusFilter = '';
+let currentOrderPhoneFilter = null;
 let currentOrderId = null;
 let allLoadedOrders = [];
 
@@ -6414,6 +6450,7 @@ window.openOrdersPanel = async function() {
   document.getElementById('orders-list-view').style.display = 'flex';
   document.getElementById('order-detail-view').style.display = 'none';
   document.getElementById('order-create-view').style.display = 'none';
+  currentOrderPhoneFilter = null;
   await loadOrders();
 };
 
@@ -6426,6 +6463,20 @@ window.filterOrders = function(status, btnEl) {
   currentOrderStatusFilter = status;
   document.querySelectorAll('.order-filter-pill').forEach(p => p.classList.remove('active'));
   btnEl.classList.add('active');
+  renderOrdersList();
+};
+
+window.filterOrdersByPhone = function(phone) {
+  currentOrderPhoneFilter = phone;
+  currentOrderStatusFilter = '';
+  document.querySelectorAll('.order-filter-pill').forEach(p => p.classList.remove('active'));
+  const allPill = document.querySelector('.order-filter-pill[data-status=""]');
+  if (allPill) allPill.classList.add('active');
+  renderOrdersList();
+};
+
+window.clearOrderPhoneFilter = function() {
+  currentOrderPhoneFilter = null;
   renderOrdersList();
 };
 
@@ -6446,9 +6497,22 @@ async function loadOrders() {
 
 function renderOrdersList() {
   const listEl = document.getElementById('orders-list');
-  const orders = currentOrderStatusFilter
+  let orders = currentOrderStatusFilter
     ? allLoadedOrders.filter(o => o.order_status === currentOrderStatusFilter)
     : allLoadedOrders;
+  if (currentOrderPhoneFilter) {
+    orders = orders.filter(o => o.phone === currentOrderPhoneFilter);
+  }
+
+  const filterBanner = document.getElementById('orders-phone-filter-banner');
+  if (filterBanner) {
+    if (currentOrderPhoneFilter) {
+      filterBanner.style.display = 'flex';
+      document.getElementById('orders-phone-filter-text').textContent = 'Showing orders for ' + currentOrderPhoneFilter;
+    } else {
+      filterBanner.style.display = 'none';
+    }
+  }
 
   if (!orders || orders.length === 0) {
     listEl.innerHTML = '<div id="orders-empty">No orders here yet.</div>';
@@ -7554,15 +7618,20 @@ window.closeDebtsPanel = function() {
   document.getElementById('settings-tab-content').style.display = 'block';
 };
 
+let cachedDebtors = [];
+let cachedDebtorNames = {};
+let debtsCurrencySymbol = '';
+
 async function loadDebts() {
   const listEl = document.getElementById('debts-list');
   const bannerEl = document.getElementById('debts-total-banner');
   listEl.innerHTML = '<div id="debts-loading"><div class="spinner"></div>Adding up outstanding balances...</div>';
   bannerEl.innerHTML = '';
+  document.getElementById('debts-search-input').value = '';
 
   try {
     const _currency = await ensureSellerCurrency();
-    const symbol = _currency ? currencyCodeToSymbol(_currency) : '';
+    debtsCurrencySymbol = _currency ? currencyCodeToSymbol(_currency) : '';
 
     // Every order ever placed for this seller — debt is simply what's left
     // unpaid (order_total minus amount_received), summed per customer.
@@ -7582,44 +7651,71 @@ async function loadDebts() {
       byPhone[o.phone] += outstanding;
     });
 
-    const debtors = Object.entries(byPhone)
+    cachedDebtors = Object.entries(byPhone)
       .map(([phone, debt]) => ({ phone, debt }))
       .filter(d => d.debt > 0.01) // ignore rounding-dust "debt"
       .sort((a, b) => b.debt - a.debt);
 
-    if (debtors.length === 0) {
+    if (cachedDebtors.length === 0) {
       bannerEl.innerHTML = '';
       listEl.innerHTML = '<div id="debts-empty">✅ No outstanding debt — every order is fully paid.</div>';
       return;
     }
 
-    const grandTotalDebt = debtors.reduce((sum, d) => sum + d.debt, 0);
-    bannerEl.innerHTML = `<div class="label">Total Outstanding</div><div class="value">${symbol}${grandTotalDebt.toLocaleString()}</div>`;
+    const grandTotalDebt = cachedDebtors.reduce((sum, d) => sum + d.debt, 0);
+    bannerEl.innerHTML = `<div class="label">Total Outstanding</div><div class="value">${debtsCurrencySymbol}${grandTotalDebt.toLocaleString()}</div>`;
 
     // Names are optional (customers table) — fall back to just the phone
     // number for anyone who was never saved with a name.
-    let namesByPhone = {};
+    cachedDebtorNames = {};
     try {
       const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       });
-      (await custRes.json() || []).forEach(c => { namesByPhone[c.phone] = c.name; });
+      (await custRes.json() || []).forEach(c => { cachedDebtorNames[c.phone] = c.name; });
     } catch (e) { /* names are a nice-to-have, not essential */ }
 
-    listEl.innerHTML = debtors.map(d => `
-      <div class="debt-card">
-        <div>
-          <div class="debt-card-name">${escapeHtml(namesByPhone[d.phone] || d.phone)}</div>
-          <div class="debt-card-meta">${escapeHtml(d.phone)}</div>
-        </div>
-        <div class="debt-card-amount">${symbol}${d.debt.toLocaleString()}</div>
-      </div>
-    `).join('');
+    renderDebtsList(cachedDebtors);
   } catch (e) {
     debugLog('loadDebts failed: ' + (e && e.message));
     listEl.innerHTML = '<div id="debts-empty">Could not load debts. Try again.</div>';
   }
 }
+
+function renderDebtsList(debtors) {
+  const listEl = document.getElementById('debts-list');
+  if (debtors.length === 0) {
+    listEl.innerHTML = '<div id="debts-empty">No matching customers.</div>';
+    return;
+  }
+  listEl.innerHTML = debtors.map(d => `
+    <div class="debt-card" onclick="openCustomerOrdersFromDebt('${d.phone}')">
+      <div>
+        <div class="debt-card-name">${escapeHtml(cachedDebtorNames[d.phone] || d.phone)}</div>
+        <div class="debt-card-meta">${escapeHtml(d.phone)}</div>
+      </div>
+      <div class="debt-card-amount">${debtsCurrencySymbol}${d.debt.toLocaleString()}</div>
+    </div>
+  `).join('');
+}
+
+window.filterDebtsList = function(query) {
+  const q = (query || '').trim().toLowerCase();
+  if (q === '') {
+    renderDebtsList(cachedDebtors);
+    return;
+  }
+  const filtered = cachedDebtors.filter(d =>
+    (cachedDebtorNames[d.phone] || '').toLowerCase().includes(q) || d.phone.toLowerCase().includes(q)
+  );
+  renderDebtsList(filtered);
+};
+
+window.openCustomerOrdersFromDebt = async function(phone) {
+  closeDebtsPanel();
+  await openOrdersPanel();
+  filterOrdersByPhone(phone);
+};
 
 async function loadReports() {
   const contentEl = document.getElementById('reports-content');
