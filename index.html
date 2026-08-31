@@ -6417,7 +6417,11 @@ window.saveManualOrder = async function() {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify(itemsPayload)
       });
-      if (!itemsRes.ok) throw new Error('Order saved, but line items failed: HTTP ' + itemsRes.status);
+      if (!itemsRes.ok) {
+        const errBody = await itemsRes.text().catch(() => '');
+        debugLog('order_items insert failed: HTTP ' + itemsRes.status + ' — ' + errBody);
+        throw new Error('Order saved, but line items failed: ' + (errBody || ('HTTP ' + itemsRes.status)));
+      }
     }
 
     closeOrderCreateForm();
