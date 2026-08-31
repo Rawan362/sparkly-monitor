@@ -1945,6 +1945,7 @@
     gap: 8px;
     flex: 1;
     min-width: 0;
+    position: relative;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 20px;
@@ -1953,6 +1954,49 @@
   }
   #oc-customer-field input { border: none; background: none; flex: 1; min-width: 0; font-size: 13.5px; color: var(--text); }
   #oc-customer-field input:focus { outline: none; }
+  #oc-customer-suggestions {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 30;
+    box-shadow: 0 6px 18px rgba(var(--shadow-color), 0.18);
+    color: var(--text);
+    text-align: left;
+  }
+  .oc-customer-suggestion-item { padding: 10px 12px; cursor: pointer; font-size: 13.5px; border-bottom: 1px solid var(--border); }
+  .oc-customer-suggestion-item:last-child { border-bottom: none; }
+  .oc-customer-suggestion-item:hover { background: var(--panel-2); }
+  .oc-customer-suggestion-item .name { font-weight: 600; }
+  .oc-customer-suggestion-item .meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .oc-customer-suggestion-item.add-new { color: var(--accent-2); font-weight: 600; }
+  #oc-new-customer-form { padding: 12px; }
+  #oc-new-customer-form input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 13.5px;
+    margin-bottom: 8px;
+  }
+  #oc-new-customer-form button {
+    width: 100%;
+    padding: 9px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
 
   #pos-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 
@@ -2186,6 +2230,72 @@
   }
   #order-create-save-btn:disabled { opacity: 0.6; cursor: wait; }
 
+  #pos-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .pos-modal {
+    background: var(--panel);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    overflow: hidden;
+  }
+  .pos-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .pos-modal-header button { border: none; background: none; color: var(--text-muted); cursor: pointer; display: flex; }
+  .pos-modal-body { padding: 16px 18px; }
+  .pos-modal-body select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 14px;
+  }
+  #pm-partial-order-total-row, #pm-partial-remaining-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13.5px;
+    padding: 8px 0;
+  }
+  #pm-partial-order-total-row { color: var(--text-muted); border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  #pm-partial-order-total-row span:last-child { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  #pm-partial-remaining-row { font-weight: 700; margin-top: 6px; }
+  #pm-partial-remaining-value { color: var(--danger); font-variant-numeric: tabular-nums; }
+  .pos-modal-footer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .pos-modal-btn {
+    flex: 1;
+    padding: 11px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  .pos-modal-btn.primary { border: none; background: var(--accent-2); color: #fff; }
+  .pos-modal-btn.secondary { border: 1px solid var(--border); background: none; color: var(--text); }
+
   @media (max-width: 720px) {
     #pos-body { flex-direction: column; overflow-y: auto; }
     #pos-cart-panel { border-right: none; border-bottom: 1px solid var(--border); flex: none; overflow: visible; }
@@ -2415,7 +2525,9 @@
           </div>
           <div id="oc-customer-field">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <input type="text" id="oc-phone" placeholder="Customer phone number">
+            <input type="text" id="oc-phone" placeholder="Search name or phone, or type new..." autocomplete="off" oninput="filterCustomerSearch(this.value)" onfocus="filterCustomerSearch(this.value)">
+            <input type="hidden" id="oc-customer-selected-id">
+            <div id="oc-customer-suggestions" style="display:none;"></div>
           </div>
         </div>
 
@@ -2469,6 +2581,48 @@
             <span id="oc-cart-total-value">0</span>
           </div>
           <button id="order-create-save-btn" onclick="saveManualOrder()">Complete Sale</button>
+        </div>
+
+        <div id="pos-modal-overlay" style="display:none;">
+          <div id="pos-card-modal" class="pos-modal" style="display:none;">
+            <div class="pos-modal-header">
+              <span>Card Payment</span>
+              <button onclick="closePaymentModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="pos-modal-body">
+              <div class="biz-field">
+                <label>Card brand</label>
+                <select id="pm-card-brand">
+                  <option value="Visa">Visa</option>
+                  <option value="Mastercard">Mastercard</option>
+                  <option value="Amex">Amex</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="biz-field"><label>Last 4 digits</label><input type="text" id="pm-card-last4" maxlength="4" placeholder="e.g. 4242"></div>
+              <div class="biz-field"><label>Approval / reference code (optional)</label><input type="text" id="pm-card-reference" placeholder="From your card reader/terminal"></div>
+            </div>
+            <div class="pos-modal-footer">
+              <button class="pos-modal-btn secondary" onclick="closePaymentModal()">Cancel</button>
+              <button class="pos-modal-btn primary" onclick="confirmCardPayment()">Confirm Card Payment</button>
+            </div>
+          </div>
+
+          <div id="pos-partial-modal" class="pos-modal" style="display:none;">
+            <div class="pos-modal-header">
+              <span>Partial Payment</span>
+              <button onclick="closePaymentModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="pos-modal-body">
+              <div id="pm-partial-order-total-row"><span>Order total</span><span id="pm-partial-order-total-value">0</span></div>
+              <div class="biz-field"><label>Amount paid now</label><input type="text" id="pm-partial-paid" placeholder="0" oninput="updatePartialRemaining()"></div>
+              <div id="pm-partial-remaining-row"><span>Remaining debt</span><span id="pm-partial-remaining-value">0</span></div>
+            </div>
+            <div class="pos-modal-footer">
+              <button class="pos-modal-btn secondary" onclick="closePaymentModal()">Cancel</button>
+              <button class="pos-modal-btn primary" onclick="confirmPartialPayment()">Confirm Partial Payment</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -6156,6 +6310,8 @@ window.openOrderCreateForm = async function() {
   document.getElementById('orders-list-view').style.display = 'none';
   document.getElementById('order-create-view').style.display = 'flex';
   document.getElementById('oc-phone').value = '';
+  document.getElementById('oc-customer-selected-id').value = '';
+  document.getElementById('oc-customer-suggestions').style.display = 'none';
   document.getElementById('oc-delivery_address').value = '';
   document.getElementById('oc-order_status').value = 'PENDING';
   document.getElementById('oc-item-search').value = '';
@@ -6163,11 +6319,23 @@ window.openOrderCreateForm = async function() {
   document.getElementById('oc-item-suggestions').style.display = 'none';
   currentOrderCart = [];
   currentPaymentMethod = null;
+  confirmedCardDetails = null;
+  confirmedPartialAmount = null;
   document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
   renderOrderCart();
 
   const now = new Date();
   document.getElementById('pos-top-bar-date').textContent = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  try {
+    const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name&order=name.asc.nullslast', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    cachedCustomerCatalog = await custRes.json();
+  } catch (e) {
+    debugLog('openOrderCreateForm customer fetch failed: ' + (e && e.message));
+    cachedCustomerCatalog = [];
+  }
 
   const grid = document.getElementById('pos-product-grid');
   grid.innerHTML = '<div id="pos-product-empty"><div class="spinner"></div>Loading products...</div>';
@@ -6182,6 +6350,87 @@ window.openOrderCreateForm = async function() {
   }
   renderProductGrid();
 };
+
+let cachedCustomerCatalog = null;
+
+window.filterCustomerSearch = function(query) {
+  const box = document.getElementById('oc-customer-suggestions');
+  document.getElementById('oc-customer-selected-id').value = '';
+  const q = (query || '').trim().toLowerCase();
+
+  const matches = (cachedCustomerCatalog || []).filter(c =>
+    (c.name || '').toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q)
+  );
+
+  let html = matches.slice(0, 15).map(c => `
+    <div class="oc-customer-suggestion-item" onclick="selectCustomerSuggestion('${c.phone}', ${JSON.stringify(c.name || '').replace(/"/g, '&quot;')})">
+      <div class="name">${escapeHtml(c.name || c.phone)}</div>
+      <div class="meta">${escapeHtml(c.phone)}</div>
+    </div>
+  `).join('');
+
+  if (q !== '') {
+    html += `<div class="oc-customer-suggestion-item add-new" onclick="showNewCustomerForm('${escapeHtml(query.trim())}')">+ Add "${escapeHtml(query.trim())}" as a new customer</div>`;
+  }
+
+  if (!html) {
+    box.style.display = 'none';
+    return;
+  }
+  box.innerHTML = html;
+  box.style.display = 'block';
+};
+
+window.selectCustomerSuggestion = function(phone, name) {
+  document.getElementById('oc-phone').value = name ? (name + ' — ' + phone) : phone;
+  document.getElementById('oc-customer-selected-id').value = phone;
+  document.getElementById('oc-customer-suggestions').style.display = 'none';
+};
+
+window.showNewCustomerForm = function(typedValue) {
+  const box = document.getElementById('oc-customer-suggestions');
+  // If what they typed looks like a phone number, prefill the phone field;
+  // otherwise assume they typed a name and leave phone blank to fill in.
+  const looksLikePhone = /^[\d+\s-]{5,}$/.test(typedValue);
+  box.innerHTML = `
+    <div id="oc-new-customer-form">
+      <input type="text" id="oc-new-phone" placeholder="Phone number" value="${looksLikePhone ? escapeHtml(typedValue) : ''}">
+      <input type="text" id="oc-new-name" placeholder="Customer name" value="${looksLikePhone ? '' : escapeHtml(typedValue)}">
+      <button onclick="saveNewCustomerFromPOS()">Save Customer</button>
+    </div>
+  `;
+  box.style.display = 'block';
+};
+
+window.saveNewCustomerFromPOS = async function() {
+  const phone = document.getElementById('oc-new-phone').value.trim();
+  const name = document.getElementById('oc-new-name').value.trim();
+  if (!phone) {
+    alert(currentLang === 'ar' ? 'رقم الهاتف مطلوب' : 'Phone number is required');
+    return;
+  }
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/customers?on_conflict=phone,seller_id', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ phone, name: name || null, seller_id: SELLER_CHAT_ID, created_at: new Date().toISOString() })
+    });
+    if (!cachedCustomerCatalog) cachedCustomerCatalog = [];
+    cachedCustomerCatalog.push({ phone, name });
+    selectCustomerSuggestion(phone, name);
+  } catch (e) {
+    debugLog('saveNewCustomerFromPOS failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  }
+};
+
+document.addEventListener('click', (e) => {
+  const custWrap = document.getElementById('oc-customer-field');
+  if (custWrap && !custWrap.contains(e.target)) {
+    const box = document.getElementById('oc-customer-suggestions');
+    if (box) box.style.display = 'none';
+  }
+});
 
 function renderProductGrid() {
   const grid = document.getElementById('pos-product-grid');
@@ -6333,10 +6582,86 @@ function renderOrderCart() {
   if (productsCountEl) productsCountEl.textContent = currentOrderCart.length;
 }
 
+let confirmedCardDetails = null;
+let confirmedPartialAmount = null;
+
 window.selectPaymentMethod = function(method, btnEl) {
-  currentPaymentMethod = method;
+  if (method === 'cash') {
+    currentPaymentMethod = 'cash';
+    confirmedCardDetails = null;
+    confirmedPartialAmount = null;
+    document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
+    btnEl.classList.add('active');
+    return;
+  }
+
+  if (method === 'card') {
+    document.getElementById('pm-card-last4').value = '';
+    document.getElementById('pm-card-reference').value = '';
+    document.getElementById('pos-modal-overlay').style.display = 'flex';
+    document.getElementById('pos-card-modal').style.display = 'block';
+  } else if (method === 'partial') {
+    const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    document.getElementById('pm-partial-order-total-value').textContent = total.toLocaleString();
+    document.getElementById('pm-partial-paid').value = '';
+    document.getElementById('pm-partial-remaining-value').textContent = total.toLocaleString();
+    document.getElementById('pos-modal-overlay').style.display = 'flex';
+    document.getElementById('pos-partial-modal').style.display = 'block';
+  }
+  // Pill only gets marked active once the modal is actually confirmed, not
+  // just opened — so cancelling doesn't leave a half-selected payment method.
+};
+
+window.closePaymentModal = function() {
+  document.getElementById('pos-modal-overlay').style.display = 'none';
+  document.getElementById('pos-card-modal').style.display = 'none';
+  document.getElementById('pos-partial-modal').style.display = 'none';
+};
+
+window.confirmCardPayment = function() {
+  const last4 = document.getElementById('pm-card-last4').value.trim();
+  if (!/^\d{4}$/.test(last4)) {
+    alert(currentLang === 'ar' ? 'الرجاء إدخال آخر 4 أرقام من البطاقة' : 'Please enter exactly 4 digits');
+    return;
+  }
+  confirmedCardDetails = {
+    brand: document.getElementById('pm-card-brand').value,
+    last4,
+    reference: document.getElementById('pm-card-reference').value.trim() || null
+  };
+  confirmedPartialAmount = null;
+  currentPaymentMethod = 'card';
   document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
-  btnEl.classList.add('active');
+  document.querySelector('.pos-payment-pill[data-method="card"]').classList.add('active');
+  closePaymentModal();
+};
+
+window.updatePartialRemaining = function() {
+  const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+  const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
+  const paid = paidRaw === '' ? 0 : (Number(paidRaw) || 0);
+  const remaining = Math.max(total - paid, 0);
+  document.getElementById('pm-partial-remaining-value').textContent = remaining.toLocaleString();
+};
+
+window.confirmPartialPayment = function() {
+  const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+  const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
+  const paid = paidRaw === '' ? NaN : Number(paidRaw);
+  if (isNaN(paid) || paid < 0) {
+    alert(currentLang === 'ar' ? 'الرجاء إدخال مبلغ صحيح' : 'Please enter a valid amount');
+    return;
+  }
+  if (paid >= total) {
+    alert(currentLang === 'ar' ? 'المبلغ المدفوع يساوي أو أكبر من الإجمالي — استخدم كاش أو بطاقة بدلاً من ذلك' : 'Amount paid is equal to or more than the total — use Cash or Card instead');
+    return;
+  }
+  confirmedPartialAmount = paid;
+  confirmedCardDetails = null;
+  currentPaymentMethod = 'partial';
+  document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
+  document.querySelector('.pos-payment-pill[data-method="partial"]').classList.add('active');
+  closePaymentModal();
 };
 
 window.closeOrderCreateForm = function() {
@@ -6345,9 +6670,15 @@ window.closeOrderCreateForm = function() {
 };
 
 window.saveManualOrder = async function() {
-  const phoneEl = document.getElementById('oc-phone');
+  // If a suggestion was clicked, oc-customer-selected-id holds the real
+  // phone. Otherwise the seller may have typed a raw phone number directly
+  // without picking a suggestion — treat that as valid too, matching what
+  // they typed exactly.
+  const selectedPhone = document.getElementById('oc-customer-selected-id').value;
+  const rawTyped = document.getElementById('oc-phone').value.trim();
+  const resolvedPhone = selectedPhone || rawTyped;
 
-  if (!phoneEl.value.trim()) {
+  if (!resolvedPhone) {
     alert(currentLang === 'ar' ? 'رقم هاتف الزبون مطلوب' : "Customer phone number is required");
     return;
   }
@@ -6378,19 +6709,23 @@ window.saveManualOrder = async function() {
 
     const payload = {
       seller_id: SELLER_CHAT_ID,
-      phone: phoneEl.value.trim(),
+      phone: resolvedPhone,
       product_name: productSummary,
       quantity: totalQuantity,
       order_total: orderTotal,
       payment_method: paymentMethodLabel,
-      // Partial/debt means not fully paid yet — leave amount_received unset
-      // so it's visibly "Not recorded" until the seller updates it, rather
-      // than implying full payment happened.
-      amount_received: currentPaymentMethod === 'partial' ? null : orderTotal,
+      // Cash/card: fully paid. Partial: exactly what the seller confirmed
+      // was paid now, leaving the rest as debt (order_total - this value).
+      amount_received: currentPaymentMethod === 'partial' ? confirmedPartialAmount : orderTotal,
       delivery_address: document.getElementById('oc-delivery_address').value.trim() || null,
       order_status: document.getElementById('oc-order_status').value,
       created_at: new Date().toISOString()
     };
+    if (currentPaymentMethod === 'card' && confirmedCardDetails) {
+      payload.card_brand = confirmedCardDetails.brand;
+      payload.card_last4 = confirmedCardDetails.last4;
+      payload.card_reference = confirmedCardDetails.reference;
+    }
     if (payload.order_status === 'SHIPPED') payload.shipped_at = new Date().toISOString();
     if (payload.order_status === 'DELIVERED') payload.delivered_at = new Date().toISOString();
 
