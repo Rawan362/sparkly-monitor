@@ -2298,6 +2298,21 @@
   .pos-modal-btn.primary { border: none; background: var(--accent-2); color: #fff; }
   .pos-modal-btn.secondary { border: 1px solid var(--border); background: none; color: var(--text); }
 
+  .pos-tier-modal-text { font-size: 13.5px; color: var(--text-muted); margin: 0 0 16px; line-height: 1.5; }
+  #pos-tier-choice-row { display: flex; gap: 10px; }
+  .pos-tier-choice-btn {
+    flex: 1;
+    padding: 16px 10px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .pos-tier-choice-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
+
   @media (max-width: 720px) {
     #pos-body { flex-direction: column; overflow-y: auto; }
     #pos-cart-panel { border-right: none; border-bottom: 1px solid var(--border); flex: none; overflow: visible; }
@@ -2625,6 +2640,19 @@
               <button class="pos-modal-btn primary" onclick="confirmPartialPayment()">Confirm Partial Payment</button>
             </div>
           </div>
+
+          <div id="pos-tier-modal" class="pos-modal" style="display:none;">
+            <div class="pos-modal-header">
+              <span>Pricing for this sale</span>
+            </div>
+            <div class="pos-modal-body">
+              <p class="pos-tier-modal-text">This customer could be charged wholesale or retail — which prices should apply to this order?</p>
+              <div id="pos-tier-choice-row">
+                <button class="pos-tier-choice-btn" onclick="choosePricingTier('wholesale')">Wholesale</button>
+                <button class="pos-tier-choice-btn" onclick="choosePricingTier('retail')">Retail</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2831,6 +2859,18 @@
       </div>
       <div class="biz-fields">
         <div class="biz-field"><label>Invoice number prefix</label><input type="text" id="biz-pos-invoice-prefix" data-key="invoice_prefix" data-table="pos_settings" placeholder="INV" onchange="saveBizField(this)"></div>
+      </div>
+
+      <div class="settings-section-label">Pricing</div>
+      <div class="biz-fields">
+        <div class="biz-field">
+          <label>What do you sell at?</label>
+          <select id="biz-selling-type" data-key="selling_type" data-table="seller_sales_config" onchange="saveBizField(this)">
+            <option value="wholesale">Wholesale only</option>
+            <option value="retail">Retail only</option>
+            <option value="both">Both — ask me each time</option>
+          </select>
+        </div>
       </div>
 
       <div class="settings-section-label">Currency</div>
@@ -6307,6 +6347,16 @@ let currentOrderCart = [];
 let cachedProductCatalog = null;
 let currentPaymentMethod = null;
 let posCurrencySymbol = '';
+let sellerSellingType = null;
+let currentPricingTier = null;
+
+function getEffectivePrice(product) {
+  if (currentPricingTier === 'wholesale') return product.wholesale_price;
+  if (currentPricingTier === 'retail') return product.retail_price;
+  // No tier chosen yet (or a legacy seller without selling_type set) —
+  // fall back to the old default: prefer retail if available, else wholesale.
+  return product.retail_price != null ? product.retail_price : product.wholesale_price;
+}
 const POS_TILE_COLORS = ['#2E4A87', '#2F9E6E', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
 
 window.openOrderCreateForm = async function() {
@@ -6342,6 +6392,20 @@ window.openOrderCreateForm = async function() {
 
   const _currency = await ensureSellerCurrency();
   posCurrencySymbol = _currency ? currencyCodeToSymbol(_currency) : '';
+
+  try {
+    const sellingRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=selling_type', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const sellingData = await sellingRes.json();
+    sellerSellingType = (sellingData && sellingData[0] && sellingData[0].selling_type) || null;
+  } catch (e) {
+    debugLog('openOrderCreateForm selling_type fetch failed: ' + (e && e.message));
+    sellerSellingType = null;
+  }
+  // A seller with a single fixed selling type never needs to choose — only
+  // "both" requires asking per sale, right after the customer is picked.
+  currentPricingTier = (sellerSellingType === 'wholesale' || sellerSellingType === 'retail') ? sellerSellingType : null;
 
   const grid = document.getElementById('pos-product-grid');
   grid.innerHTML = '<div id="pos-product-empty"><div class="spinner"></div>Loading products...</div>';
@@ -6391,6 +6455,17 @@ window.selectCustomerSuggestion = function(phone, name) {
   document.getElementById('oc-phone').value = name ? (name + ' — ' + phone) : phone;
   document.getElementById('oc-customer-selected-id').value = phone;
   document.getElementById('oc-customer-suggestions').style.display = 'none';
+
+  if (sellerSellingType === 'both') {
+    document.getElementById('pos-modal-overlay').style.display = 'flex';
+    document.getElementById('pos-tier-modal').style.display = 'block';
+  }
+};
+
+window.choosePricingTier = function(tier) {
+  currentPricingTier = tier;
+  closePaymentModal();
+  renderProductGrid(); // prices shown in the grid should reflect the chosen tier immediately
 };
 
 window.showNewCustomerForm = function(typedValue) {
@@ -6445,7 +6520,7 @@ function renderProductGrid() {
     return;
   }
   grid.innerHTML = cachedProductCatalog.map((p, i) => {
-    const price = p.retail_price != null ? p.retail_price : p.wholesale_price;
+    const price = getEffectivePrice(p);
     const inCart = currentOrderCart.find(item => item.product_id === p.id);
     const color = POS_TILE_COLORS[i % POS_TILE_COLORS.length];
     return `
@@ -6485,7 +6560,7 @@ window.filterProductSearch = function(query) {
   }
 
   box.innerHTML = matches.slice(0, 20).map(p => {
-    const price = p.retail_price != null ? p.retail_price : p.wholesale_price;
+    const price = getEffectivePrice(p);
     return `
       <div class="oc-suggestion-item" onclick="selectProductSuggestion('${p.id}')">
         <div class="oc-suggestion-item-row">
@@ -6519,7 +6594,7 @@ function addProductToCart(productId, qty) {
   if (!productId || !cachedProductCatalog) return;
   const product = cachedProductCatalog.find(p => p.id === productId);
   if (!product) return;
-  const unitPrice = product.retail_price != null ? product.retail_price : (product.wholesale_price || 0);
+  const unitPrice = getEffectivePrice(product) || 0;
 
   const existing = currentOrderCart.find(item => item.product_id === productId);
   if (existing) {
@@ -6625,6 +6700,7 @@ window.closePaymentModal = function() {
   document.getElementById('pos-modal-overlay').style.display = 'none';
   document.getElementById('pos-card-modal').style.display = 'none';
   document.getElementById('pos-partial-modal').style.display = 'none';
+  document.getElementById('pos-tier-modal').style.display = 'none';
 };
 
 window.confirmCardPayment = function() {
@@ -7057,7 +7133,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -7127,6 +7203,7 @@ async function loadBizSettings() {
     if (currencyData.currency_label != null) document.getElementById('biz-currency-label').value = currencyData.currency_label;
     if (currencyData.alt_currency_label != null) document.getElementById('biz-alt-currency-label').value = currencyData.alt_currency_label;
     if (currencyData.alt_currency_rate != null) document.getElementById('biz-alt-currency-rate').value = currencyData.alt_currency_rate;
+    if (currencyData.selling_type) document.getElementById('biz-selling-type').value = currencyData.selling_type;
 
     bizSettingsLoaded = true;
   } catch (e) {
