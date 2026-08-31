@@ -2107,6 +2107,13 @@
     font-size: 14px;
   }
 
+  #pos-cost-breakdown { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .pos-cost-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .pos-cost-row span:last-child { font-weight: 600; color: var(--text); }
+  .pos-cost-row.grand { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 14.5px; }
+  .pos-cost-row.grand span { color: var(--text) !important; font-weight: 700 !important; }
+  .pos-cost-row.grand span:last-child { color: var(--accent-2) !important; }
+
   #pos-product-panel {
     flex: 1;
     min-width: 0;
@@ -2569,6 +2576,12 @@
                 <div><span class="pos-summary-label">Products</span><span id="pos-summary-products-count">0</span></div>
               </div>
               <div class="biz-field"><label>Delivery address</label><input type="text" id="oc-delivery_address"></div>
+              <div class="biz-field"><label>Shipping cost</label><input type="text" id="oc-shipping-cost" placeholder="0" oninput="renderOrderCart()"></div>
+              <div id="pos-cost-breakdown">
+                <div class="pos-cost-row"><span>Products subtotal</span><span id="pos-products-subtotal">0</span></div>
+                <div class="pos-cost-row"><span>Shipping</span><span id="pos-shipping-value">0</span></div>
+                <div class="pos-cost-row grand"><span>Invoice total</span><span id="pos-grand-total">0</span></div>
+              </div>
               <div class="biz-field">
                 <label>Order status</label>
                 <select id="oc-order_status">
@@ -6357,6 +6370,13 @@ function getEffectivePrice(product) {
   // fall back to the old default: prefer retail if available, else wholesale.
   return product.retail_price != null ? product.retail_price : product.wholesale_price;
 }
+
+function getCurrentInvoiceTotal() {
+  const subtotal = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+  const shippingRaw = document.getElementById('oc-shipping-cost').value.trim().replace(/[^\d.-]/g, '');
+  const shipping = shippingRaw === '' ? 0 : (Number(shippingRaw) || 0);
+  return subtotal + shipping;
+}
 const POS_TILE_COLORS = ['#2E4A87', '#2F9E6E', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
 
 window.openOrderCreateForm = async function() {
@@ -6366,6 +6386,7 @@ window.openOrderCreateForm = async function() {
   document.getElementById('oc-customer-selected-id').value = '';
   document.getElementById('oc-customer-suggestions').style.display = 'none';
   document.getElementById('oc-delivery_address').value = '';
+  document.getElementById('oc-shipping-cost').value = '';
   document.getElementById('oc-order_status').value = 'PENDING';
   document.getElementById('oc-item-search').value = '';
   document.getElementById('oc-item-selected-id').value = '';
@@ -6630,20 +6651,22 @@ function renderOrderCart() {
   const totalEl = document.getElementById('oc-cart-total-value');
   const itemsCountEl = document.getElementById('pos-summary-items-count');
   const productsCountEl = document.getElementById('pos-summary-products-count');
+  const shippingRaw = document.getElementById('oc-shipping-cost').value.trim().replace(/[^\d.-]/g, '');
+  const shipping = shippingRaw === '' ? 0 : (Number(shippingRaw) || 0);
 
   if (currentOrderCart.length === 0) {
     listEl.innerHTML = '<div id="oc-cart-empty">Tap a product to add it, or search above</div>';
-    totalEl.textContent = '0';
+    updateCostBreakdown(0, shipping);
     if (itemsCountEl) itemsCountEl.textContent = '0';
     if (productsCountEl) productsCountEl.textContent = '0';
     return;
   }
 
-  let total = 0;
+  let subtotal = 0;
   let totalUnits = 0;
   listEl.innerHTML = currentOrderCart.map((item, i) => {
     const lineTotal = item.unit_price * item.quantity;
-    total += lineTotal;
+    subtotal += lineTotal;
     totalUnits += item.quantity;
     return `
       <div class="oc-cart-item">
@@ -6661,9 +6684,19 @@ function renderOrderCart() {
       </div>
     `;
   }).join('');
-  totalEl.textContent = posCurrencySymbol + total.toLocaleString();
+  updateCostBreakdown(subtotal, shipping);
   if (itemsCountEl) itemsCountEl.textContent = totalUnits;
   if (productsCountEl) productsCountEl.textContent = currentOrderCart.length;
+}
+
+function updateCostBreakdown(subtotal, shipping) {
+  const grandTotal = subtotal + shipping;
+  document.getElementById('pos-products-subtotal').textContent = posCurrencySymbol + subtotal.toLocaleString();
+  document.getElementById('pos-shipping-value').textContent = posCurrencySymbol + shipping.toLocaleString();
+  document.getElementById('pos-grand-total').textContent = posCurrencySymbol + grandTotal.toLocaleString();
+  // The bottom-bar callout is the one number the seller glances at most —
+  // it should always be the real invoice total, shipping included.
+  document.getElementById('oc-cart-total-value').textContent = posCurrencySymbol + grandTotal.toLocaleString();
 }
 
 let confirmedCardDetails = null;
@@ -6685,7 +6718,7 @@ window.selectPaymentMethod = function(method, btnEl) {
     document.getElementById('pos-modal-overlay').style.display = 'flex';
     document.getElementById('pos-card-modal').style.display = 'block';
   } else if (method === 'partial') {
-    const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    const total = getCurrentInvoiceTotal();
     document.getElementById('pm-partial-order-total-value').textContent = posCurrencySymbol + total.toLocaleString();
     document.getElementById('pm-partial-paid').value = '';
     document.getElementById('pm-partial-remaining-value').textContent = posCurrencySymbol + total.toLocaleString();
@@ -6722,7 +6755,7 @@ window.confirmCardPayment = function() {
 };
 
 window.updatePartialRemaining = function() {
-  const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+  const total = getCurrentInvoiceTotal();
   const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
   const paid = paidRaw === '' ? 0 : (Number(paidRaw) || 0);
   const remaining = Math.max(total - paid, 0);
@@ -6730,7 +6763,7 @@ window.updatePartialRemaining = function() {
 };
 
 window.confirmPartialPayment = function() {
-  const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+  const total = getCurrentInvoiceTotal();
   const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
   const paid = paidRaw === '' ? NaN : Number(paidRaw);
   if (isNaN(paid) || paid < 0) {
@@ -6781,7 +6814,9 @@ window.saveManualOrder = async function() {
   btn.textContent = currentLang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...';
 
   try {
-    const orderTotal = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    const shippingRaw = document.getElementById('oc-shipping-cost').value.trim().replace(/[^\d.-]/g, '');
+    const shippingCost = shippingRaw === '' ? 0 : (Number(shippingRaw) || 0);
+    const orderTotal = getCurrentInvoiceTotal(); // products subtotal + shipping
     const totalQuantity = currentOrderCart.reduce((sum, item) => sum + item.quantity, 0);
     // product_name on the orders row itself is kept as a readable summary for
     // list views that only look at this one field — the real breakdown lives
@@ -6798,9 +6833,11 @@ window.saveManualOrder = async function() {
       product_name: productSummary,
       quantity: totalQuantity,
       order_total: orderTotal,
+      shipping_cost: shippingCost,
       payment_method: paymentMethodLabel,
       // Cash/card: fully paid. Partial: exactly what the seller confirmed
-      // was paid now, leaving the rest as debt (order_total - this value).
+      // was paid now (against the full invoice total including shipping),
+      // leaving the rest as debt (order_total - this value).
       amount_received: currentPaymentMethod === 'partial' ? confirmedPartialAmount : orderTotal,
       delivery_address: document.getElementById('oc-delivery_address').value.trim() || null,
       order_status: document.getElementById('oc-order_status').value,
