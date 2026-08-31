@@ -2088,7 +2088,19 @@
     justify-content: center;
     flex-shrink: 0;
   }
-  .oc-qty-stepper span { min-width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+  .oc-qty-stepper input {
+    width: 34px;
+    min-width: 34px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13px;
+    padding: 3px 2px;
+  }
+  .oc-qty-stepper input:focus { outline: none; border-color: var(--accent-2); }
   .oc-cart-item-linetotal { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent-2); }
   .oc-cart-item-remove { border: none; background: none; color: var(--danger); cursor: pointer; padding: 4px; display: flex; justify-self: end; }
 
@@ -6776,6 +6788,22 @@ window.decrementCartItem = function(index) {
   if (item) addProductToCart(item.product_id, -1);
 };
 
+window.setCartItemQuantity = function(index, rawValue) {
+  const item = currentOrderCart[index];
+  if (!item) return;
+  const cleaned = String(rawValue).trim().replace(/[^\d]/g, '');
+  const qty = cleaned === '' ? NaN : parseInt(cleaned, 10);
+  if (isNaN(qty) || qty <= 0) {
+    // Invalid or zero — treat it the same as removing the item, since a
+    // typed "0" or empty field is the seller saying they don't want it.
+    removeCartItem(index);
+    return;
+  }
+  item.quantity = qty;
+  renderOrderCart();
+  renderProductGrid();
+};
+
 window.removeCartItem = function(index) {
   currentOrderCart.splice(index, 1);
   renderOrderCart();
@@ -6825,7 +6853,7 @@ function renderOrderCart() {
         </div>
         <div class="oc-qty-stepper">
           <button onclick="decrementCartItem(${i})" title="Decrease">−</button>
-          <span>${item.quantity}</span>
+          <input type="text" inputmode="numeric" value="${item.quantity}" onchange="setCartItemQuantity(${i}, this.value)" onclick="event.stopPropagation();">
           <button onclick="incrementCartItem(${i})" title="Increase">+</button>
         </div>
         <div class="oc-cart-item-linetotal">${posCurrencySymbol}${lineTotal.toLocaleString()}</div>
