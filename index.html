@@ -2264,6 +2264,7 @@
   }
   #pos-total-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.65; }
   #oc-cart-total-value { font-family: 'SF Mono', 'Roboto Mono', Consolas, monospace; font-weight: 700; font-size: 19px; font-variant-numeric: tabular-nums; }
+  #pos-total-callout-alt { font-size: 11px; opacity: 0.75; font-variant-numeric: tabular-nums; }
 
   #order-create-save-btn {
     padding: 14px 22px;
@@ -2730,6 +2731,7 @@
                 <div class="pos-cost-row" id="pos-invoice-discount-row" style="display:none;"><span>Invoice discount</span><span id="pos-invoice-discount-value">0</span></div>
                 <div class="pos-cost-row"><span>Shipping</span><span id="pos-shipping-value">0</span></div>
                 <div class="pos-cost-row grand"><span>Invoice total</span><span id="pos-grand-total">0</span></div>
+                <div class="pos-cost-row" id="pos-alt-currency-row" style="display:none;"><span>≈ Alternate currency</span><span id="pos-alt-currency-value"></span></div>
                 <div id="pos-invoice-discount-link" onclick="openInvoiceDiscountModal()">+ Add invoice discount</div>
               </div>
               <div class="biz-field">
@@ -2758,6 +2760,7 @@
           <div id="pos-total-callout">
             <span id="pos-total-label">Total</span>
             <span id="oc-cart-total-value">0</span>
+            <span id="pos-total-callout-alt"></span>
           </div>
           <button id="order-create-save-btn" onclick="saveManualOrder()">Complete Sale</button>
         </div>
@@ -3091,6 +3094,10 @@
         <div class="biz-row" style="padding-left:0;padding-right:0;">
           <div class="biz-row-label"><span class="biz-title" id="biz-alt-currency-op-label">Multiply main currency by rate</span><span class="biz-sub">Toggle to switch between multiply and divide</span></div>
           <button class="biz-toggle" id="biz-alt-currency-operation" data-key="alt_currency_operation" data-table="seller_sales_config" onclick="toggleCurrencyOperation(this)"></button>
+        </div>
+        <div class="biz-row" style="padding-left:0;padding-right:0;">
+          <div class="biz-row-label"><span class="biz-title">Show alternate currency</span><span class="biz-sub">Display the converted amount in POS and invoices, not just the main currency</span></div>
+          <button class="biz-toggle" id="biz-toggle-show_alt_currency_in_pos" data-key="show_alt_currency_in_pos" data-table="seller_sales_config" onclick="toggleBizSetting(this)"></button>
         </div>
       </div>
 
@@ -6694,6 +6701,16 @@ let currentPaymentMethod = null;
 let posCurrencySymbol = '';
 let sellerSellingType = null;
 let currentPricingTier = null;
+let showAltCurrencyInPos = false;
+let posAltCurrencyLabel = '';
+let posAltCurrencyRate = null;
+let posAltCurrencyOperation = 'multiply';
+
+function convertToAltCurrency(amount) {
+  if (!showAltCurrencyInPos || !posAltCurrencyRate) return null;
+  const converted = posAltCurrencyOperation === 'divide' ? amount / posAltCurrencyRate : amount * posAltCurrencyRate;
+  return `${posAltCurrencyLabel} ${converted.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
 
 function getEffectivePrice(product) {
   if (currentPricingTier === 'wholesale') return product.wholesale_price;
@@ -6749,14 +6766,20 @@ window.openOrderCreateForm = async function() {
   posCurrencySymbol = _currency ? currencyCodeToSymbol(_currency) : '';
 
   try {
-    const sellingRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=selling_type', {
+    const sellingRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=selling_type,show_alt_currency_in_pos,alt_currency_label,alt_currency_rate,alt_currency_operation', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const sellingData = await sellingRes.json();
-    sellerSellingType = (sellingData && sellingData[0] && sellingData[0].selling_type) || null;
+    const sellingRow = (sellingData && sellingData[0]) || {};
+    sellerSellingType = sellingRow.selling_type || null;
+    showAltCurrencyInPos = sellingRow.show_alt_currency_in_pos === true;
+    posAltCurrencyLabel = sellingRow.alt_currency_label || '';
+    posAltCurrencyRate = sellingRow.alt_currency_rate || null;
+    posAltCurrencyOperation = sellingRow.alt_currency_operation || 'multiply';
   } catch (e) {
     debugLog('openOrderCreateForm selling_type fetch failed: ' + (e && e.message));
     sellerSellingType = null;
+    showAltCurrencyInPos = false;
   }
   // A seller with a single fixed selling type never needs to choose — only
   // "both" requires asking per sale, right after the customer is picked.
@@ -7078,6 +7101,18 @@ function updateCostBreakdown(subtotal, shipping) {
       ? `Edit invoice discount (${currentInvoiceDiscount.type === 'percent' ? currentInvoiceDiscount.value + '%' : posCurrencySymbol + currentInvoiceDiscount.value.toLocaleString()})`
       : '+ Add invoice discount';
   }
+  const altRow = document.getElementById('pos-alt-currency-row');
+  const altConverted = convertToAltCurrency(grandTotal);
+  if (altRow) {
+    if (altConverted) {
+      altRow.style.display = 'flex';
+      document.getElementById('pos-alt-currency-value').textContent = altConverted;
+    } else {
+      altRow.style.display = 'none';
+    }
+  }
+  const totalAltEl = document.getElementById('pos-total-callout-alt');
+  if (totalAltEl) totalAltEl.textContent = altConverted || '';
   // The bottom-bar callout is the one number the seller glances at most —
   // it should always be the real invoice total, shipping included.
   document.getElementById('oc-cart-total-value').textContent = posCurrencySymbol + grandTotal.toLocaleString();
@@ -7725,7 +7760,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -7740,15 +7775,18 @@ async function loadBizSettings() {
     (settingsRes || []).forEach(r => { settingsMap[r.key] = r.value; });
     const posData = (posRes && posRes[0]) || {};
     const adData = (adConfigRes && adConfigRes[0]) || {};
+    const currencyData = (configRes && configRes[0]) || {};
 
     // Populate every toggle — bot_settings-backed toggles use string 'true'/
-    // 'false', pos_settings-backed ones use real booleans, so each type
-    // needs its own source.
+    // 'false', pos_settings and seller_sales_config-backed ones use real
+    // booleans, so each type needs its own source.
     document.querySelectorAll('#business-tab-content .biz-toggle').forEach(btn => {
       const key = btn.dataset.key;
       const table = btn.dataset.table;
       if (key === 'alt_currency_operation') return; // handled separately below, not a plain boolean
-      const isOn = table === 'pos_settings' ? posData[key] === true : settingsMap[key] === 'true';
+      const isOn = table === 'pos_settings' ? posData[key] === true
+        : table === 'seller_sales_config' ? currencyData[key] === true
+        : settingsMap[key] === 'true';
       btn.classList.toggle('on', isOn);
     });
 
@@ -7791,7 +7829,6 @@ async function loadBizSettings() {
 
     // Currency fields also live on seller_sales_config — populate them
     // explicitly, since the generic loop above skips this table on purpose.
-    const currencyData = (configRes && configRes[0]) || {};
     if (currencyData.currency_label != null) document.getElementById('biz-currency-label').value = currencyData.currency_label;
     if (currencyData.alt_currency_label != null) document.getElementById('biz-alt-currency-label').value = currencyData.alt_currency_label;
     if (currencyData.alt_currency_rate != null) document.getElementById('biz-alt-currency-rate').value = currencyData.alt_currency_rate;
