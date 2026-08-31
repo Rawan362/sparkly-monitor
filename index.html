@@ -2418,6 +2418,42 @@
 
   /* ═══ REPORTS ═══ */
   #reports-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+
+  /* ═══ CUSTOMER DEBTS ═══ */
+  #debts-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #debts-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #debts-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #debts-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #debts-total-banner {
+    margin: 14px 16px 4px;
+    padding: 14px 16px;
+    background: var(--danger);
+    color: #fff;
+    border-radius: 12px;
+    text-align: center;
+  }
+  #debts-total-banner .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.85; }
+  #debts-total-banner .value { font-size: 22px; font-weight: 700; font-family: var(--font-display); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  #debts-list { flex: 1; overflow-y: auto; padding: 8px 0 20px; }
+  #debts-loading, #debts-empty { display: flex; align-items: center; gap: 10px; padding: 30px 20px; color: var(--text-muted); font-size: 13.5px; }
+  #debts-empty { text-align: center; justify-content: center; }
+  .debt-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .debt-card-name { font-weight: 600; font-size: 14px; }
+  .debt-card-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .debt-card-amount { font-weight: 700; font-size: 15px; color: var(--danger); font-variant-numeric: tabular-nums; }
   #reports-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
   .report-section { margin-bottom: 22px; }
   .report-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
@@ -2736,6 +2772,15 @@
       </div>
       <div id="reports-content"><div id="reports-loading"><div class="spinner"></div>Crunching the numbers...</div></div>
     </div>
+    <div id="debts-tab-content" style="display:none;">
+      <div id="debts-header-row">
+        <button onclick="closeDebtsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="debts-title">Customer Debts</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="debts-total-banner"></div>
+      <div id="debts-list"><div id="debts-loading"><div class="spinner"></div>Adding up outstanding balances...</div></div>
+    </div>
     <div id="settings-tab-content" style="display:none;">
       <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
       <div class="settings-row" onclick="openAppearancePicker()">
@@ -2780,6 +2825,10 @@
       <div class="settings-row" onclick="openReportsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
         <span id="settings-label-reports-row">Reports</span>
+      </div>
+      <div class="settings-row" onclick="openDebtsPanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span id="settings-label-debts-row">Customer Debts</span>
       </div>
       <div class="settings-row" onclick="openBusinessPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -5989,7 +6038,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -7240,6 +7289,88 @@ window.closeReportsPanel = function() {
   document.getElementById('reports-tab-content').style.display = 'none';
   document.getElementById('settings-tab-content').style.display = 'block';
 };
+
+window.openDebtsPanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('debts-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  await loadDebts();
+};
+
+window.closeDebtsPanel = function() {
+  document.getElementById('debts-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+async function loadDebts() {
+  const listEl = document.getElementById('debts-list');
+  const bannerEl = document.getElementById('debts-total-banner');
+  listEl.innerHTML = '<div id="debts-loading"><div class="spinner"></div>Adding up outstanding balances...</div>';
+  bannerEl.innerHTML = '';
+
+  try {
+    const _currency = await ensureSellerCurrency();
+    const symbol = _currency ? currencyCodeToSymbol(_currency) : '';
+
+    // Every order ever placed for this seller — debt is simply what's left
+    // unpaid (order_total minus amount_received), summed per customer.
+    // Pure client-side aggregation since this is a REST endpoint, not SQL.
+    const ordersRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=neq.CANCELLED&select=phone,order_total,amount_received', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    const orders = await ordersRes.json() || [];
+
+    const byPhone = {};
+    orders.forEach(o => {
+      if (!o.phone) return;
+      const total = o.order_total || 0;
+      const received = o.amount_received != null ? o.amount_received : 0;
+      const outstanding = total - received;
+      if (!byPhone[o.phone]) byPhone[o.phone] = 0;
+      byPhone[o.phone] += outstanding;
+    });
+
+    const debtors = Object.entries(byPhone)
+      .map(([phone, debt]) => ({ phone, debt }))
+      .filter(d => d.debt > 0.01) // ignore rounding-dust "debt"
+      .sort((a, b) => b.debt - a.debt);
+
+    if (debtors.length === 0) {
+      bannerEl.innerHTML = '';
+      listEl.innerHTML = '<div id="debts-empty">✅ No outstanding debt — every order is fully paid.</div>';
+      return;
+    }
+
+    const grandTotalDebt = debtors.reduce((sum, d) => sum + d.debt, 0);
+    bannerEl.innerHTML = `<div class="label">Total Outstanding</div><div class="value">${symbol}${grandTotalDebt.toLocaleString()}</div>`;
+
+    // Names are optional (customers table) — fall back to just the phone
+    // number for anyone who was never saved with a name.
+    let namesByPhone = {};
+    try {
+      const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      (await custRes.json() || []).forEach(c => { namesByPhone[c.phone] = c.name; });
+    } catch (e) { /* names are a nice-to-have, not essential */ }
+
+    listEl.innerHTML = debtors.map(d => `
+      <div class="debt-card">
+        <div>
+          <div class="debt-card-name">${escapeHtml(namesByPhone[d.phone] || d.phone)}</div>
+          <div class="debt-card-meta">${escapeHtml(d.phone)}</div>
+        </div>
+        <div class="debt-card-amount">${symbol}${d.debt.toLocaleString()}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    debugLog('loadDebts failed: ' + (e && e.message));
+    listEl.innerHTML = '<div id="debts-empty">Could not load debts. Try again.</div>';
+  }
+}
 
 async function loadReports() {
   const contentEl = document.getElementById('reports-content');
