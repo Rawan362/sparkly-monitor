@@ -2305,16 +2305,28 @@
     color: var(--text);
     font-size: 14px;
   }
-  #pm-partial-order-total-row, #pm-partial-remaining-row {
+  #pm-order-total-row {
     display: flex;
     justify-content: space-between;
     font-size: 13.5px;
     padding: 8px 0;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
   }
-  #pm-partial-order-total-row { color: var(--text-muted); border-bottom: 1px solid var(--border); margin-bottom: 10px; }
-  #pm-partial-order-total-row span:last-child { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-  #pm-partial-remaining-row { font-weight: 700; margin-top: 6px; }
-  #pm-partial-remaining-value { color: var(--danger); font-variant-numeric: tabular-nums; }
+  #pm-order-total-row span:last-child { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  #pm-payment-status-row {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--panel-2);
+    font-weight: 700;
+    font-size: 13.5px;
+    text-align: center;
+  }
+  #pm-payment-status-row.full { color: var(--accent-2); }
+  #pm-payment-status-row.partial { color: #C98A2E; }
+  #pm-payment-status-row.debt { color: var(--danger); }
   .pos-modal-footer {
     display: flex;
     gap: 10px;
@@ -2633,7 +2645,6 @@
           <div id="pos-payment-pills">
             <button class="pos-payment-pill" data-method="cash" onclick="selectPaymentMethod('cash', this)">Cash</button>
             <button class="pos-payment-pill" data-method="card" onclick="selectPaymentMethod('card', this)">Card</button>
-            <button class="pos-payment-pill" data-method="partial" onclick="selectPaymentMethod('partial', this)">Partial / Debt</button>
           </div>
           <div id="pos-total-callout">
             <span id="pos-total-label">Total</span>
@@ -2643,43 +2654,32 @@
         </div>
 
         <div id="pos-modal-overlay" style="display:none;">
-          <div id="pos-card-modal" class="pos-modal" style="display:none;">
+          <div id="pos-payment-modal" class="pos-modal" style="display:none;">
             <div class="pos-modal-header">
-              <span>Card Payment</span>
+              <span id="pos-payment-modal-title">Payment</span>
               <button onclick="closePaymentModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div class="pos-modal-body">
-              <div class="biz-field">
-                <label>Card brand</label>
-                <select id="pm-card-brand">
-                  <option value="Visa">Visa</option>
-                  <option value="Mastercard">Mastercard</option>
-                  <option value="Amex">Amex</option>
-                  <option value="Other">Other</option>
-                </select>
+              <div id="pm-card-fields" style="display:none;">
+                <div class="biz-field">
+                  <label>Card brand</label>
+                  <select id="pm-card-brand">
+                    <option value="Visa">Visa</option>
+                    <option value="Mastercard">Mastercard</option>
+                    <option value="Amex">Amex</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="biz-field"><label>Last 4 digits</label><input type="text" id="pm-card-last4" maxlength="4" placeholder="e.g. 4242"></div>
+                <div class="biz-field"><label>Approval / reference code (optional)</label><input type="text" id="pm-card-reference" placeholder="From your card reader/terminal"></div>
               </div>
-              <div class="biz-field"><label>Last 4 digits</label><input type="text" id="pm-card-last4" maxlength="4" placeholder="e.g. 4242"></div>
-              <div class="biz-field"><label>Approval / reference code (optional)</label><input type="text" id="pm-card-reference" placeholder="From your card reader/terminal"></div>
+              <div id="pm-order-total-row"><span>Order total</span><span id="pm-order-total-value">0</span></div>
+              <div class="biz-field"><label>Amount paid</label><input type="text" id="pm-amount-paid" placeholder="0" oninput="updatePaymentStatus()"></div>
+              <div id="pm-payment-status-row"><span id="pm-payment-status-label">Full Paid</span></div>
             </div>
             <div class="pos-modal-footer">
               <button class="pos-modal-btn secondary" onclick="closePaymentModal()">Cancel</button>
-              <button class="pos-modal-btn primary" onclick="confirmCardPayment()">Confirm Card Payment</button>
-            </div>
-          </div>
-
-          <div id="pos-partial-modal" class="pos-modal" style="display:none;">
-            <div class="pos-modal-header">
-              <span>Partial Payment</span>
-              <button onclick="closePaymentModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div class="pos-modal-body">
-              <div id="pm-partial-order-total-row"><span>Order total</span><span id="pm-partial-order-total-value">0</span></div>
-              <div class="biz-field"><label>Amount paid now</label><input type="text" id="pm-partial-paid" placeholder="0" oninput="updatePartialRemaining()"></div>
-              <div id="pm-partial-remaining-row"><span>Remaining debt</span><span id="pm-partial-remaining-value">0</span></div>
-            </div>
-            <div class="pos-modal-footer">
-              <button class="pos-modal-btn secondary" onclick="closePaymentModal()">Cancel</button>
-              <button class="pos-modal-btn primary" onclick="confirmPartialPayment()">Confirm Partial Payment</button>
+              <button class="pos-modal-btn primary" onclick="confirmPayment()">Confirm</button>
             </div>
           </div>
 
@@ -6481,7 +6481,7 @@ window.openOrderCreateForm = async function() {
   currentOrderCart = [];
   currentPaymentMethod = null;
   confirmedCardDetails = null;
-  confirmedPartialAmount = null;
+  confirmedAmountPaid = null;
   currentInvoiceDiscount = { type: null, value: 0 };
   document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
   renderOrderCart();
@@ -6542,14 +6542,13 @@ window.filterCustomerSearch = function(query) {
   );
 
   let html = matches.slice(0, 15).map(c => `
-    <div class="oc-customer-suggestion-item" onclick="selectCustomerSuggestion('${c.phone}', ${JSON.stringify(c.name || '').replace(/"/g, '&quot;')})">
+    <div class="oc-customer-suggestion-item" onclick="event.stopPropagation(); selectCustomerSuggestion('${c.phone}', ${JSON.stringify(c.name || '').replace(/"/g, '&quot;')})">
       <div class="name">${escapeHtml(c.name || c.phone)}</div>
-      <div class="meta">${escapeHtml(c.phone)}</div>
     </div>
   `).join('');
 
   if (q !== '') {
-    html += `<div class="oc-customer-suggestion-item add-new" onclick="showNewCustomerForm('${escapeHtml(query.trim())}')">+ Add "${escapeHtml(query.trim())}" as a new customer</div>`;
+    html += `<div class="oc-customer-suggestion-item add-new" onclick="event.stopPropagation(); showNewCustomerForm('${escapeHtml(query.trim())}')">+ Add "${escapeHtml(query.trim())}" as a new customer</div>`;
   }
 
   if (!html) {
@@ -6586,7 +6585,7 @@ window.showNewCustomerForm = function(typedValue) {
     <div id="oc-new-customer-form">
       <input type="text" id="oc-new-phone" placeholder="Phone number" value="${looksLikePhone ? escapeHtml(typedValue) : ''}">
       <input type="text" id="oc-new-name" placeholder="Customer name" value="${looksLikePhone ? '' : escapeHtml(typedValue)}">
-      <button onclick="saveNewCustomerFromPOS()">Save Customer</button>
+      <button onclick="event.stopPropagation(); saveNewCustomerFromPOS()">Save Customer</button>
     </div>
   `;
   box.style.display = 'block';
@@ -6671,7 +6670,7 @@ window.filterProductSearch = function(query) {
   box.innerHTML = matches.slice(0, 20).map(p => {
     const price = getEffectivePrice(p);
     return `
-      <div class="oc-suggestion-item" onclick="selectProductSuggestion('${p.id}')">
+      <div class="oc-suggestion-item" onclick="event.stopPropagation(); selectProductSuggestion('${p.id}')">
         <div class="oc-suggestion-item-row">
           <div class="name">${escapeHtml(p.product_name)}</div>
           <div class="oc-suggestion-price">${price != null ? posCurrencySymbol + price.toLocaleString() : '—'}</div>
@@ -6823,86 +6822,87 @@ function updateCostBreakdown(subtotal, shipping) {
 }
 
 let confirmedCardDetails = null;
-let confirmedPartialAmount = null;
+let confirmedAmountPaid = null;
+
+let pendingPaymentMethod = null; // 'cash' or 'card', while the modal is open
 
 window.selectPaymentMethod = function(method, btnEl) {
-  if (method === 'cash') {
-    currentPaymentMethod = 'cash';
-    confirmedCardDetails = null;
-    confirmedPartialAmount = null;
-    document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
-    btnEl.classList.add('active');
-    return;
-  }
+  pendingPaymentMethod = method;
+  const total = getCurrentInvoiceTotal();
 
+  document.getElementById('pos-payment-modal-title').textContent = method === 'card' ? 'Card Payment' : 'Cash Payment';
+  document.getElementById('pm-card-fields').style.display = method === 'card' ? 'block' : 'none';
   if (method === 'card') {
     document.getElementById('pm-card-last4').value = '';
     document.getElementById('pm-card-reference').value = '';
-    document.getElementById('pos-modal-overlay').style.display = 'flex';
-    document.getElementById('pos-card-modal').style.display = 'block';
-  } else if (method === 'partial') {
-    const total = getCurrentInvoiceTotal();
-    document.getElementById('pm-partial-order-total-value').textContent = posCurrencySymbol + total.toLocaleString();
-    document.getElementById('pm-partial-paid').value = '';
-    document.getElementById('pm-partial-remaining-value').textContent = posCurrencySymbol + total.toLocaleString();
-    document.getElementById('pos-modal-overlay').style.display = 'flex';
-    document.getElementById('pos-partial-modal').style.display = 'block';
   }
+  document.getElementById('pm-order-total-value').textContent = posCurrencySymbol + total.toLocaleString();
+  // Defaults to the full amount — a seller who doesn't touch this field is
+  // confirming the customer paid in full, matching the common case. They
+  // only need to change it for a partial payment or an unpaid debt.
+  document.getElementById('pm-amount-paid').value = total;
+  document.getElementById('pos-modal-overlay').style.display = 'flex';
+  document.getElementById('pos-payment-modal').style.display = 'block';
+  updatePaymentStatus();
   // Pill only gets marked active once the modal is actually confirmed, not
   // just opened — so cancelling doesn't leave a half-selected payment method.
 };
 
+window.updatePaymentStatus = function() {
+  const total = getCurrentInvoiceTotal();
+  const paidRaw = document.getElementById('pm-amount-paid').value.trim().replace(/[^\d.-]/g, '');
+  const paid = paidRaw === '' ? 0 : (Number(paidRaw) || 0);
+  const row = document.getElementById('pm-payment-status-row');
+  const label = document.getElementById('pm-payment-status-label');
+  row.classList.remove('full', 'partial', 'debt');
+
+  if (paid <= 0) {
+    row.classList.add('debt');
+    label.textContent = 'Debt — nothing paid yet';
+  } else if (paid >= total) {
+    row.classList.add('full');
+    label.textContent = 'Full Paid';
+  } else {
+    row.classList.add('partial');
+    label.textContent = 'Partial Paid — ' + posCurrencySymbol + (total - paid).toLocaleString() + ' remaining as debt';
+  }
+};
+
 window.closePaymentModal = function() {
   document.getElementById('pos-modal-overlay').style.display = 'none';
-  document.getElementById('pos-card-modal').style.display = 'none';
-  document.getElementById('pos-partial-modal').style.display = 'none';
+  document.getElementById('pos-payment-modal').style.display = 'none';
   document.getElementById('pos-tier-modal').style.display = 'none';
   document.getElementById('pos-discount-modal').style.display = 'none';
 };
 
-window.confirmCardPayment = function() {
-  const last4 = document.getElementById('pm-card-last4').value.trim();
-  if (!/^\d{4}$/.test(last4)) {
-    alert(currentLang === 'ar' ? 'الرجاء إدخال آخر 4 أرقام من البطاقة' : 'Please enter exactly 4 digits');
-    return;
-  }
-  confirmedCardDetails = {
-    brand: document.getElementById('pm-card-brand').value,
-    last4,
-    reference: document.getElementById('pm-card-reference').value.trim() || null
-  };
-  confirmedPartialAmount = null;
-  currentPaymentMethod = 'card';
-  document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
-  document.querySelector('.pos-payment-pill[data-method="card"]').classList.add('active');
-  closePaymentModal();
-};
-
-window.updatePartialRemaining = function() {
+window.confirmPayment = function() {
   const total = getCurrentInvoiceTotal();
-  const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
-  const paid = paidRaw === '' ? 0 : (Number(paidRaw) || 0);
-  const remaining = Math.max(total - paid, 0);
-  document.getElementById('pm-partial-remaining-value').textContent = posCurrencySymbol + remaining.toLocaleString();
-};
-
-window.confirmPartialPayment = function() {
-  const total = getCurrentInvoiceTotal();
-  const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
+  const paidRaw = document.getElementById('pm-amount-paid').value.trim().replace(/[^\d.-]/g, '');
   const paid = paidRaw === '' ? NaN : Number(paidRaw);
   if (isNaN(paid) || paid < 0) {
     alert(currentLang === 'ar' ? 'الرجاء إدخال مبلغ صحيح' : 'Please enter a valid amount');
     return;
   }
-  if (paid >= total) {
-    alert(currentLang === 'ar' ? 'المبلغ المدفوع يساوي أو أكبر من الإجمالي — استخدم كاش أو بطاقة بدلاً من ذلك' : 'Amount paid is equal to or more than the total — use Cash or Card instead');
-    return;
+
+  if (pendingPaymentMethod === 'card') {
+    const last4 = document.getElementById('pm-card-last4').value.trim();
+    if (!/^\d{4}$/.test(last4)) {
+      alert(currentLang === 'ar' ? 'الرجاء إدخال آخر 4 أرقام من البطاقة' : 'Please enter exactly 4 digits');
+      return;
+    }
+    confirmedCardDetails = {
+      brand: document.getElementById('pm-card-brand').value,
+      last4,
+      reference: document.getElementById('pm-card-reference').value.trim() || null
+    };
+  } else {
+    confirmedCardDetails = null;
   }
-  confirmedPartialAmount = paid;
-  confirmedCardDetails = null;
-  currentPaymentMethod = 'partial';
+
+  confirmedAmountPaid = paid;
+  currentPaymentMethod = pendingPaymentMethod;
   document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
-  document.querySelector('.pos-payment-pill[data-method="partial"]').classList.add('active');
+  document.querySelector('.pos-payment-pill[data-method="' + pendingPaymentMethod + '"]').classList.add('active');
   closePaymentModal();
 };
 
@@ -7003,7 +7003,7 @@ window.saveManualOrder = async function() {
     return;
   }
   if (!currentPaymentMethod) {
-    alert(currentLang === 'ar' ? 'الرجاء اختيار طريقة الدفع' : 'Please select a payment method (Cash, Card, or Partial/Debt)');
+    alert(currentLang === 'ar' ? 'الرجاء اختيار طريقة الدفع' : 'Please select a payment method (Cash or Card)');
     return;
   }
 
@@ -7025,7 +7025,7 @@ window.saveManualOrder = async function() {
       ? currentOrderCart[0].product_name
       : currentOrderCart.map(i => i.product_name).join(', ');
 
-    const paymentMethodLabel = { cash: 'Cash', card: 'Card', partial: 'Partial / Debt' }[currentPaymentMethod] || currentPaymentMethod;
+    const paymentMethodLabel = { cash: 'Cash', card: 'Card' }[currentPaymentMethod] || currentPaymentMethod;
 
     const payload = {
       seller_id: SELLER_CHAT_ID,
@@ -7041,7 +7041,7 @@ window.saveManualOrder = async function() {
       // Cash/card: fully paid. Partial: exactly what the seller confirmed
       // was paid now (against the full invoice total including shipping),
       // leaving the rest as debt (order_total - this value).
-      amount_received: currentPaymentMethod === 'partial' ? confirmedPartialAmount : orderTotal,
+      amount_received: confirmedAmountPaid,
       delivery_address: document.getElementById('oc-delivery_address').value.trim() || null,
       order_status: document.getElementById('oc-order_status').value,
       created_at: new Date().toISOString()
