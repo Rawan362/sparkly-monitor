@@ -2041,6 +2041,8 @@
   .oc-suggestion-item:hover { background: var(--panel-2); }
   .oc-suggestion-item .name { font-weight: 600; }
   .oc-suggestion-item .meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .oc-suggestion-item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .oc-suggestion-price { font-weight: 700; color: var(--accent-2); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
   #pos-cart-header-row {
     display: grid;
@@ -6304,6 +6306,7 @@ window.closeOrderDetail = function() {
 let currentOrderCart = [];
 let cachedProductCatalog = null;
 let currentPaymentMethod = null;
+let posCurrencySymbol = '';
 const POS_TILE_COLORS = ['#2E4A87', '#2F9E6E', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
 
 window.openOrderCreateForm = async function() {
@@ -6336,6 +6339,9 @@ window.openOrderCreateForm = async function() {
     debugLog('openOrderCreateForm customer fetch failed: ' + (e && e.message));
     cachedCustomerCatalog = [];
   }
+
+  const _currency = await ensureSellerCurrency();
+  posCurrencySymbol = _currency ? currencyCodeToSymbol(_currency) : '';
 
   const grid = document.getElementById('pos-product-grid');
   grid.innerHTML = '<div id="pos-product-empty"><div class="spinner"></div>Loading products...</div>';
@@ -6447,7 +6453,7 @@ function renderProductGrid() {
         ${inCart ? `<span class="pos-product-qty-badge">${inCart.quantity}</span>` : ''}
         <div class="pos-product-tile" style="background:${color}">${escapeHtml((p.product_name || '?').charAt(0).toUpperCase())}</div>
         <div class="pos-product-name">${escapeHtml(p.product_name)}</div>
-        <div class="pos-product-price">${price != null ? price.toLocaleString() : '—'}</div>
+        <div class="pos-product-price">${price != null ? posCurrencySymbol + price.toLocaleString() : '—'}</div>
       </div>
     `;
   }).join('');
@@ -6482,8 +6488,11 @@ window.filterProductSearch = function(query) {
     const price = p.retail_price != null ? p.retail_price : p.wholesale_price;
     return `
       <div class="oc-suggestion-item" onclick="selectProductSuggestion('${p.id}')">
-        <div class="name">${escapeHtml(p.product_name)}</div>
-        <div class="meta">${p.product_code ? 'SKU: ' + escapeHtml(p.product_code) : 'No SKU'}${price != null ? ' · ' + price : ''}</div>
+        <div class="oc-suggestion-item-row">
+          <div class="name">${escapeHtml(p.product_name)}</div>
+          <div class="oc-suggestion-price">${price != null ? posCurrencySymbol + price.toLocaleString() : '—'}</div>
+        </div>
+        <div class="meta">${p.product_code ? 'SKU: ' + escapeHtml(p.product_code) : 'No SKU'}</div>
       </div>
     `;
   }).join('');
@@ -6565,19 +6574,19 @@ function renderOrderCart() {
       <div class="oc-cart-item">
         <div>
           <div class="oc-cart-item-name">${escapeHtml(item.product_name)}</div>
-          <div class="oc-cart-item-meta">${item.unit_price.toLocaleString()} each</div>
+          <div class="oc-cart-item-meta">${posCurrencySymbol}${item.unit_price.toLocaleString()} each</div>
         </div>
         <div class="oc-qty-stepper">
           <button onclick="decrementCartItem(${i})" title="Decrease">−</button>
           <span>${item.quantity}</span>
           <button onclick="incrementCartItem(${i})" title="Increase">+</button>
         </div>
-        <div class="oc-cart-item-linetotal">${lineTotal.toLocaleString()}</div>
+        <div class="oc-cart-item-linetotal">${posCurrencySymbol}${lineTotal.toLocaleString()}</div>
         <button class="oc-cart-item-remove" onclick="removeCartItem(${i})" title="Remove"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     `;
   }).join('');
-  totalEl.textContent = total.toLocaleString();
+  totalEl.textContent = posCurrencySymbol + total.toLocaleString();
   if (itemsCountEl) itemsCountEl.textContent = totalUnits;
   if (productsCountEl) productsCountEl.textContent = currentOrderCart.length;
 }
@@ -6602,9 +6611,9 @@ window.selectPaymentMethod = function(method, btnEl) {
     document.getElementById('pos-card-modal').style.display = 'block';
   } else if (method === 'partial') {
     const total = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
-    document.getElementById('pm-partial-order-total-value').textContent = total.toLocaleString();
+    document.getElementById('pm-partial-order-total-value').textContent = posCurrencySymbol + total.toLocaleString();
     document.getElementById('pm-partial-paid').value = '';
-    document.getElementById('pm-partial-remaining-value').textContent = total.toLocaleString();
+    document.getElementById('pm-partial-remaining-value').textContent = posCurrencySymbol + total.toLocaleString();
     document.getElementById('pos-modal-overlay').style.display = 'flex';
     document.getElementById('pos-partial-modal').style.display = 'block';
   }
@@ -6641,7 +6650,7 @@ window.updatePartialRemaining = function() {
   const paidRaw = document.getElementById('pm-partial-paid').value.trim().replace(/[^\d.-]/g, '');
   const paid = paidRaw === '' ? 0 : (Number(paidRaw) || 0);
   const remaining = Math.max(total - paid, 0);
-  document.getElementById('pm-partial-remaining-value').textContent = remaining.toLocaleString();
+  document.getElementById('pm-partial-remaining-value').textContent = posCurrencySymbol + remaining.toLocaleString();
 };
 
 window.confirmPartialPayment = function() {
