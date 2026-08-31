@@ -6409,6 +6409,7 @@ window.openOrderDetail = async function(orderId) {
   if (o.order_status !== 'CANCELLED' && o.order_status !== 'DELIVERED') {
     html += `<button class="order-action-btn danger" onclick="updateOrderStatus('CANCELLED')">Cancel Order</button>`;
   }
+  html += `<button class="order-action-btn danger" onclick="deleteOrder()">Delete Order</button>`;
 
   document.getElementById('order-detail-fields').innerHTML = html;
 };
@@ -6417,6 +6418,28 @@ window.closeOrderDetail = function() {
   document.getElementById('order-detail-view').style.display = 'none';
   document.getElementById('orders-list-view').style.display = 'flex';
   currentOrderId = null;
+};
+
+window.deleteOrder = async function() {
+  if (!currentOrderId) return;
+  const confirmed = confirm(currentLang === 'ar' ? 'هل أنت متأكد أنك تريد حذف هذا الطلب؟ لا يمكن التراجع عن هذا.' : 'Delete this order? This cannot be undone.');
+  if (!confirmed) return;
+
+  try {
+    // order_items has ON DELETE CASCADE on order_id, so its line items are
+    // cleaned up automatically — no need to delete them separately here.
+    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Prefer': 'return=minimal' }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    closeOrderDetail();
+    await loadOrders();
+  } catch (e) {
+    debugLog('deleteOrder failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحذف: ' : 'Could not delete: ') + (e && e.message ? e.message : 'unknown error'));
+  }
 };
 
 let currentOrderCart = [];
