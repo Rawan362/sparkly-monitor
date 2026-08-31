@@ -2113,6 +2113,33 @@
   .pos-cost-row.grand { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 14.5px; }
   .pos-cost-row.grand span { color: var(--text) !important; font-weight: 700 !important; }
   .pos-cost-row.grand span:last-child { color: var(--accent-2) !important; }
+  #pos-invoice-discount-row span:last-child { color: var(--danger) !important; }
+  #pos-invoice-discount-link {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-2);
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .oc-cart-item-discount-link {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-top: 2px;
+  }
+  .oc-cart-item-discount-link.active { color: var(--danger); }
+  #pd-discount-preview-row {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+  #pd-discount-preview-value { color: var(--danger); font-variant-numeric: tabular-nums; }
 
   #pos-product-panel {
     flex: 1;
@@ -2579,8 +2606,10 @@
               <div class="biz-field"><label>Shipping cost</label><input type="text" id="oc-shipping-cost" placeholder="0" oninput="renderOrderCart()"></div>
               <div id="pos-cost-breakdown">
                 <div class="pos-cost-row"><span>Products subtotal</span><span id="pos-products-subtotal">0</span></div>
+                <div class="pos-cost-row" id="pos-invoice-discount-row" style="display:none;"><span>Invoice discount</span><span id="pos-invoice-discount-value">0</span></div>
                 <div class="pos-cost-row"><span>Shipping</span><span id="pos-shipping-value">0</span></div>
                 <div class="pos-cost-row grand"><span>Invoice total</span><span id="pos-grand-total">0</span></div>
+                <div id="pos-invoice-discount-link" onclick="openInvoiceDiscountModal()">+ Add invoice discount</div>
               </div>
               <div class="biz-field">
                 <label>Order status</label>
@@ -2664,6 +2693,28 @@
                 <button class="pos-tier-choice-btn" onclick="choosePricingTier('wholesale')">Wholesale</button>
                 <button class="pos-tier-choice-btn" onclick="choosePricingTier('retail')">Retail</button>
               </div>
+            </div>
+          </div>
+
+          <div id="pos-discount-modal" class="pos-modal" style="display:none;">
+            <div class="pos-modal-header">
+              <span id="pos-discount-modal-title">Discount</span>
+              <button onclick="closePaymentModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="pos-modal-body">
+              <div class="biz-field">
+                <label>Discount type</label>
+                <select id="pd-discount-type">
+                  <option value="percent">Percentage (%)</option>
+                  <option value="fixed">Fixed amount</option>
+                </select>
+              </div>
+              <div class="biz-field"><label id="pd-discount-value-label">Discount value</label><input type="text" id="pd-discount-value" placeholder="0" oninput="updateDiscountPreview()"></div>
+              <div id="pd-discount-preview-row"><span>Discount amount</span><span id="pd-discount-preview-value">0</span></div>
+            </div>
+            <div class="pos-modal-footer">
+              <button class="pos-modal-btn secondary" onclick="removeCurrentDiscount()">Remove Discount</button>
+              <button class="pos-modal-btn primary" onclick="confirmDiscount()">Apply</button>
             </div>
           </div>
         </div>
@@ -6282,7 +6333,7 @@ window.openOrderDetail = async function(orderId) {
 
   let items = [];
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=product_name,unit_price,quantity,line_total', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=product_name,unit_price,quantity,line_total,discount_type,discount_value,discount_amount', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     items = await res.json();
@@ -6299,6 +6350,11 @@ window.openOrderDetail = async function(orderId) {
     rows.push(['Product', o.product_name || '—']);
     rows.push(['Quantity', o.quantity ?? '—']);
   }
+  if (o.shipping_cost) rows.push(['Shipping', o.shipping_cost.toLocaleString()]);
+  if (o.discount_type && o.discount_amount) {
+    const label = o.discount_type === 'percent' ? o.discount_value + '% off' : 'Fixed discount';
+    rows.push(['Invoice Discount', label + ' (−' + o.discount_amount.toLocaleString() + ')']);
+  }
   rows.push(
     ['Total', (o.order_total || 0).toLocaleString()],
     ['Amount Received', o.amount_received != null ? o.amount_received.toLocaleString() : 'Not recorded'],
@@ -6307,20 +6363,27 @@ window.openOrderDetail = async function(orderId) {
     ['Status', o.order_status || 'PENDING'],
     ['Created', o.created_at ? new Date(o.created_at).toLocaleString() : '—'],
   );
+  if (o.card_brand) rows.push(['Card', o.card_brand + ' •••• ' + (o.card_last4 || '')]);
   if (o.bump_accepted) rows.push(['Bump Accepted', (o.bump_product || '') + ' +' + (o.bump_value || 0).toLocaleString()]);
   if (o.upsell_accepted) rows.push(['Upsell Accepted', (o.upsell_product || '') + ' +' + (o.upsell_value || 0).toLocaleString()]);
 
   let html = '';
   if (items && items.length > 0) {
     html += `<div class="settings-section-label" style="padding-left:0;padding-right:0;">Items</div>`;
-    html += items.map(item => `
+    html += items.map(item => {
+      const discountNote = (item.discount_type && item.discount_amount)
+        ? ` (${item.discount_type === 'percent' ? item.discount_value + '% off' : '−' + item.discount_amount.toLocaleString()})`
+        : '';
+      const netTotal = (item.line_total || 0) - (item.discount_amount || 0);
+      return `
       <div class="oc-cart-item">
         <div>
           <div class="oc-cart-item-name">${escapeHtml(item.product_name || '—')}</div>
-          <div class="oc-cart-item-meta">${item.quantity} × ${item.unit_price} = ${(item.line_total || 0).toLocaleString()}</div>
+          <div class="oc-cart-item-meta">${item.quantity} × ${item.unit_price} = ${netTotal.toLocaleString()}${discountNote}</div>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   html += rows.map(([label, value]) =>
@@ -6372,10 +6435,11 @@ function getEffectivePrice(product) {
 }
 
 function getCurrentInvoiceTotal() {
-  const subtotal = currentOrderCart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+  const subtotal = currentOrderCart.reduce((sum, item) => sum + ((item.unit_price * item.quantity) - getItemDiscountAmount(item)), 0);
+  const invoiceDiscountAmount = getInvoiceDiscountAmount(subtotal);
   const shippingRaw = document.getElementById('oc-shipping-cost').value.trim().replace(/[^\d.-]/g, '');
   const shipping = shippingRaw === '' ? 0 : (Number(shippingRaw) || 0);
-  return subtotal + shipping;
+  return (subtotal - invoiceDiscountAmount) + shipping;
 }
 const POS_TILE_COLORS = ['#2E4A87', '#2F9E6E', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
 
@@ -6395,6 +6459,7 @@ window.openOrderCreateForm = async function() {
   currentPaymentMethod = null;
   confirmedCardDetails = null;
   confirmedPartialAmount = null;
+  currentInvoiceDiscount = { type: null, value: 0 };
   document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
   renderOrderCart();
 
@@ -6646,6 +6711,13 @@ window.removeCartItem = function(index) {
   renderProductGrid();
 };
 
+function getItemDiscountAmount(item) {
+  const gross = item.unit_price * item.quantity;
+  if (!item.discount_type || !item.discount_value) return 0;
+  const amount = item.discount_type === 'percent' ? gross * (item.discount_value / 100) : item.discount_value;
+  return Math.min(amount, gross); // never let a discount make a line negative
+}
+
 function renderOrderCart() {
   const listEl = document.getElementById('oc-cart-list');
   const totalEl = document.getElementById('oc-cart-total-value');
@@ -6665,14 +6737,20 @@ function renderOrderCart() {
   let subtotal = 0;
   let totalUnits = 0;
   listEl.innerHTML = currentOrderCart.map((item, i) => {
-    const lineTotal = item.unit_price * item.quantity;
+    const gross = item.unit_price * item.quantity;
+    const itemDiscount = getItemDiscountAmount(item);
+    const lineTotal = gross - itemDiscount;
     subtotal += lineTotal;
     totalUnits += item.quantity;
+    const discountLabel = item.discount_type
+      ? `${item.discount_type === 'percent' ? item.discount_value + '%' : posCurrencySymbol + item.discount_value.toLocaleString()} off`
+      : '+ Discount';
     return `
       <div class="oc-cart-item">
         <div>
           <div class="oc-cart-item-name">${escapeHtml(item.product_name)}</div>
           <div class="oc-cart-item-meta">${posCurrencySymbol}${item.unit_price.toLocaleString()} each</div>
+          <div class="oc-cart-item-discount-link${item.discount_type ? ' active' : ''}" onclick="openItemDiscountModal(${i})">${discountLabel}</div>
         </div>
         <div class="oc-qty-stepper">
           <button onclick="decrementCartItem(${i})" title="Decrease">−</button>
@@ -6689,11 +6767,33 @@ function renderOrderCart() {
   if (productsCountEl) productsCountEl.textContent = currentOrderCart.length;
 }
 
+let currentInvoiceDiscount = { type: null, value: 0 };
+
+function getInvoiceDiscountAmount(subtotal) {
+  if (!currentInvoiceDiscount.type || !currentInvoiceDiscount.value) return 0;
+  const amount = currentInvoiceDiscount.type === 'percent' ? subtotal * (currentInvoiceDiscount.value / 100) : currentInvoiceDiscount.value;
+  return Math.min(amount, subtotal);
+}
+
 function updateCostBreakdown(subtotal, shipping) {
-  const grandTotal = subtotal + shipping;
+  const invoiceDiscountAmount = getInvoiceDiscountAmount(subtotal);
+  const grandTotal = (subtotal - invoiceDiscountAmount) + shipping;
   document.getElementById('pos-products-subtotal').textContent = posCurrencySymbol + subtotal.toLocaleString();
   document.getElementById('pos-shipping-value').textContent = posCurrencySymbol + shipping.toLocaleString();
   document.getElementById('pos-grand-total').textContent = posCurrencySymbol + grandTotal.toLocaleString();
+  const discountRow = document.getElementById('pos-invoice-discount-row');
+  const discountLink = document.getElementById('pos-invoice-discount-link');
+  if (invoiceDiscountAmount > 0) {
+    discountRow.style.display = 'flex';
+    document.getElementById('pos-invoice-discount-value').textContent = '−' + posCurrencySymbol + invoiceDiscountAmount.toLocaleString();
+  } else {
+    discountRow.style.display = 'none';
+  }
+  if (discountLink) {
+    discountLink.textContent = currentInvoiceDiscount.type
+      ? `Edit invoice discount (${currentInvoiceDiscount.type === 'percent' ? currentInvoiceDiscount.value + '%' : posCurrencySymbol + currentInvoiceDiscount.value.toLocaleString()})`
+      : '+ Add invoice discount';
+  }
   // The bottom-bar callout is the one number the seller glances at most —
   // it should always be the real invoice total, shipping included.
   document.getElementById('oc-cart-total-value').textContent = posCurrencySymbol + grandTotal.toLocaleString();
@@ -6734,6 +6834,7 @@ window.closePaymentModal = function() {
   document.getElementById('pos-card-modal').style.display = 'none';
   document.getElementById('pos-partial-modal').style.display = 'none';
   document.getElementById('pos-tier-modal').style.display = 'none';
+  document.getElementById('pos-discount-modal').style.display = 'none';
 };
 
 window.confirmCardPayment = function() {
@@ -6782,6 +6883,80 @@ window.confirmPartialPayment = function() {
   closePaymentModal();
 };
 
+let discountModalTarget = null; // 'invoice' or a cart item index
+
+window.openItemDiscountModal = function(index) {
+  discountModalTarget = index;
+  const item = currentOrderCart[index];
+  document.getElementById('pos-discount-modal-title').textContent = 'Discount — ' + item.product_name;
+  document.getElementById('pd-discount-type').value = item.discount_type || 'percent';
+  document.getElementById('pd-discount-value').value = item.discount_value || '';
+  document.getElementById('pos-modal-overlay').style.display = 'flex';
+  document.getElementById('pos-discount-modal').style.display = 'block';
+  updateDiscountPreview();
+};
+
+window.openInvoiceDiscountModal = function() {
+  discountModalTarget = 'invoice';
+  document.getElementById('pos-discount-modal-title').textContent = 'Invoice Discount';
+  document.getElementById('pd-discount-type').value = currentInvoiceDiscount.type || 'percent';
+  document.getElementById('pd-discount-value').value = currentInvoiceDiscount.value || '';
+  document.getElementById('pos-modal-overlay').style.display = 'flex';
+  document.getElementById('pos-discount-modal').style.display = 'block';
+  updateDiscountPreview();
+};
+
+window.updateDiscountPreview = function() {
+  const type = document.getElementById('pd-discount-type').value;
+  const valueRaw = document.getElementById('pd-discount-value').value.trim().replace(/[^\d.-]/g, '');
+  const value = valueRaw === '' ? 0 : (Number(valueRaw) || 0);
+
+  let base;
+  if (discountModalTarget === 'invoice') {
+    base = currentOrderCart.reduce((sum, item) => sum + ((item.unit_price * item.quantity) - getItemDiscountAmount(item)), 0);
+  } else {
+    const item = currentOrderCart[discountModalTarget];
+    base = item ? item.unit_price * item.quantity : 0;
+  }
+  const amount = type === 'percent' ? base * (value / 100) : value;
+  document.getElementById('pd-discount-preview-value').textContent = '−' + posCurrencySymbol + Math.min(Math.max(amount, 0), base).toLocaleString();
+  document.getElementById('pd-discount-value-label').textContent = type === 'percent' ? 'Discount percentage' : 'Discount amount';
+};
+
+window.confirmDiscount = function() {
+  const type = document.getElementById('pd-discount-type').value;
+  const valueRaw = document.getElementById('pd-discount-value').value.trim().replace(/[^\d.-]/g, '');
+  const value = valueRaw === '' ? NaN : Number(valueRaw);
+  if (isNaN(value) || value < 0) {
+    alert(currentLang === 'ar' ? 'الرجاء إدخال قيمة صحيحة' : 'Please enter a valid value');
+    return;
+  }
+  if (type === 'percent' && value > 100) {
+    alert(currentLang === 'ar' ? 'النسبة لا يمكن أن تتجاوز 100%' : 'Percentage cannot exceed 100%');
+    return;
+  }
+
+  if (discountModalTarget === 'invoice') {
+    currentInvoiceDiscount = { type, value };
+  } else {
+    currentOrderCart[discountModalTarget].discount_type = type;
+    currentOrderCart[discountModalTarget].discount_value = value;
+  }
+  closePaymentModal();
+  renderOrderCart();
+};
+
+window.removeCurrentDiscount = function() {
+  if (discountModalTarget === 'invoice') {
+    currentInvoiceDiscount = { type: null, value: 0 };
+  } else if (currentOrderCart[discountModalTarget]) {
+    currentOrderCart[discountModalTarget].discount_type = null;
+    currentOrderCart[discountModalTarget].discount_value = 0;
+  }
+  closePaymentModal();
+  renderOrderCart();
+};
+
 window.closeOrderCreateForm = function() {
   document.getElementById('order-create-view').style.display = 'none';
   document.getElementById('orders-list-view').style.display = 'flex';
@@ -6816,7 +6991,9 @@ window.saveManualOrder = async function() {
   try {
     const shippingRaw = document.getElementById('oc-shipping-cost').value.trim().replace(/[^\d.-]/g, '');
     const shippingCost = shippingRaw === '' ? 0 : (Number(shippingRaw) || 0);
-    const orderTotal = getCurrentInvoiceTotal(); // products subtotal + shipping
+    const productsSubtotalAfterItemDiscounts = currentOrderCart.reduce((sum, item) => sum + ((item.unit_price * item.quantity) - getItemDiscountAmount(item)), 0);
+    const invoiceDiscountAmount = getInvoiceDiscountAmount(productsSubtotalAfterItemDiscounts);
+    const orderTotal = getCurrentInvoiceTotal(); // products subtotal - discounts + shipping
     const totalQuantity = currentOrderCart.reduce((sum, item) => sum + item.quantity, 0);
     // product_name on the orders row itself is kept as a readable summary for
     // list views that only look at this one field — the real breakdown lives
@@ -6834,6 +7011,9 @@ window.saveManualOrder = async function() {
       quantity: totalQuantity,
       order_total: orderTotal,
       shipping_cost: shippingCost,
+      discount_type: currentInvoiceDiscount.type,
+      discount_value: currentInvoiceDiscount.value || 0,
+      discount_amount: invoiceDiscountAmount,
       payment_method: paymentMethodLabel,
       // Cash/card: fully paid. Partial: exactly what the seller confirmed
       // was paid now (against the full invoice total including shipping),
@@ -6868,7 +7048,14 @@ window.saveManualOrder = async function() {
         product_name: item.product_name,
         unit_price: item.unit_price,
         quantity: item.quantity,
-        line_total: item.unit_price * item.quantity
+        // Kept as the gross line total (unit_price × quantity), matching what
+        // this field has always meant for the existing WhatsApp-AI-created
+        // orders that also write here — discount is a separate, additive
+        // field, not a change to this one's meaning.
+        line_total: item.unit_price * item.quantity,
+        discount_type: item.discount_type || null,
+        discount_value: item.discount_value || 0,
+        discount_amount: getItemDiscountAmount(item)
       }));
       const itemsRes = await fetch(SUPABASE_URL + '/rest/v1/order_items', {
         method: 'POST',
