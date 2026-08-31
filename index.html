@@ -6406,6 +6406,7 @@ window.saveManualOrder = async function() {
     if (orderId) {
       const itemsPayload = currentOrderCart.map(item => ({
         order_id: orderId,
+        seller_id: SELLER_CHAT_ID,
         product_id: item.product_id,
         product_name: item.product_name,
         unit_price: item.unit_price,
