@@ -1909,6 +1909,7 @@
   .order-status-SHIPPED { background: #dbeafe; color: #1e40af; }
   .order-status-DELIVERED { background: #d1fae5; color: #065f46; }
   .order-status-CANCELLED { background: #fee2e2; color: #991b1b; }
+  .order-status-RETURN { background: #fde8d7; color: #92400e; }
 
   #order-detail-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
   #order-detail-back-row {
@@ -2356,6 +2357,65 @@
   .pos-modal-btn.primary { border: none; background: var(--accent-2); color: #fff; }
   .pos-modal-btn.secondary { border: 1px solid var(--border); background: none; color: var(--text); }
 
+  #return-product-total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13.5px;
+    padding: 8px 0;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+  #return-product-total-row span:last-child { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  #return-type-row {
+    margin-top: 10px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--panel-2);
+    font-weight: 700;
+    font-size: 13.5px;
+    text-align: center;
+  }
+  #return-type-row.full { color: var(--accent-2); }
+  #return-type-row.partial { color: #C98A2E; }
+
+  #return-shipping-toggle-track {
+    position: relative;
+    display: flex;
+    background: var(--panel-2);
+    border-radius: 20px;
+    padding: 3px;
+    border: 1px solid var(--border);
+  }
+  #return-shipping-toggle-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: calc(33.333% - 2px);
+    height: calc(100% - 6px);
+    background: var(--accent-2);
+    border-radius: 16px;
+    transition: transform 0.2s ease;
+    z-index: 0;
+  }
+  #return-shipping-toggle-track.pos-seller #return-shipping-toggle-knob { transform: translateX(0%); }
+  #return-shipping-toggle-track.pos-free #return-shipping-toggle-knob { transform: translateX(100%); }
+  #return-shipping-toggle-track.pos-customer #return-shipping-toggle-knob { transform: translateX(200%); }
+  .return-shipping-option {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+  }
+  .return-shipping-option.active { color: #fff; }
+
   .pos-tier-modal-text { font-size: 13.5px; color: var(--text-muted); margin: 0 0 16px; line-height: 1.5; }
   #pos-tier-choice-row { display: flex; gap: 10px; }
   .pos-tier-choice-btn {
@@ -2616,6 +2676,7 @@
           <button class="order-filter-pill" data-status="SHIPPED" onclick="filterOrders('SHIPPED', this)">Shipped</button>
           <button class="order-filter-pill" data-status="DELIVERED" onclick="filterOrders('DELIVERED', this)">Delivered</button>
           <button class="order-filter-pill" data-status="CANCELLED" onclick="filterOrders('CANCELLED', this)">Cancelled</button>
+          <button class="order-filter-pill" data-status="RETURN" onclick="filterOrders('RETURN', this)">Return</button>
         </div>
         <div id="orders-list"><div id="orders-loading"><div class="spinner"></div>Loading orders...</div></div>
       </div>
@@ -2700,7 +2761,7 @@
           </div>
           <button id="order-create-save-btn" onclick="saveManualOrder()">Complete Sale</button>
         </div>
-
+      </div>
         <div id="pos-modal-overlay" style="display:none;">
           <div id="pos-payment-modal" class="pos-modal" style="display:none;">
             <div class="pos-modal-header">
@@ -2765,8 +2826,32 @@
               <button class="pos-modal-btn primary" onclick="confirmDiscount()">Apply</button>
             </div>
           </div>
+
+          <div id="pos-return-modal" class="pos-modal" style="display:none;">
+            <div class="pos-modal-header">
+              <span>Return Order</span>
+              <button onclick="closePaymentModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="pos-modal-body">
+              <div id="return-product-total-row"><span>Product/Service Total</span><span id="return-product-total-value">0</span></div>
+              <div class="biz-field"><label>Amount Returned</label><input type="text" id="return-amount-input" placeholder="0" oninput="updateReturnPreview()"></div>
+              <div id="return-type-row"><span id="return-type-label">Enter an amount</span></div>
+              <div class="biz-field">
+                <label>Who paid the shipping?</label>
+                <div id="return-shipping-toggle-track" class="pos-free">
+                  <div id="return-shipping-toggle-knob"></div>
+                  <div class="return-shipping-option" data-value="seller" onclick="selectReturnShippingPayer('seller')">Seller</div>
+                  <div class="return-shipping-option active" data-value="free" onclick="selectReturnShippingPayer('free')">Free</div>
+                  <div class="return-shipping-option" data-value="customer" onclick="selectReturnShippingPayer('customer')">Customer</div>
+                </div>
+              </div>
+            </div>
+            <div class="pos-modal-footer">
+              <button class="pos-modal-btn secondary" onclick="closePaymentModal()">Cancel</button>
+              <button class="pos-modal-btn primary" onclick="confirmReturn()">Confirm Return</button>
+            </div>
+          </div>
         </div>
-      </div>
     </div>
     <div id="alerts-tab-content" style="display:none;">
       <div id="alerts-header-row">
@@ -6425,6 +6510,12 @@ window.openOrderDetail = async function(orderId) {
     ['Created', o.created_at ? new Date(o.created_at).toLocaleString() : '—'],
   );
   if (o.card_brand) rows.push(['Card', o.card_brand + ' •••• ' + (o.card_last4 || '')]);
+  if (o.order_status === 'RETURN') {
+    rows.push(['Return Type', o.return_type === 'full' ? 'Full Return' : 'Partial Return']);
+    rows.push(['Return Amount', (o.return_amount || 0).toLocaleString()]);
+    const payerLabel = { seller: 'Seller Paid Shipping', customer: 'Customer Paid Shipping', free: 'Shipping Waived (Free)' }[o.return_shipping_payer] || '—';
+    rows.push(['Return Shipping', payerLabel]);
+  }
   if (o.bump_accepted) rows.push(['Bump Accepted', (o.bump_product || '') + ' +' + (o.bump_value || 0).toLocaleString()]);
   if (o.upsell_accepted) rows.push(['Upsell Accepted', (o.upsell_product || '') + ' +' + (o.upsell_value || 0).toLocaleString()]);
 
@@ -6461,14 +6552,17 @@ window.openOrderDetail = async function(orderId) {
     </div>
   `;
 
-  if (o.order_status !== 'SHIPPED' && o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED') {
+  if (o.order_status !== 'SHIPPED' && o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED' && o.order_status !== 'RETURN') {
     html += `<button class="order-action-btn" onclick="updateOrderStatus('SHIPPED')">Mark Shipped</button>`;
   }
-  if (o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED') {
+  if (o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED' && o.order_status !== 'RETURN') {
     html += `<button class="order-action-btn primary" onclick="updateOrderStatus('DELIVERED')">Mark Delivered</button>`;
   }
-  if (o.order_status !== 'CANCELLED' && o.order_status !== 'DELIVERED') {
+  if (o.order_status !== 'CANCELLED' && o.order_status !== 'DELIVERED' && o.order_status !== 'RETURN') {
     html += `<button class="order-action-btn danger" onclick="updateOrderStatus('CANCELLED')">Cancel Order</button>`;
+  }
+  if ((o.order_status === 'SHIPPED' || o.order_status === 'DELIVERED')) {
+    html += `<button class="order-action-btn" onclick="openReturnModal()">Mark as Return</button>`;
   }
   html += `<button class="order-action-btn danger" onclick="deleteOrder()">Delete Order</button>`;
 
@@ -6500,6 +6594,97 @@ window.deleteOrder = async function() {
   } catch (e) {
     debugLog('deleteOrder failed: ' + (e && e.message));
     alert((currentLang === 'ar' ? 'تعذر الحذف: ' : 'Could not delete: ') + (e && e.message ? e.message : 'unknown error'));
+  }
+};
+
+let currentReturnShippingPayer = 'free';
+
+window.openReturnModal = async function() {
+  const o = allLoadedOrders.find(x => x.id === currentOrderId);
+  if (!o) return;
+  const productTotal = (o.order_total || 0) - (o.shipping_cost || 0);
+  const _currency = await ensureSellerCurrency();
+  const symbol = _currency ? currencyCodeToSymbol(_currency) : '';
+
+  document.getElementById('return-product-total-value').textContent = symbol + productTotal.toLocaleString();
+  document.getElementById('return-amount-input').value = '';
+  document.getElementById('return-type-row').className = '';
+  document.getElementById('return-type-label').textContent = 'Enter an amount';
+  selectReturnShippingPayer('free');
+
+  document.getElementById('pos-modal-overlay').style.display = 'flex';
+  document.getElementById('pos-return-modal').style.display = 'block';
+};
+
+window.updateReturnPreview = function() {
+  const o = allLoadedOrders.find(x => x.id === currentOrderId);
+  if (!o) return;
+  const productTotal = (o.order_total || 0) - (o.shipping_cost || 0);
+  const raw = document.getElementById('return-amount-input').value.trim().replace(/[^\d.-]/g, '');
+  const amount = raw === '' ? NaN : Number(raw);
+
+  const row = document.getElementById('return-type-row');
+  const label = document.getElementById('return-type-label');
+  row.className = '';
+  if (isNaN(amount) || amount <= 0) {
+    label.textContent = 'Enter an amount';
+    return;
+  }
+  if (amount >= productTotal) {
+    row.classList.add('full');
+    label.textContent = 'Full Return';
+  } else {
+    row.classList.add('partial');
+    label.textContent = 'Partial Return';
+  }
+};
+
+window.selectReturnShippingPayer = function(value) {
+  currentReturnShippingPayer = value;
+  const track = document.getElementById('return-shipping-toggle-track');
+  track.className = 'pos-' + value;
+  document.querySelectorAll('.return-shipping-option').forEach(el => {
+    el.classList.toggle('active', el.dataset.value === value);
+  });
+};
+
+window.confirmReturn = async function() {
+  const o = allLoadedOrders.find(x => x.id === currentOrderId);
+  if (!o) return;
+  const productTotal = (o.order_total || 0) - (o.shipping_cost || 0);
+  const raw = document.getElementById('return-amount-input').value.trim().replace(/[^\d.-]/g, '');
+  const amount = raw === '' ? NaN : Number(raw);
+
+  if (isNaN(amount) || amount <= 0) {
+    alert(currentLang === 'ar' ? 'الرجاء إدخال مبلغ إرجاع صحيح' : 'Please enter a valid return amount');
+    return;
+  }
+  if (amount > productTotal) {
+    alert(currentLang === 'ar' ? 'مبلغ الإرجاع لا يمكن أن يتجاوز إجمالي المنتج' : 'Return amount cannot exceed the product/service total');
+    return;
+  }
+
+  const returnType = amount >= productTotal ? 'full' : 'partial';
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        order_status: 'RETURN',
+        return_amount: amount,
+        return_type: returnType,
+        return_shipping_payer: currentReturnShippingPayer
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    closePaymentModal();
+    closeOrderDetail();
+    await loadOrders();
+  } catch (e) {
+    debugLog('confirmReturn failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
   }
 };
 
@@ -6950,6 +7135,7 @@ window.closePaymentModal = function() {
   document.getElementById('pos-payment-modal').style.display = 'none';
   document.getElementById('pos-tier-modal').style.display = 'none';
   document.getElementById('pos-discount-modal').style.display = 'none';
+  document.getElementById('pos-return-modal').style.display = 'none';
 };
 
 window.confirmPayment = function() {
