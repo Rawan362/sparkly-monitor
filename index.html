@@ -2698,6 +2698,89 @@
     justify-content: center;
     cursor: pointer;
   }
+
+  /* ═══ INVOICE VIEW / PRINT ═══ */
+  #invoice-view-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--panel-2);
+    z-index: 9000;
+    display: flex;
+    flex-direction: column;
+  }
+  #invoice-view-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #invoice-view-toolbar button:first-child { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 6px; }
+  #invoice-print-btn {
+    border: none;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13.5px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #invoice-view-scroll { flex: 1; overflow-y: auto; padding: 24px 16px; }
+
+  .invoice-doc {
+    background: #fff;
+    color: #1a1a1a;
+    margin: 0 auto;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+    font-family: 'Inter', -apple-system, sans-serif;
+  }
+  .invoice-doc.invoice-a4 { max-width: 780px; padding: 48px 56px; }
+  .invoice-doc.invoice-slip { max-width: 340px; padding: 20px 18px; font-size: 12.5px; }
+
+  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+  .invoice-doc.invoice-slip .invoice-header { flex-direction: column; gap: 8px; margin-bottom: 16px; text-align: center; }
+  .invoice-business-name { font-weight: 800; font-size: 22px; font-family: 'Fraunces', serif; }
+  .invoice-doc.invoice-slip .invoice-business-name { font-size: 16px; }
+  .invoice-meta { text-align: right; font-size: 13px; color: #555; line-height: 1.6; }
+  .invoice-doc.invoice-slip .invoice-meta { text-align: center; font-size: 11px; }
+  .invoice-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #999; font-weight: 700; }
+
+  .invoice-customer { margin-bottom: 24px; padding: 14px 0; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+  .invoice-doc.invoice-slip .invoice-customer { margin-bottom: 14px; padding: 10px 0; font-size: 11.5px; }
+  .invoice-customer-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #999; font-weight: 700; margin-bottom: 4px; }
+  .invoice-customer-name { font-weight: 700; font-size: 15px; }
+  .invoice-doc.invoice-slip .invoice-customer-name { font-size: 13px; }
+
+  .invoice-items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  .invoice-items-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; color: #999; padding: 0 0 8px; border-bottom: 2px solid #1a1a1a; }
+  .invoice-items-table td { padding: 10px 0; border-bottom: 1px solid #e5e5e5; font-size: 13.5px; vertical-align: top; }
+  .invoice-doc.invoice-slip .invoice-items-table td { padding: 6px 0; font-size: 11.5px; }
+  .invoice-items-table th:not(:first-child), .invoice-items-table td:not(:first-child) { text-align: right; }
+  .invoice-item-name { font-weight: 600; }
+  .invoice-item-meta { font-size: 11px; color: #888; margin-top: 2px; }
+
+  .invoice-totals { margin-left: auto; width: 260px; }
+  .invoice-doc.invoice-slip .invoice-totals { width: 100%; }
+  .invoice-total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .invoice-total-row.grand { border-top: 2px solid #1a1a1a; margin-top: 6px; padding-top: 10px; font-weight: 800; font-size: 16px; }
+  .invoice-total-row.discount { color: #b45309; }
+  .invoice-total-row.paid { color: #15803d; }
+  .invoice-total-row.remaining { color: #b91c1c; font-weight: 700; }
+
+  .invoice-payment-box { margin-top: 24px; padding: 14px 16px; background: #f7f7f5; border-radius: 8px; font-size: 12.5px; color: #555; }
+  .invoice-footer { margin-top: 32px; text-align: center; font-size: 11.5px; color: #999; }
+
+  @media print {
+    body * { visibility: hidden; }
+    #invoice-view-overlay, #invoice-view-overlay * { visibility: visible; }
+    #invoice-view-overlay { position: absolute; inset: 0; background: #fff; }
+    #invoice-view-toolbar { display: none; }
+    #invoice-view-scroll { padding: 0; overflow: visible; }
+    .invoice-doc { box-shadow: none; margin: 0; }
+  }
 </style>
 </head>
 <body>
@@ -2706,6 +2789,15 @@
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
   </button>
   <img id="photo-viewer-img" src="" alt="Photo" onclick="event.stopPropagation();">
+</div>
+<div id="invoice-view-overlay" style="display:none;">
+  <div id="invoice-view-toolbar">
+    <button onclick="closeInvoiceView()" title="Close"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button id="invoice-print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div id="invoice-view-scroll">
+    <div id="invoice-content"></div>
+  </div>
 </div>
 <div id="app">
   <div id="sidebar">
@@ -3205,6 +3297,18 @@
             <option value="wholesale">Wholesale only</option>
             <option value="retail">Retail only</option>
             <option value="both">Both — ask me each time</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section-label">Invoice</div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>Business name (shown on invoices)</label><input type="text" id="biz-invoice-business-name" data-key="invoice_business_name" data-table="seller_sales_config" placeholder="e.g. Target Brake Pads" onchange="saveBizField(this)"></div>
+        <div class="biz-field">
+          <label>Invoice layout</label>
+          <select id="biz-invoice-layout" data-key="invoice_layout" data-table="seller_sales_config" onchange="saveBizField(this)">
+            <option value="a4">A4 (full page)</option>
+            <option value="slip">Slip / Receipt (narrow)</option>
           </select>
         </div>
       </div>
@@ -6711,6 +6815,9 @@ window.openOrderDetail = async function(orderId) {
     </div>
   `;
 
+  html += `<button class="order-action-btn" onclick="openInvoiceView('${o.id}')">View / Print Invoice</button>`;
+  html += `<button class="order-action-btn" onclick="openEditOrder('${o.id}')">Edit Order</button>`;
+
   if (o.order_status !== 'SHIPPED' && o.order_status !== 'DELIVERED' && o.order_status !== 'CANCELLED' && o.order_status !== 'RETURN') {
     html += `<button class="order-action-btn" onclick="updateOrderStatus('SHIPPED')">Mark Shipped</button>`;
   }
@@ -6726,6 +6833,123 @@ window.openOrderDetail = async function(orderId) {
   html += `<button class="order-action-btn danger" onclick="deleteOrder()">Delete Order</button>`;
 
   document.getElementById('order-detail-fields').innerHTML = html;
+};
+
+window.openInvoiceView = async function(orderId) {
+  try {
+    const [orderRes, itemsRes, configRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId + '&select=*', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=*', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json())
+    ]);
+
+    const o = (orderRes && orderRes[0]) || null;
+    if (!o) { alert('Could not find this order.'); return; }
+    const items = itemsRes || [];
+    const config = (configRes && configRes[0]) || {};
+    const businessName = config.invoice_business_name || 'Invoice';
+    const layout = config.invoice_layout || 'a4';
+    const symbol = config.currency_label ? currencyCodeToSymbol(config.currency_label) : '';
+
+    const shipping = o.shipping_cost || 0;
+    const productsSubtotal = (o.order_total || 0) - shipping + (o.discount_amount || 0);
+    const grandTotal = o.order_total || 0;
+    const received = o.amount_received != null ? o.amount_received : 0;
+    const remaining = grandTotal - received;
+
+    let itemsHtml = '';
+    if (items.length > 0) {
+      itemsHtml = items.map(it => {
+        const discNote = (it.discount_type && it.discount_amount) ? `<div class="invoice-item-meta">${it.discount_type === 'percent' ? it.discount_value + '% off' : 'Discount −' + symbol + it.discount_amount.toLocaleString()}</div>` : '';
+        const net = (it.line_total || 0) - (it.discount_amount || 0);
+        return `
+          <tr>
+            <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${discNote}</td>
+            <td>${it.quantity}</td>
+            <td>${symbol}${(it.unit_price || 0).toLocaleString()}</td>
+            <td>${symbol}${net.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      // Older single-product order with no order_items row
+      itemsHtml = `
+        <tr>
+          <td><div class="invoice-item-name">${escapeHtml(o.product_name || '—')}</div></td>
+          <td>${o.quantity ?? 1}</td>
+          <td>${symbol}${((o.order_total || 0) / (o.quantity || 1)).toLocaleString()}</td>
+          <td>${symbol}${(o.order_total || 0).toLocaleString()}</td>
+        </tr>
+      `;
+    }
+
+    let statusHtml = '';
+    if (o.order_status === 'RETURN') {
+      const payerLabel = { seller: 'Seller paid shipping', customer: 'Customer paid shipping', free: 'Shipping waived' }[o.return_shipping_payer] || '';
+      statusHtml = `<div class="invoice-payment-box"><strong>${o.return_type === 'full' ? 'Full Return' : 'Partial Return'}</strong> — ${symbol}${(o.return_amount || 0).toLocaleString()} returned. ${payerLabel}</div>`;
+    }
+
+    const html = `
+      <div class="invoice-doc invoice-${layout}">
+        <div class="invoice-header">
+          <div>
+            <div class="invoice-business-name">${escapeHtml(businessName)}</div>
+            <div class="invoice-title">Invoice</div>
+          </div>
+          <div class="invoice-meta">
+            Invoice #${o.id.slice(0, 8).toUpperCase()}<br>
+            ${o.created_at ? new Date(o.created_at).toLocaleDateString() : ''}<br>
+            Status: ${escapeHtml(o.order_status || 'PENDING')}
+          </div>
+        </div>
+
+        <div class="invoice-customer">
+          <div class="invoice-customer-label">Bill To</div>
+          <div class="invoice-customer-name">${escapeHtml(o.phone || '—')}</div>
+          ${o.delivery_address ? `<div>${escapeHtml(o.delivery_address)}</div>` : ''}
+        </div>
+
+        <table class="invoice-items-table">
+          <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+
+        <div class="invoice-totals">
+          <div class="invoice-total-row"><span>Subtotal</span><span>${symbol}${productsSubtotal.toLocaleString()}</span></div>
+          ${o.discount_amount ? `<div class="invoice-total-row discount"><span>Discount</span><span>−${symbol}${o.discount_amount.toLocaleString()}</span></div>` : ''}
+          <div class="invoice-total-row"><span>Shipping</span><span>${symbol}${shipping.toLocaleString()}</span></div>
+          <div class="invoice-total-row grand"><span>Total</span><span>${symbol}${grandTotal.toLocaleString()}</span></div>
+          <div class="invoice-total-row paid"><span>Amount Paid</span><span>${symbol}${received.toLocaleString()}</span></div>
+          ${remaining > 0.01 ? `<div class="invoice-total-row remaining"><span>Remaining</span><span>${symbol}${remaining.toLocaleString()}</span></div>` : ''}
+        </div>
+
+        ${statusHtml}
+
+        <div class="invoice-payment-box">
+          Payment method: ${escapeHtml(o.payment_method || '—')}
+          ${o.card_brand ? ` (${escapeHtml(o.card_brand)} •••• ${escapeHtml(o.card_last4 || '')})` : ''}
+        </div>
+
+        <div class="invoice-footer">Thank you for your business</div>
+      </div>
+    `;
+
+    document.getElementById('invoice-content').innerHTML = html;
+    document.getElementById('invoice-view-overlay').style.display = 'flex';
+  } catch (e) {
+    debugLog('openInvoiceView failed: ' + (e && e.message));
+    alert('Could not load the invoice. Try again.');
+  }
+};
+
+window.closeInvoiceView = function() {
+  document.getElementById('invoice-view-overlay').style.display = 'none';
 };
 
 window.closeOrderDetail = function() {
@@ -6880,6 +7104,79 @@ function getCurrentInvoiceTotal() {
   return (subtotal - invoiceDiscountAmount) + shipping;
 }
 const POS_TILE_COLORS = ['#2E4A87', '#2F9E6E', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
+let currentEditingOrderId = null;
+
+window.openEditOrder = async function(orderId) {
+  await openOrdersPanel();
+  await openOrderCreateForm(); // resets everything to a clean slate first
+
+  try {
+    const [orderRes, itemsRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId + '&select=*', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=*', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json())
+    ]);
+    const o = (orderRes && orderRes[0]) || null;
+    if (!o) { alert('Could not find this order to edit.'); closeOrderCreateForm(); return; }
+
+    currentEditingOrderId = orderId;
+    document.getElementById('order-create-save-btn').textContent = currentLang === 'ar' ? 'حفظ التعديلات' : 'Save Changes';
+
+    document.getElementById('oc-phone').value = o.phone || '';
+    document.getElementById('oc-customer-selected-id').value = o.phone || '';
+    document.getElementById('oc-delivery_address').value = o.delivery_address || '';
+    document.getElementById('oc-shipping-cost').value = o.shipping_cost || '';
+    document.getElementById('oc-order_status').value = o.order_status || 'PENDING';
+
+    if (o.discount_type) {
+      currentInvoiceDiscount = { type: o.discount_type, value: o.discount_value || 0 };
+    }
+
+    const items = itemsRes || [];
+    if (items.length > 0) {
+      currentOrderCart = items.map(it => ({
+        product_id: it.product_id,
+        product_name: it.product_name,
+        unit_price: it.unit_price,
+        quantity: it.quantity,
+        discount_type: it.discount_type || null,
+        discount_value: it.discount_value || 0
+      }));
+    } else if (o.product_name) {
+      // Older single-product order with no order_items rows — load it as
+      // one editable line so it can still be edited/extended going forward.
+      currentOrderCart = [{
+        product_id: null,
+        product_name: o.product_name,
+        unit_price: o.quantity ? (o.order_total || 0) / o.quantity : (o.order_total || 0),
+        quantity: o.quantity || 1,
+        discount_type: null,
+        discount_value: 0
+      }];
+    }
+
+    renderOrderCart();
+    renderProductGrid();
+
+    if (o.payment_method) {
+      const methodKey = o.payment_method === 'Card' ? 'card' : 'cash';
+      currentPaymentMethod = methodKey;
+      confirmedAmountPaid = o.amount_received != null ? o.amount_received : o.order_total;
+      if (methodKey === 'card' && o.card_brand) {
+        confirmedCardDetails = { brand: o.card_brand, last4: o.card_last4, reference: o.card_reference };
+      }
+      const pill = document.querySelector('.pos-payment-pill[data-method="' + methodKey + '"]');
+      if (pill) pill.classList.add('active');
+    }
+  } catch (e) {
+    debugLog('openEditOrder failed: ' + (e && e.message));
+    alert('Could not load this order for editing.');
+    closeOrderCreateForm();
+  }
+};
 
 window.openOrderCreateForm = async function() {
   document.getElementById('orders-list-view').style.display = 'none';
@@ -6898,6 +7195,8 @@ window.openOrderCreateForm = async function() {
   confirmedCardDetails = null;
   confirmedAmountPaid = null;
   currentInvoiceDiscount = { type: null, value: 0 };
+  currentEditingOrderId = null;
+  document.getElementById('order-create-save-btn').textContent = currentLang === 'ar' ? 'إتمام البيع' : 'Complete Sale';
   document.querySelectorAll('.pos-payment-pill').forEach(p => p.classList.remove('active'));
   renderOrderCart();
 
@@ -7504,14 +7803,34 @@ window.saveManualOrder = async function() {
     if (payload.order_status === 'SHIPPED') payload.shipped_at = new Date().toISOString();
     if (payload.order_status === 'DELIVERED') payload.delivered_at = new Date().toISOString();
 
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const createdOrders = await res.json();
-    const orderId = createdOrders && createdOrders[0] && createdOrders[0].id;
+    let orderId;
+    if (currentEditingOrderId) {
+      // Editing an existing order — update it in place, then replace all of
+      // its line items wholesale (simplest correct way to reconcile an
+      // edited cart against what's already stored, rather than diffing).
+      orderId = currentEditingOrderId;
+      delete payload.created_at; // never touch the original creation time on an edit
+      const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, {
+        method: 'PATCH',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+
+      await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId, {
+        method: 'DELETE',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Prefer': 'return=minimal' }
+      });
+    } else {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/orders', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const createdOrders = await res.json();
+      orderId = createdOrders && createdOrders[0] && createdOrders[0].id;
+    }
 
     if (orderId) {
       const itemsPayload = currentOrderCart.map(item => ({
@@ -7544,12 +7863,20 @@ window.saveManualOrder = async function() {
 
     closeOrderCreateForm();
     await loadOrders();
+    if (currentEditingOrderId) {
+      await openOrderDetail(orderId); // jump back to the order they just edited, not just the list
+    } else {
+      await openInvoiceView(orderId); // show the invoice immediately after completing a new sale
+    }
+    currentEditingOrderId = null;
   } catch (e) {
     debugLog('saveManualOrder failed: ' + (e && e.message));
     alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
   } finally {
     btn.disabled = false;
-    btn.textContent = currentLang === 'ar' ? 'إتمام البيع' : 'Complete Sale';
+    btn.textContent = currentEditingOrderId
+      ? (currentLang === 'ar' ? 'حفظ التعديلات' : 'Save Changes')
+      : (currentLang === 'ar' ? 'إتمام البيع' : 'Complete Sale');
   }
 };
 
@@ -7849,7 +8176,7 @@ async function renderDebtDetail() {
       html += `<div id="debt-no-history">No outstanding invoices.</div>`;
     } else {
       html += currentDebtDetailOrders.map(o => `
-        <div class="debt-invoice-row" onclick="openOrderDetailFromDebt('${o.id}')">
+        <div class="debt-invoice-row" onclick="openInvoiceView('${o.id}')">
           <div>
             <div>${escapeHtml(o.product_name || 'Order')}</div>
             <div class="debt-invoice-meta">${o.created_at ? new Date(o.created_at).toLocaleDateString() : ''} · Total ${debtsCurrencySymbol}${(o.order_total || 0).toLocaleString()}</div>
@@ -8089,7 +8416,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -8162,6 +8489,8 @@ async function loadBizSettings() {
     if (currencyData.alt_currency_label != null) document.getElementById('biz-alt-currency-label').value = currencyData.alt_currency_label;
     if (currencyData.alt_currency_rate != null) document.getElementById('biz-alt-currency-rate').value = currencyData.alt_currency_rate;
     if (currencyData.selling_type) document.getElementById('biz-selling-type').value = currencyData.selling_type;
+    if (currencyData.invoice_layout) document.getElementById('biz-invoice-layout').value = currencyData.invoice_layout;
+    if (currencyData.invoice_business_name != null) document.getElementById('biz-invoice-business-name').value = currencyData.invoice_business_name;
 
     bizSettingsLoaded = true;
   } catch (e) {
