@@ -6622,7 +6622,11 @@ window.saveProductForm = async function() {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        debugLog('product PATCH failed: HTTP ' + res.status + ' — ' + errBody);
+        throw new Error(errBody || ('HTTP ' + res.status));
+      }
     } else {
       payload.created_at = new Date().toISOString();
       const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products', {
@@ -6630,7 +6634,11 @@ window.saveProductForm = async function() {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        debugLog('product POST failed: HTTP ' + res.status + ' — ' + errBody);
+        throw new Error(errBody || ('HTTP ' + res.status));
+      }
     }
 
     closeProductForm();
