@@ -2084,12 +2084,13 @@
   .oc-cart-item {
     display: grid;
     grid-template-columns: 1fr 74px 84px 32px;
-    align-items: center;
+    align-items: start;
     gap: 8px;
     padding: 10px 4px;
     border-bottom: 1px solid var(--border);
     font-size: 13.5px;
   }
+  .oc-qty-stepper, .oc-cart-item-linetotal, .oc-cart-item-remove { margin-top: 2px; }
   .oc-cart-item-name { font-weight: 600; }
   .oc-cart-item-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
   .oc-qty-stepper { display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -7645,6 +7646,13 @@ function renderOrderCart() {
       </div>
     `;
   }).join('');
+  // Force a synchronous layout recalculation right after this innerHTML
+  // mutation. Without this, we've seen the browser sometimes keep an
+  // earlier, smaller computed height for this container after a second
+  // item is added, causing the next sibling (#pos-summary) to visually
+  // overlap the new content and swallow its clicks — reading offsetHeight
+  // forces layout to catch up immediately rather than staying stale.
+  void listEl.offsetHeight;
   updateCostBreakdown(subtotal, shipping);
   if (itemsCountEl) itemsCountEl.textContent = totalUnits;
   if (productsCountEl) productsCountEl.textContent = currentOrderCart.length;
