@@ -2079,7 +2079,7 @@
   #pos-cart-header-row span:nth-child(2) { text-align: center; }
   #pos-cart-header-row span:nth-child(3) { text-align: right; }
 
-  #oc-cart-list { min-height: 60px; }
+  #oc-cart-list { min-height: 60px; flex-shrink: 0; }
   #oc-cart-empty { padding: 30px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
   .oc-cart-item {
     display: flex;
@@ -7649,36 +7649,8 @@ function renderOrderCart() {
     `;
   }).join('');
   // Force a synchronous layout recalculation right after this innerHTML
-  // mutation. Without this, we've seen the browser sometimes keep an
-  // earlier, smaller computed height for this container after a second
-  // item is added, causing the next sibling (#pos-summary) to visually
-  // overlap the new content and swallow its clicks — reading offsetHeight
-  // forces layout to catch up immediately rather than staying stale.
+  // mutation, as a safety net alongside the flex-shrink:0 fix above.
   void listEl.offsetHeight;
-
-  // Temporary diagnostics — measuring actual rendered geometry to find the
-  // real cause of the persistent cart-overlap bug reported on Safari.
-  try {
-    const rows = listEl.querySelectorAll('.oc-cart-item');
-    const listRect = listEl.getBoundingClientRect();
-    const summaryEl = document.getElementById('pos-summary');
-    const summaryRect = summaryEl ? summaryEl.getBoundingClientRect() : null;
-    debugLog(`CART DEBUG: rows rendered=${rows.length}, listEl.offsetHeight=${listEl.offsetHeight}, listEl.scrollHeight=${listEl.scrollHeight}, listRect.bottom=${listRect.bottom.toFixed(1)}`);
-    rows.forEach((row, idx) => {
-      const r = row.getBoundingClientRect();
-      debugLog(`  row[${idx}] top=${r.top.toFixed(1)} bottom=${r.bottom.toFixed(1)} height=${r.height.toFixed(1)}`);
-    });
-    if (summaryRect) {
-      debugLog(`  #pos-summary top=${summaryRect.top.toFixed(1)} bottom=${summaryRect.bottom.toFixed(1)}`);
-      const lastRow = rows[rows.length - 1];
-      if (lastRow) {
-        const lastRect = lastRow.getBoundingClientRect();
-        debugLog(`  OVERLAP CHECK: lastRow.bottom=${lastRect.bottom.toFixed(1)} vs summary.top=${summaryRect.top.toFixed(1)} → ${lastRect.bottom > summaryRect.top ? 'OVERLAPPING' : 'OK, no overlap'}`);
-      }
-    }
-  } catch (e) {
-    debugLog('CART DEBUG failed: ' + (e && e.message));
-  }
 
   updateCostBreakdown(subtotal, shipping);
   if (itemsCountEl) itemsCountEl.textContent = totalUnits;
