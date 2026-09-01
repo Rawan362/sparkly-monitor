@@ -7947,7 +7947,11 @@ window.saveManualOrder = async function() {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        debugLog('order PATCH failed: HTTP ' + res.status + ' — ' + errBody);
+        throw new Error(errBody || ('HTTP ' + res.status));
+      }
 
       await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId, {
         method: 'DELETE',
@@ -7959,7 +7963,11 @@ window.saveManualOrder = async function() {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        debugLog('order POST failed: HTTP ' + res.status + ' — ' + errBody);
+        throw new Error(errBody || ('HTTP ' + res.status));
+      }
       const createdOrders = await res.json();
       orderId = createdOrders && createdOrders[0] && createdOrders[0].id;
     }
