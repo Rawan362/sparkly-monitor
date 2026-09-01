@@ -2594,6 +2594,18 @@
     cursor: pointer;
   }
   .debt-invoice-row:hover { background: var(--panel-2); }
+  #debt-print-all-btn {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid var(--accent-2);
+    border-radius: 8px;
+    background: none;
+    color: var(--accent-2);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
   .debt-invoice-meta { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
   .debt-invoice-remaining { font-weight: 700; color: var(--danger); font-variant-numeric: tabular-nums; }
   .debt-payment-row {
@@ -6835,116 +6847,165 @@ window.openOrderDetail = async function(orderId) {
   document.getElementById('order-detail-fields').innerHTML = html;
 };
 
+function buildOneInvoiceHtml(o, items, layout, symbol, businessName) {
+  const shipping = o.shipping_cost || 0;
+  const productsSubtotal = (o.order_total || 0) - shipping + (o.discount_amount || 0);
+  const grandTotal = o.order_total || 0;
+  const received = o.amount_received != null ? o.amount_received : 0;
+  const remaining = grandTotal - received;
+
+  let itemsHtml = '';
+  if (items.length > 0) {
+    itemsHtml = items.map(it => {
+      const discNote = (it.discount_type && it.discount_amount) ? `<div class="invoice-item-meta">${it.discount_type === 'percent' ? it.discount_value + '% off' : 'Discount −' + symbol + it.discount_amount.toLocaleString()}</div>` : '';
+      const net = (it.line_total || 0) - (it.discount_amount || 0);
+      return `
+        <tr>
+          <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${discNote}</td>
+          <td>${it.quantity}</td>
+          <td>${symbol}${(it.unit_price || 0).toLocaleString()}</td>
+          <td>${symbol}${net.toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    // Older single-product order with no order_items row
+    itemsHtml = `
+      <tr>
+        <td><div class="invoice-item-name">${escapeHtml(o.product_name || '—')}</div></td>
+        <td>${o.quantity ?? 1}</td>
+        <td>${symbol}${((o.order_total || 0) / (o.quantity || 1)).toLocaleString()}</td>
+        <td>${symbol}${(o.order_total || 0).toLocaleString()}</td>
+      </tr>
+    `;
+  }
+
+  let statusHtml = '';
+  if (o.order_status === 'RETURN') {
+    const payerLabel = { seller: 'Seller paid shipping', customer: 'Customer paid shipping', free: 'Shipping waived' }[o.return_shipping_payer] || '';
+    statusHtml = `<div class="invoice-payment-box"><strong>${o.return_type === 'full' ? 'Full Return' : 'Partial Return'}</strong> — ${symbol}${(o.return_amount || 0).toLocaleString()} returned. ${payerLabel}</div>`;
+  }
+
+  return `
+    <div class="invoice-doc invoice-${layout}">
+      <div class="invoice-header">
+        <div>
+          <div class="invoice-business-name">${escapeHtml(businessName)}</div>
+          <div class="invoice-title">Invoice</div>
+        </div>
+        <div class="invoice-meta">
+          Invoice #${o.id.slice(0, 8).toUpperCase()}<br>
+          ${o.created_at ? new Date(o.created_at).toLocaleDateString() : ''}<br>
+          Status: ${escapeHtml(o.order_status || 'PENDING')}
+        </div>
+      </div>
+
+      <div class="invoice-customer">
+        <div class="invoice-customer-label">Bill To</div>
+        <div class="invoice-customer-name">${escapeHtml(o.phone || '—')}</div>
+        ${o.delivery_address ? `<div>${escapeHtml(o.delivery_address)}</div>` : ''}
+      </div>
+
+      <table class="invoice-items-table">
+        <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+
+      <div class="invoice-totals">
+        <div class="invoice-total-row"><span>Subtotal</span><span>${symbol}${productsSubtotal.toLocaleString()}</span></div>
+        ${o.discount_amount ? `<div class="invoice-total-row discount"><span>Discount</span><span>−${symbol}${o.discount_amount.toLocaleString()}</span></div>` : ''}
+        <div class="invoice-total-row"><span>Shipping</span><span>${symbol}${shipping.toLocaleString()}</span></div>
+        <div class="invoice-total-row grand"><span>Total</span><span>${symbol}${grandTotal.toLocaleString()}</span></div>
+        <div class="invoice-total-row paid"><span>Amount Paid</span><span>${symbol}${received.toLocaleString()}</span></div>
+        ${remaining > 0.01 ? `<div class="invoice-total-row remaining"><span>Remaining</span><span>${symbol}${remaining.toLocaleString()}</span></div>` : ''}
+      </div>
+
+      ${statusHtml}
+
+      <div class="invoice-payment-box">
+        Payment method: ${escapeHtml(o.payment_method || '—')}
+        ${o.card_brand ? ` (${escapeHtml(o.card_brand)} •••• ${escapeHtml(o.card_last4 || '')})` : ''}
+      </div>
+
+      <div class="invoice-footer">Thank you for your business</div>
+    </div>
+  `;
+}
+
+async function fetchInvoiceConfig() {
+  const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label', {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+  }).then(r => r.json());
+  const config = (configRes && configRes[0]) || {};
+  return {
+    businessName: config.invoice_business_name || 'Invoice',
+    layout: config.invoice_layout || 'a4',
+    symbol: config.currency_label ? currencyCodeToSymbol(config.currency_label) : ''
+  };
+}
+
 window.openInvoiceView = async function(orderId) {
   try {
-    const [orderRes, itemsRes, configRes] = await Promise.all([
+    const [orderRes, itemsRes, config] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId + '&select=*', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=*', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label', {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-      }).then(r => r.json())
+      fetchInvoiceConfig()
     ]);
 
     const o = (orderRes && orderRes[0]) || null;
     if (!o) { alert('Could not find this order.'); return; }
-    const items = itemsRes || [];
-    const config = (configRes && configRes[0]) || {};
-    const businessName = config.invoice_business_name || 'Invoice';
-    const layout = config.invoice_layout || 'a4';
-    const symbol = config.currency_label ? currencyCodeToSymbol(config.currency_label) : '';
 
-    const shipping = o.shipping_cost || 0;
-    const productsSubtotal = (o.order_total || 0) - shipping + (o.discount_amount || 0);
-    const grandTotal = o.order_total || 0;
-    const received = o.amount_received != null ? o.amount_received : 0;
-    const remaining = grandTotal - received;
-
-    let itemsHtml = '';
-    if (items.length > 0) {
-      itemsHtml = items.map(it => {
-        const discNote = (it.discount_type && it.discount_amount) ? `<div class="invoice-item-meta">${it.discount_type === 'percent' ? it.discount_value + '% off' : 'Discount −' + symbol + it.discount_amount.toLocaleString()}</div>` : '';
-        const net = (it.line_total || 0) - (it.discount_amount || 0);
-        return `
-          <tr>
-            <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${discNote}</td>
-            <td>${it.quantity}</td>
-            <td>${symbol}${(it.unit_price || 0).toLocaleString()}</td>
-            <td>${symbol}${net.toLocaleString()}</td>
-          </tr>
-        `;
-      }).join('');
-    } else {
-      // Older single-product order with no order_items row
-      itemsHtml = `
-        <tr>
-          <td><div class="invoice-item-name">${escapeHtml(o.product_name || '—')}</div></td>
-          <td>${o.quantity ?? 1}</td>
-          <td>${symbol}${((o.order_total || 0) / (o.quantity || 1)).toLocaleString()}</td>
-          <td>${symbol}${(o.order_total || 0).toLocaleString()}</td>
-        </tr>
-      `;
-    }
-
-    let statusHtml = '';
-    if (o.order_status === 'RETURN') {
-      const payerLabel = { seller: 'Seller paid shipping', customer: 'Customer paid shipping', free: 'Shipping waived' }[o.return_shipping_payer] || '';
-      statusHtml = `<div class="invoice-payment-box"><strong>${o.return_type === 'full' ? 'Full Return' : 'Partial Return'}</strong> — ${symbol}${(o.return_amount || 0).toLocaleString()} returned. ${payerLabel}</div>`;
-    }
-
-    const html = `
-      <div class="invoice-doc invoice-${layout}">
-        <div class="invoice-header">
-          <div>
-            <div class="invoice-business-name">${escapeHtml(businessName)}</div>
-            <div class="invoice-title">Invoice</div>
-          </div>
-          <div class="invoice-meta">
-            Invoice #${o.id.slice(0, 8).toUpperCase()}<br>
-            ${o.created_at ? new Date(o.created_at).toLocaleDateString() : ''}<br>
-            Status: ${escapeHtml(o.order_status || 'PENDING')}
-          </div>
-        </div>
-
-        <div class="invoice-customer">
-          <div class="invoice-customer-label">Bill To</div>
-          <div class="invoice-customer-name">${escapeHtml(o.phone || '—')}</div>
-          ${o.delivery_address ? `<div>${escapeHtml(o.delivery_address)}</div>` : ''}
-        </div>
-
-        <table class="invoice-items-table">
-          <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-
-        <div class="invoice-totals">
-          <div class="invoice-total-row"><span>Subtotal</span><span>${symbol}${productsSubtotal.toLocaleString()}</span></div>
-          ${o.discount_amount ? `<div class="invoice-total-row discount"><span>Discount</span><span>−${symbol}${o.discount_amount.toLocaleString()}</span></div>` : ''}
-          <div class="invoice-total-row"><span>Shipping</span><span>${symbol}${shipping.toLocaleString()}</span></div>
-          <div class="invoice-total-row grand"><span>Total</span><span>${symbol}${grandTotal.toLocaleString()}</span></div>
-          <div class="invoice-total-row paid"><span>Amount Paid</span><span>${symbol}${received.toLocaleString()}</span></div>
-          ${remaining > 0.01 ? `<div class="invoice-total-row remaining"><span>Remaining</span><span>${symbol}${remaining.toLocaleString()}</span></div>` : ''}
-        </div>
-
-        ${statusHtml}
-
-        <div class="invoice-payment-box">
-          Payment method: ${escapeHtml(o.payment_method || '—')}
-          ${o.card_brand ? ` (${escapeHtml(o.card_brand)} •••• ${escapeHtml(o.card_last4 || '')})` : ''}
-        </div>
-
-        <div class="invoice-footer">Thank you for your business</div>
-      </div>
-    `;
-
+    const html = buildOneInvoiceHtml(o, itemsRes || [], config.layout, config.symbol, config.businessName);
     document.getElementById('invoice-content').innerHTML = html;
     document.getElementById('invoice-view-overlay').style.display = 'flex';
   } catch (e) {
     debugLog('openInvoiceView failed: ' + (e && e.message));
     alert('Could not load the invoice. Try again.');
+  }
+};
+
+window.openAllInvoicesView = async function(phone) {
+  try {
+    const config = await fetchInvoiceConfig();
+
+    // Every one of this customer's non-cancelled orders that still has
+    // outstanding debt (full or partial) — the same definition used by the
+    // Debt Detail screen itself, so "all debt invoices" means the same
+    // thing everywhere.
+    const ordersRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&order_status=neq.CANCELLED&select=*&order=created_at.asc', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    }).then(r => r.json());
+
+    const debtOrders = (ordersRes || []).filter(o => {
+      const remaining = (o.order_total || 0) - (o.amount_received != null ? o.amount_received : 0);
+      return remaining > 0.01;
+    });
+
+    if (debtOrders.length === 0) {
+      alert(currentLang === 'ar' ? 'لا توجد فواتير غير مسددة لهذا الزبون' : 'No unpaid invoices for this customer');
+      return;
+    }
+
+    const itemsByOrder = await Promise.all(debtOrders.map(o =>
+      fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + o.id + '&select=*', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json())
+    ));
+
+    // Each invoice renders as its own page when printed, one after another.
+    const combinedHtml = debtOrders.map((o, i) =>
+      `<div style="${i > 0 ? 'page-break-before: always;' : ''}">${buildOneInvoiceHtml(o, itemsByOrder[i] || [], config.layout, config.symbol, config.businessName)}</div>`
+    ).join('');
+
+    document.getElementById('invoice-content').innerHTML = combinedHtml;
+    document.getElementById('invoice-view-overlay').style.display = 'flex';
+  } catch (e) {
+    debugLog('openAllInvoicesView failed: ' + (e && e.message));
+    alert('Could not load these invoices. Try again.');
   }
 };
 
@@ -8175,6 +8236,7 @@ async function renderDebtDetail() {
     if (currentDebtDetailOrders.length === 0) {
       html += `<div id="debt-no-history">No outstanding invoices.</div>`;
     } else {
+      html += `<button id="debt-print-all-btn" onclick="openAllInvoicesView('${phone}')">Print / Download All Invoices (${currentDebtDetailOrders.length})</button>`;
       html += currentDebtDetailOrders.map(o => `
         <div class="debt-invoice-row" onclick="openInvoiceView('${o.id}')">
           <div>
