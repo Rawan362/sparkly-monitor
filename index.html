@@ -8192,6 +8192,18 @@ window.filterDebtsList = function(query) {
 let currentDebtDetailPhone = null;
 let currentDebtDetailOrders = [];
 
+// Event delegation instead of inline onclick — attached once to the stable
+// parent container, so it isn't affected by re-renders, escaping edge
+// cases, or the kind of click-bubbling races that broke the customer
+// search dropdown earlier. Clicking anywhere inside a .debt-invoice-row
+// opens that specific invoice.
+document.getElementById('debt-detail-content').addEventListener('click', (e) => {
+  const row = e.target.closest('.debt-invoice-row');
+  if (row && row.dataset.orderId) {
+    openInvoiceView(row.dataset.orderId);
+  }
+});
+
 window.openDebtDetail = async function(phone) {
   currentDebtDetailPhone = phone;
   document.getElementById('debts-list-view').style.display = 'none';
@@ -8238,7 +8250,7 @@ async function renderDebtDetail() {
     } else {
       html += `<button id="debt-print-all-btn" onclick="openAllInvoicesView('${phone}')">Print / Download All Invoices (${currentDebtDetailOrders.length})</button>`;
       html += currentDebtDetailOrders.map(o => `
-        <div class="debt-invoice-row" onclick="openInvoiceView('${o.id}')">
+        <div class="debt-invoice-row" data-order-id="${o.id}">
           <div>
             <div>${escapeHtml(o.product_name || 'Order')}</div>
             <div class="debt-invoice-meta">${o.created_at ? new Date(o.created_at).toLocaleDateString() : ''} · Total ${debtsCurrencySymbol}${(o.order_total || 0).toLocaleString()}</div>
