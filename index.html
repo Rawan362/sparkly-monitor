@@ -6599,6 +6599,11 @@ window.saveProductForm = async function() {
             payload[f] = num;
           }
         }
+      } else if (f === 'product_category') {
+        // Same fallback the AI-chat onboarding already uses — this column
+        // has a NOT NULL constraint in the database, so leaving it blank
+        // must never translate into sending null.
+        payload[f] = (val === '' ? 'general' : val).toLowerCase();
       } else {
         payload[f] = val === '' ? null : val;
       }
