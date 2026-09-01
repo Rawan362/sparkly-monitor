@@ -2079,7 +2079,7 @@
   #pos-cart-header-row span:nth-child(2) { text-align: center; }
   #pos-cart-header-row span:nth-child(3) { text-align: right; }
 
-  #oc-cart-list { flex: 1; min-height: 60px; }
+  #oc-cart-list { min-height: 60px; }
   #oc-cart-empty { padding: 30px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
   .oc-cart-item {
     display: grid;
@@ -2458,7 +2458,8 @@
     #pos-product-grid { grid-template-columns: repeat(3, 1fr); overflow-y: visible; }
     #pos-bottom-bar { flex-wrap: wrap; }
     #pos-payment-pills { order: 3; width: 100%; }
-    #oc-customer-field { display: none; }
+    #pos-top-bar { flex-wrap: wrap; }
+    #oc-customer-field { width: 100%; order: 3; margin-top: 8px; }
   }
 
   .order-detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
@@ -2513,6 +2514,7 @@
 
   /* ═══ CUSTOMER DEBTS ═══ */
   #debts-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #debts-list-view { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   #debts-header-row {
     display: flex;
     align-items: center;
@@ -2557,6 +2559,82 @@
   .debt-card-name { font-weight: 600; font-size: 14px; }
   .debt-card-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
   .debt-card-amount { font-weight: 700; font-size: 15px; color: var(--danger); font-variant-numeric: tabular-nums; }
+
+  /* ═══ DEBT DETAIL ═══ */
+  #debt-detail-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #debt-detail-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #debt-detail-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #debt-detail-title { font-weight: 700; font-size: 15px; flex: 1; text-align: center; }
+  #debt-detail-content { padding: 16px 20px 30px; }
+  #debt-detail-total-banner {
+    padding: 16px;
+    background: var(--danger);
+    color: #fff;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  #debt-detail-total-banner .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.85; }
+  #debt-detail-total-banner .value { font-size: 24px; font-weight: 700; font-family: var(--font-display); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .debt-detail-section-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 18px 0 10px; }
+  .debt-invoice-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .debt-invoice-row:hover { background: var(--panel-2); }
+  .debt-invoice-meta { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+  .debt-invoice-remaining { font-weight: 700; color: var(--danger); font-variant-numeric: tabular-nums; }
+  .debt-payment-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .debt-payment-row .amount { font-weight: 600; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+  #debt-record-payment-box {
+    background: var(--panel-2);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 8px;
+  }
+  #debt-remaining-preview {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--panel);
+    font-weight: 700;
+    font-size: 13.5px;
+    text-align: center;
+  }
+  #debt-record-payment-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #debt-record-payment-btn:disabled { opacity: 0.6; cursor: wait; }
+  #debt-no-history { color: var(--text-muted); font-size: 13px; padding: 8px 0; }
+
   #reports-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
   .report-section { margin-bottom: 22px; }
   .report-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
@@ -2907,14 +2985,24 @@
       <div id="reports-content"><div id="reports-loading"><div class="spinner"></div>Crunching the numbers...</div></div>
     </div>
     <div id="debts-tab-content" style="display:none;">
-      <div id="debts-header-row">
-        <button onclick="closeDebtsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-        <span id="debts-title">Customer Debts</span>
-        <span style="width:32px;"></span>
+      <div id="debts-list-view">
+        <div id="debts-header-row">
+          <button onclick="closeDebtsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+          <span id="debts-title">Customer Debts</span>
+          <span style="width:32px;"></span>
+        </div>
+        <div id="debts-total-banner"></div>
+        <div id="debts-search-row"><input type="text" id="debts-search-input" placeholder="Search by name or phone..." oninput="filterDebtsList(this.value)"></div>
+        <div id="debts-list"><div id="debts-loading"><div class="spinner"></div>Adding up outstanding balances...</div></div>
       </div>
-      <div id="debts-total-banner"></div>
-      <div id="debts-search-row"><input type="text" id="debts-search-input" placeholder="Search by name or phone..." oninput="filterDebtsList(this.value)"></div>
-      <div id="debts-list"><div id="debts-loading"><div class="spinner"></div>Adding up outstanding balances...</div></div>
+      <div id="debt-detail-view" style="display:none;">
+        <div id="debt-detail-header-row">
+          <button onclick="closeDebtDetail()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+          <span id="debt-detail-title">Customer</span>
+          <span style="width:32px;"></span>
+        </div>
+        <div id="debt-detail-content"></div>
+      </div>
     </div>
     <div id="settings-tab-content" style="display:none;">
       <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
@@ -7610,6 +7698,8 @@ window.openDebtsPanel = async function() {
   panel.classList.remove('screen-transition');
   void panel.offsetWidth;
   panel.classList.add('screen-transition');
+  document.getElementById('debts-list-view').style.display = 'flex';
+  document.getElementById('debt-detail-view').style.display = 'none';
   await loadDebts();
 };
 
@@ -7689,7 +7779,7 @@ function renderDebtsList(debtors) {
     return;
   }
   listEl.innerHTML = debtors.map(d => `
-    <div class="debt-card" onclick="openCustomerOrdersFromDebt('${d.phone}')">
+    <div class="debt-card" onclick="openDebtDetail('${d.phone}')">
       <div>
         <div class="debt-card-name">${escapeHtml(cachedDebtorNames[d.phone] || d.phone)}</div>
         <div class="debt-card-meta">${escapeHtml(d.phone)}</div>
@@ -7711,10 +7801,153 @@ window.filterDebtsList = function(query) {
   renderDebtsList(filtered);
 };
 
-window.openCustomerOrdersFromDebt = async function(phone) {
+let currentDebtDetailPhone = null;
+let currentDebtDetailOrders = [];
+
+window.openDebtDetail = async function(phone) {
+  currentDebtDetailPhone = phone;
+  document.getElementById('debts-list-view').style.display = 'none';
+  document.getElementById('debt-detail-view').style.display = 'flex';
+  document.getElementById('debt-detail-title').textContent = cachedDebtorNames[phone] || phone;
+  document.getElementById('debt-detail-content').innerHTML = '<div id="debts-loading"><div class="spinner"></div>Loading...</div>';
+  await renderDebtDetail();
+};
+
+window.closeDebtDetail = function() {
+  document.getElementById('debt-detail-view').style.display = 'none';
+  document.getElementById('debts-list-view').style.display = 'flex';
+  currentDebtDetailPhone = null;
+};
+
+async function renderDebtDetail() {
+  const phone = currentDebtDetailPhone;
+  if (!phone) return;
+  const contentEl = document.getElementById('debt-detail-content');
+
+  try {
+    const [ordersRes, paymentsRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&order_status=neq.CANCELLED&select=id,order_total,amount_received,created_at,product_name&order=created_at.asc', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json()),
+      fetch(SUPABASE_URL + '/rest/v1/debt_payments?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&select=amount,payment_date&order=payment_date.desc', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      }).then(r => r.json())
+    ]);
+
+    currentDebtDetailOrders = (ordersRes || []).map(o => ({
+      ...o,
+      remaining: (o.order_total || 0) - (o.amount_received != null ? o.amount_received : 0)
+    })).filter(o => o.remaining > 0.01);
+
+    const totalDebt = currentDebtDetailOrders.reduce((sum, o) => sum + o.remaining, 0);
+    const payments = paymentsRes || [];
+
+    let html = `<div id="debt-detail-total-banner"><div class="label">Total Outstanding</div><div class="value">${debtsCurrencySymbol}${totalDebt.toLocaleString()}</div></div>`;
+
+    html += `<div class="debt-detail-section-label">Unpaid / Partially Paid Invoices</div>`;
+    if (currentDebtDetailOrders.length === 0) {
+      html += `<div id="debt-no-history">No outstanding invoices.</div>`;
+    } else {
+      html += currentDebtDetailOrders.map(o => `
+        <div class="debt-invoice-row" onclick="openOrderDetailFromDebt('${o.id}')">
+          <div>
+            <div>${escapeHtml(o.product_name || 'Order')}</div>
+            <div class="debt-invoice-meta">${o.created_at ? new Date(o.created_at).toLocaleDateString() : ''} · Total ${debtsCurrencySymbol}${(o.order_total || 0).toLocaleString()}</div>
+          </div>
+          <div class="debt-invoice-remaining">${debtsCurrencySymbol}${o.remaining.toLocaleString()}</div>
+        </div>
+      `).join('');
+    }
+
+    html += `<div class="debt-detail-section-label">Payment History</div>`;
+    if (payments.length === 0) {
+      html += `<div id="debt-no-history">No payments recorded yet.</div>`;
+    } else {
+      html += payments.map(p => `
+        <div class="debt-payment-row">
+          <span>${p.payment_date ? new Date(p.payment_date).toLocaleString() : ''}</span>
+          <span class="amount">${debtsCurrencySymbol}${(p.amount || 0).toLocaleString()}</span>
+        </div>
+      `).join('');
+    }
+
+    html += `
+      <div id="debt-record-payment-box">
+        <div class="biz-field"><label>Record a payment</label><input type="text" id="debt-payment-amount-input" placeholder="0" oninput="updateDebtPaymentPreview()"></div>
+        <div id="debt-remaining-preview">Remaining after this payment: ${debtsCurrencySymbol}${totalDebt.toLocaleString()}</div>
+        <button id="debt-record-payment-btn" onclick="recordDebtPayment()">Save Payment</button>
+      </div>
+    `;
+
+    contentEl.innerHTML = html;
+  } catch (e) {
+    debugLog('renderDebtDetail failed: ' + (e && e.message));
+    contentEl.innerHTML = '<div id="debts-empty">Could not load this customer\'s debt details.</div>';
+  }
+}
+
+window.updateDebtPaymentPreview = function() {
+  const totalDebt = currentDebtDetailOrders.reduce((sum, o) => sum + o.remaining, 0);
+  const raw = document.getElementById('debt-payment-amount-input').value.trim().replace(/[^\d.-]/g, '');
+  const paid = raw === '' ? 0 : (Number(raw) || 0);
+  const remaining = Math.max(totalDebt - paid, 0);
+  document.getElementById('debt-remaining-preview').textContent = 'Remaining after this payment: ' + debtsCurrencySymbol + remaining.toLocaleString();
+};
+
+window.recordDebtPayment = async function() {
+  const phone = currentDebtDetailPhone;
+  const raw = document.getElementById('debt-payment-amount-input').value.trim().replace(/[^\d.-]/g, '');
+  const amount = raw === '' ? NaN : Number(raw);
+  if (isNaN(amount) || amount <= 0) {
+    alert(currentLang === 'ar' ? 'الرجاء إدخال مبلغ صحيح' : 'Please enter a valid payment amount');
+    return;
+  }
+
+  const btn = document.getElementById('debt-record-payment-btn');
+  btn.disabled = true;
+  btn.textContent = currentLang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...';
+
+  try {
+    // Log the payment itself as a permanent record — "on this date, this
+    // much was paid" — independent of how it gets allocated below.
+    await fetch(SUPABASE_URL + '/rest/v1/debt_payments', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, phone, amount, payment_date: new Date().toISOString() })
+    });
+
+    // Allocate the payment across their outstanding invoices, oldest first,
+    // updating each order's amount_received until the payment is used up —
+    // this is what actually keeps the debt total accurate everywhere else
+    // in the app, since debt is always order_total minus amount_received.
+    let remainingToAllocate = amount;
+    for (const o of currentDebtDetailOrders) {
+      if (remainingToAllocate <= 0) break;
+      const applyToThis = Math.min(remainingToAllocate, o.remaining);
+      const newAmountReceived = (o.order_total || 0) - (o.remaining - applyToThis);
+      await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + o.id, {
+        method: 'PATCH',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ amount_received: newAmountReceived })
+      });
+      remainingToAllocate -= applyToThis;
+    }
+
+    await renderDebtDetail();
+    await loadDebts(); // keep the list/total banner in sync for when they go back
+  } catch (e) {
+    debugLog('recordDebtPayment failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = currentLang === 'ar' ? 'حفظ الدفعة' : 'Save Payment';
+  }
+};
+
+window.openOrderDetailFromDebt = async function(orderId) {
   closeDebtsPanel();
   await openOrdersPanel();
-  filterOrdersByPhone(phone);
+  await openOrderDetail(orderId);
 };
 
 async function loadReports() {
