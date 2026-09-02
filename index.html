@@ -3023,19 +3023,10 @@
       <span>Teaching your AI</span>
     </div>
     <div id="onboarding-chat-messages"></div>
-    <div id="onboarding-csv-row" style="display:none;">
-      <button id="onboarding-csv-btn" onclick="document.getElementById('onboarding-csv-input').click()">Or upload a CSV to bulk-add products instead</button>
-      <input type="file" id="onboarding-csv-input" accept=".csv,text/csv" style="display:none;" onchange="handleOnboardingCsvSelect(event)">
-    </div>
     <div id="onboarding-chat-input-row">
-      <button id="onboarding-attach-btn" onclick="document.getElementById('onboarding-file-input').click()" title="Attach photo/PDF">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <input type="file" id="onboarding-file-input" accept="image/*,application/pdf" style="display:none;" onchange="handleOnboardingFileSelect(event)">
       <input type="text" id="onboarding-chat-input" placeholder="Type your answer..." onkeydown="if(event.key==='Enter') sendOnboardingMessage();">
       <button id="onboarding-send-btn" onclick="sendOnboardingMessage()">Send</button>
     </div>
-    <div id="onboarding-attach-preview" style="display:none;"></div>
   </div>
 </div>
 <div id="app">
@@ -9803,13 +9794,13 @@ window.skipOnboarding = function() {
 };
 
 const ONBOARDING_WEBHOOK_URL = 'https://sparklly.site/webhook/web-onboarding-chat';
-let obState = { phase: 'general', generalStep: 0, generalData: {}, gatheredFields: {}, productHistory: [], policyStep: 0, policyData: {} };
+let obState = { phase: 'general', generalStep: 0, generalData: {}, productStep: 0, productData: {}, policyStep: 0, policyData: {} };
 let obPendingFile = null; // { base64, mediaType, name }
 
 window.startOnboardingChat = function() {
   document.getElementById('onboarding-intro').style.display = 'none';
   document.getElementById('onboarding-chat-view').style.display = 'flex';
-  obState = { phase: 'general', generalStep: 0, generalData: {}, gatheredFields: {}, productHistory: [], policyStep: 0, policyData: {} };
+  obState = { phase: 'general', generalStep: 0, generalData: {}, productStep: 0, productData: {}, policyStep: 0, policyData: {} };
   document.getElementById('onboarding-chat-messages').innerHTML = '';
   sendOnboardingTurn(''); // kick off with the first question, no user text yet
 };
@@ -9950,16 +9941,12 @@ async function sendOnboardingTurn(userText) {
       phase: obState.phase,
       generalStep: obState.generalStep,
       generalData: obState.generalData,
-      gatheredFields: obState.gatheredFields,
-      productHistory: obState.productHistory,
+      productStep: obState.productStep,
+      productData: obState.productData,
       policyStep: obState.policyStep,
       policyData: obState.policyData,
       userText: userText || ''
     };
-    if (obPendingFile) {
-      payload.mediaBase64 = obPendingFile.base64;
-      payload.mediaType = obPendingFile.mediaType;
-    }
 
     const res = await fetch(ONBOARDING_WEBHOOK_URL, {
       method: 'POST',
@@ -9970,14 +9957,13 @@ async function sendOnboardingTurn(userText) {
 
     hideObTyping();
     renderObMessage(data.reply || '...', 'assistant');
-    document.getElementById('onboarding-csv-row').style.display = (data.phase === 'product') ? 'block' : 'none';
 
     obState = {
       phase: data.phase || obState.phase,
       generalStep: data.generalStep != null ? data.generalStep : obState.generalStep,
       generalData: data.generalData || obState.generalData,
-      gatheredFields: data.gatheredFields || {},
-      productHistory: data.productHistory || [],
+      productStep: data.productStep != null ? data.productStep : obState.productStep,
+      productData: data.productData || obState.productData,
       policyStep: data.policyStep != null ? data.policyStep : obState.policyStep,
       policyData: data.policyData || obState.policyData
     };
