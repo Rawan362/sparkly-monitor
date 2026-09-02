@@ -2936,6 +2936,17 @@
   }
   #bc-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
   #bc-messages { flex: 1; overflow-y: auto; padding: 20px 18px; max-width: 640px; margin: 0 auto; width: 100%; }
+  #bc-csv-row { max-width: 640px; margin: 0 auto 8px; padding: 0 18px; text-align: center; }
+  #bc-csv-btn {
+    border: 1px dashed var(--border);
+    background: none;
+    color: var(--accent-2);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
   #bc-input-row {
     display: flex;
     gap: 8px;
@@ -3331,6 +3342,10 @@
         <span style="width:32px;"></span>
       </div>
       <div id="bc-messages"></div>
+      <div id="bc-csv-row">
+        <button id="bc-csv-btn" onclick="document.getElementById('bc-csv-input').click()">Bulk-add products from a CSV</button>
+        <input type="file" id="bc-csv-input" accept=".csv,text/csv" style="display:none;" onchange="handleBcCsvSelect(event)">
+      </div>
       <div id="bc-input-row">
         <input type="text" id="bc-input" placeholder="e.g. raise the price of X to $12..." onkeydown="if(event.key==='Enter') sendBusinessChatMessage();">
         <button id="bc-send-btn" onclick="sendBusinessChatMessage()">Send</button>
@@ -9824,21 +9839,21 @@ function hideObTyping() {
   if (el) el.remove();
 }
 
-window.handleOnboardingCsvSelect = function(e) {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-
-  renderObMessage('📎 ' + file.name, 'user');
-  showObTyping();
+// Shared by both the onboarding CSV button and the ongoing "Talk to your
+// AI" CSV button — takes callbacks so each caller can render into its own
+// chat UI without duplicating the parse/bulk-insert logic itself.
+function bulkImportProductsFromCsv(file, { onUserMessage, onTypingStart, onTypingEnd, onResult }) {
+  onUserMessage('📎 ' + file.name);
+  onTypingStart();
 
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete: async function(results) {
-      hideObTyping();
+      onTypingEnd();
       const rows = results.data || [];
       if (rows.length === 0) {
-        renderObMessage("That CSV didn't have any rows I could read. Expected columns: product_name, wholesale_price, retail_price, cost_price, product_category, target_customers, key_features.", 'assistant');
+        onResult("That CSV didn't have any rows I could read. Expected columns: product_name, wholesale_price, retail_price, cost_price, product_category, target_customers, key_features.");
         return;
       }
 
@@ -9869,18 +9884,37 @@ window.handleOnboardingCsvSelect = function(e) {
         } catch (err) { failedCount++; }
       }
 
-      renderObMessage(
-        `Done — added ${savedCount} product${savedCount === 1 ? '' : 's'} from your CSV${failedCount > 0 ? ` (${failedCount} row${failedCount === 1 ? '' : 's'} skipped, missing a product name)` : ''}.\n\nWant to add any more products by chatting, or type no more to finish onboarding.`,
-        'assistant'
-      );
+      onResult(`Done — added ${savedCount} product${savedCount === 1 ? '' : 's'} from your CSV${failedCount > 0 ? ` (${failedCount} row${failedCount === 1 ? '' : 's'} skipped, missing a product name)` : ''}.`);
     },
     error: function(err) {
-      hideObTyping();
-      renderObMessage('Could not read that CSV file: ' + (err && err.message ? err.message : 'unknown error'), 'assistant');
+      onTypingEnd();
+      onResult('Could not read that CSV file: ' + (err && err.message ? err.message : 'unknown error'));
     }
   });
+}
 
+window.handleOnboardingCsvSelect = function(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  bulkImportProductsFromCsv(file, {
+    onUserMessage: (msg) => renderObMessage(msg, 'user'),
+    onTypingStart: showObTyping,
+    onTypingEnd: hideObTyping,
+    onResult: (msg) => renderObMessage(msg + '\n\nWant to add any more products by chatting, or type no more to finish onboarding.', 'assistant')
+  });
   e.target.value = ''; // allow re-selecting the same file later
+};
+
+window.handleBcCsvSelect = function(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  bulkImportProductsFromCsv(file, {
+    onUserMessage: (msg) => renderBcMessage(msg, 'user'),
+    onTypingStart: showBcTyping,
+    onTypingEnd: hideBcTyping,
+    onResult: (msg) => renderBcMessage(msg, 'assistant')
+  });
+  e.target.value = '';
 };
 
 window.handleOnboardingFileSelect = function(e) {
