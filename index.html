@@ -8513,7 +8513,11 @@ window.openTestModeFromSettings = function() {
 };
 
 window.openTestModeFromChats = function() {
-  openTestModeCommon('chats', null); // chats-tab-content isn't part of hideAllSidebarPanels' toggled set, so nothing to hide explicitly here
+  // chats-tab-content isn't part of hideAllSidebarPanels' toggled set (it's
+  // the base view, not a sidebar sub-panel), but it's still a real sibling
+  // that stays visible unless explicitly hidden — without this, it was
+  // stacking on top of Test Mode instead of being replaced by it.
+  openTestModeCommon('chats', 'chats-tab-content');
 };
 
 window.closeTestModePanel = function() {
@@ -8529,6 +8533,7 @@ window.closeTestModePanel = function() {
     // Chats tab uses the normal narrow sidebar + #main layout, not the
     // expanded wide-panel-mode Test Mode itself needed.
     document.getElementById('app').classList.remove('wide-panel-mode');
+    document.getElementById('chats-tab-content').style.display = 'flex';
   } else {
     document.getElementById('business-chat-tab-content').style.display = 'flex';
   }
