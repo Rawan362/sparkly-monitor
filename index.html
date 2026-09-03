@@ -244,12 +244,25 @@
     background: var(--panel-2);
     border: 1px solid transparent;
     border-radius: 10px;
-    padding: 9px 14px 9px 34px;
+    padding: 9px 90px 9px 34px;
     font-size: 13.5px;
     color: var(--text);
   }
   #search-box:focus { outline: none; background: var(--panel); border-color: var(--border); }
   #search-icon { position: absolute; left: 30px; top: 14px; color: var(--text-muted); font-size: 13px; pointer-events: none; }
+  #chats-test-mode-btn {
+    position: absolute;
+    right: 20px;
+    top: 8px;
+    border: 1px solid var(--accent-2);
+    background: var(--panel);
+    color: var(--accent-2);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+  }
 
   #chats-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #settings-tab-content { flex: 1; overflow-y: auto; }
@@ -3106,6 +3119,7 @@
       <div id="search-wrap">
         <span id="search-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
         <input id="search-box" placeholder="Search conversations" oninput="filterConvos(this.value)">
+        <button id="chats-test-mode-btn" onclick="openTestModeFromChats()">Test Mode</button>
       </div>
       <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
     </div>
@@ -3468,6 +3482,10 @@
       <div class="settings-row" onclick="openBusinessChatPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span id="settings-label-business-chat-row">Talk to your AI</span>
+      </div>
+      <div class="settings-row" onclick="openTestModeFromSettings()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span id="settings-label-test-mode-row">Test Mode</span>
       </div>
       <div class="settings-row" onclick="openBusinessPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -8469,9 +8487,11 @@ let tmHistory = []; // in-memory ONLY — never written to localStorage, Indexed
                      // it's never persisted anywhere (including server-side —
                      // the backend workflow makes no database writes either),
                      // there's nothing left over to clean up.
+let tmOpenedFrom = 'business-chat'; // tracks which screen to return to on close
 
-window.openTestModePanel = function() {
-  document.getElementById('business-chat-tab-content').style.display = 'none';
+function openTestModeCommon(fromScreen, fromPanelId) {
+  tmOpenedFrom = fromScreen;
+  if (fromPanelId) document.getElementById(fromPanelId).style.display = 'none';
   const panel = document.getElementById('test-mode-tab-content');
   panel.style.display = 'flex';
   panel.classList.remove('screen-transition');
@@ -8480,15 +8500,34 @@ window.openTestModePanel = function() {
 
   document.getElementById('tm-messages').innerHTML = '';
   tmHistory = [];
+}
+
+window.openTestModePanel = function() {
+  openTestModeCommon('business-chat', 'business-chat-tab-content');
+};
+
+window.openTestModeFromSettings = function() {
+  openTestModeCommon('settings', 'settings-tab-content');
+};
+
+window.openTestModeFromChats = function() {
+  openTestModeCommon('chats', null); // chats-tab-content isn't part of hideAllSidebarPanels' toggled set, so nothing to hide explicitly here
 };
 
 window.closeTestModePanel = function() {
   document.getElementById('test-mode-tab-content').style.display = 'none';
-  document.getElementById('business-chat-tab-content').style.display = 'flex';
   // Explicitly discard on close too, not just relying on a future refresh —
   // reopening Test Mode later must always start from a clean slate.
   tmHistory = [];
   document.getElementById('tm-messages').innerHTML = '';
+
+  if (tmOpenedFrom === 'settings') {
+    document.getElementById('settings-tab-content').style.display = 'block';
+  } else if (tmOpenedFrom === 'chats') {
+    // Chats tab is always the base view underneath, nothing to re-show
+  } else {
+    document.getElementById('business-chat-tab-content').style.display = 'flex';
+  }
 };
 
 function renderTmMessage(text, role) {
