@@ -3400,8 +3400,8 @@
     </div>
     <div id="business-chat-tab-content" style="display:none;">
       <div id="bc-header-row">
-        <button onclick="closeBusinessChatPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
-        <span>Talk to your AI</span>
+        <span style="width:32px;"></span>
+        <span>Sparkly Assistant</span>
         <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
       </div>
       <div id="bc-messages"></div>
@@ -3475,14 +3475,6 @@
       <div class="settings-row" onclick="openDebtsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span id="settings-label-debts-row">Customer Debts</span>
-      </div>
-      <div class="settings-row" onclick="openBusinessChatPanel()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span id="settings-label-business-chat-row">Talk to your AI</span>
-      </div>
-      <div class="settings-row" onclick="openTestModeFromSettings()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span id="settings-label-test-mode-row">Test Mode</span>
       </div>
       <div class="settings-row" onclick="openBusinessPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -3730,9 +3722,9 @@
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
         <span id="nav-chats-label">Chats</span>
       </div>
-      <div class="bottom-nav-item" id="nav-ai" onclick="openAhmadChat()">
+      <div class="bottom-nav-item" id="nav-ai" onclick="openSparklyAssistant()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
-        <span id="nav-ai-label">AI</span>
+        <span id="nav-ai-label">Assistant</span>
       </div>
       <div class="bottom-nav-item" id="nav-settings" onclick="openSettings()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -8591,6 +8583,31 @@ window.sendTestModeMessage = async function() {
   }
 };
 
+window.openSparklyAssistant = async function() {
+  saveCurrentDraft();
+  ahmadChatOpen = false;
+  activePhone = null;
+  const pinned = document.getElementById('ahmad-pinned');
+  if (pinned) pinned.classList.remove('active');
+  document.querySelectorAll('#sidebar-bottom-nav .bottom-nav-item').forEach(el => el.classList.remove('active'));
+  const navAi = document.getElementById('nav-ai');
+  if (navAi) navAi.classList.add('active');
+
+  hideAllSidebarPanels();
+  const panel = document.getElementById('business-chat-tab-content');
+  panel.style.display = 'flex';
+  playTabSlide(panel, 'business-chat');
+
+  document.getElementById('app').classList.add('wide-panel-mode');
+  if (window.innerWidth <= 720) {
+    document.getElementById('app').classList.remove('sidebar-hidden');
+  }
+
+  document.getElementById('bc-messages').innerHTML = '';
+  bcHistory = [];
+  await sendBusinessChatTurn(''); // kick off with the AI's opening message
+};
+
 window.openBusinessChatPanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
   const panel = document.getElementById('business-chat-tab-content');
@@ -10197,7 +10214,7 @@ async function loadAiName() {
     AI_NAME = (rows && rows[0] && rows[0].ai_name) || null;
   } catch (e) { AI_NAME = null; }
   const navLabel = document.getElementById('nav-ai-label');
-  if (navLabel) navLabel.textContent = AI_NAME || 'AI';
+  if (navLabel) navLabel.textContent = AI_NAME || 'Assistant';
 }
 
 document.addEventListener('DOMContentLoaded', initAuth);
