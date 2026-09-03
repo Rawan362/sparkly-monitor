@@ -2977,6 +2977,67 @@
     cursor: pointer;
     flex-shrink: 0;
   }
+  #bc-test-mode-btn {
+    border: 1px solid var(--accent-2);
+    background: none;
+    color: var(--accent-2);
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    cursor: pointer;
+  }
+
+  /* ═══ TEST MODE ═══ */
+  #test-mode-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #tm-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #tm-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #tm-banner {
+    background: #fde8d7;
+    color: #92400e;
+    font-size: 12px;
+    padding: 10px 16px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  #tm-messages { flex: 1; overflow-y: auto; padding: 20px 18px; max-width: 640px; margin: 0 auto; width: 100%; }
+  #tm-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    max-width: 640px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+  #tm-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+  }
+  #tm-send-btn {
+    border: none;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 700;
+    padding: 0 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
 
   @media print {
     body * { visibility: hidden; }
@@ -3330,7 +3391,7 @@
       <div id="bc-header-row">
         <button onclick="closeBusinessChatPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <span>Talk to your AI</span>
-        <span style="width:32px;"></span>
+        <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
       </div>
       <div id="bc-messages"></div>
       <div id="bc-csv-row">
@@ -3340,6 +3401,19 @@
       <div id="bc-input-row">
         <input type="text" id="bc-input" placeholder="e.g. raise the price of X to $12..." onkeydown="if(event.key==='Enter') sendBusinessChatMessage();">
         <button id="bc-send-btn" onclick="sendBusinessChatMessage()">Send</button>
+      </div>
+    </div>
+    <div id="test-mode-tab-content" style="display:none;">
+      <div id="tm-header-row">
+        <button onclick="closeTestModePanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span>Test Mode</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="tm-banner">Nothing here is saved. You're playing the customer — refreshing or leaving wipes this conversation completely.</div>
+      <div id="tm-messages"></div>
+      <div id="tm-input-row">
+        <input type="text" id="tm-input" placeholder="Type as if you're a customer..." onkeydown="if(event.key==='Enter') sendTestModeMessage();">
+        <button id="tm-send-btn" onclick="sendTestModeMessage()">Send</button>
       </div>
     </div>
     <div id="settings-tab-content" style="display:none;">
@@ -6619,7 +6693,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -8386,6 +8460,88 @@ window.closeReportsPanel = function() {
 
 const BUSINESS_CHAT_WEBHOOK_URL = 'https://sparklly.site/webhook/web-business-chat';
 let bcHistory = [];
+
+const TEST_MODE_WEBHOOK_URL = 'https://sparklly.site/webhook/web-test-mode-chat';
+let tmHistory = []; // in-memory ONLY — never written to localStorage, IndexedDB,
+                     // or any storage that survives a refresh. This is the
+                     // entire point of Test Mode: closing or reloading the
+                     // page must wipe the conversation completely, and since
+                     // it's never persisted anywhere (including server-side —
+                     // the backend workflow makes no database writes either),
+                     // there's nothing left over to clean up.
+
+window.openTestModePanel = function() {
+  document.getElementById('business-chat-tab-content').style.display = 'none';
+  const panel = document.getElementById('test-mode-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+
+  document.getElementById('tm-messages').innerHTML = '';
+  tmHistory = [];
+};
+
+window.closeTestModePanel = function() {
+  document.getElementById('test-mode-tab-content').style.display = 'none';
+  document.getElementById('business-chat-tab-content').style.display = 'flex';
+  // Explicitly discard on close too, not just relying on a future refresh —
+  // reopening Test Mode later must always start from a clean slate.
+  tmHistory = [];
+  document.getElementById('tm-messages').innerHTML = '';
+};
+
+function renderTmMessage(text, role) {
+  const wrap = document.getElementById('tm-messages');
+  const div = document.createElement('div');
+  div.className = 'ob-msg ' + role;
+  div.textContent = text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function showTmTyping() {
+  const wrap = document.getElementById('tm-messages');
+  const div = document.createElement('div');
+  div.className = 'ob-msg assistant typing';
+  div.id = 'tm-typing-indicator';
+  div.textContent = 'Typing...';
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function hideTmTyping() {
+  const el = document.getElementById('tm-typing-indicator');
+  if (el) el.remove();
+}
+
+window.sendTestModeMessage = async function() {
+  const input = document.getElementById('tm-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  renderTmMessage(text, 'user');
+
+  showTmTyping();
+  document.getElementById('tm-send-btn').disabled = true;
+  try {
+    const res = await fetch(TEST_MODE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId: SELLER_CHAT_ID, userText: text, chatHistory: tmHistory })
+    });
+    const data = await res.json();
+    hideTmTyping();
+    renderTmMessage(data.reply || '...', 'assistant');
+    tmHistory = data.chatHistory || [];
+  } catch (e) {
+    hideTmTyping();
+    renderTmMessage('Something went wrong — please try again.', 'assistant');
+    debugLog('sendTestModeMessage failed: ' + (e && e.message));
+  } finally {
+    document.getElementById('tm-send-btn').disabled = false;
+  }
+};
 
 window.openBusinessChatPanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
