@@ -8498,6 +8498,11 @@ function openTestModeCommon(fromScreen, fromPanelId) {
   void panel.offsetWidth;
   panel.classList.add('screen-transition');
 
+  // Test Mode is a detail/chat-style panel like Talk to your AI or Settings
+  // — it needs the sidebar expanded to the full #main width, or it renders
+  // cramped in the narrow 340px conversation-list column instead.
+  document.getElementById('app').classList.add('wide-panel-mode');
+
   document.getElementById('tm-messages').innerHTML = '';
   tmHistory = [];
 }
@@ -8524,7 +8529,9 @@ window.closeTestModePanel = function() {
   if (tmOpenedFrom === 'settings') {
     document.getElementById('settings-tab-content').style.display = 'block';
   } else if (tmOpenedFrom === 'chats') {
-    // Chats tab is always the base view underneath, nothing to re-show
+    // Chats tab uses the normal narrow sidebar + #main layout, not the
+    // expanded wide-panel-mode Test Mode itself needed.
+    document.getElementById('app').classList.remove('wide-panel-mode');
   } else {
     document.getElementById('business-chat-tab-content').style.display = 'flex';
   }
