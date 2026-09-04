@@ -3611,12 +3611,12 @@
           <button id="bc-sidebar-toggle-btn" onclick="toggleBcSidebar()" title="Show/hide conversations">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
           </button>
-          <span id="bc-header-title">Sparkly Assistant</span>
+          <span id="bc-header-title">Sparkly Closer</span>
           <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
         </div>
         <div id="bc-incognito-banner" style="display:none;">Temporary chat — nothing here is saved, and it won't appear in your conversation list. Any real business or product change you confirm will still take effect, though.</div>
         <div id="bc-empty-state" style="display:none;">
-          <div id="bc-empty-state-title">Sparkly Assistant</div>
+          <div id="bc-empty-state-title">Sparkly Closer</div>
           <div id="bc-empty-state-sub">Ask me to update anything about your business or products, or ask for sales advice.</div>
           <div id="bc-empty-state-examples">
             <button onclick="sendBcExample(this)">Raise the price of a product</button>
@@ -3960,7 +3960,7 @@
       </div>
       <div class="bottom-nav-item" id="nav-ai" onclick="openSparklyAssistant()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.2 9.3 21.5 12 14.2 14.7 12 22 9.8 14.7 2.5 12 9.8 9.3 12 2Z"/></svg>
-        <span id="nav-ai-label">Assistant</span>
+        <span id="nav-ai-label">Closer</span>
       </div>
       <div class="bottom-nav-item" id="nav-settings" onclick="openSettings()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -9015,7 +9015,7 @@ window.startNewBusinessChat = async function() {
     activeConversationId = newConv.id;
     bcHistory = [];
     document.getElementById('bc-incognito-banner').style.display = 'none';
-    document.getElementById('bc-header-title').textContent = 'Sparkly Assistant';
+    document.getElementById('bc-header-title').textContent = 'Sparkly Closer';
     document.getElementById('bc-messages').innerHTML = '';
     showBcEmptyState(true);
     await loadBusinessChatConversationList();
@@ -9028,7 +9028,7 @@ window.startIncognitoBusinessChat = function() {
   activeConversationId = null;
   bcHistory = [];
   document.getElementById('bc-incognito-banner').style.display = 'block';
-  document.getElementById('bc-header-title').textContent = 'Sparkly Assistant (Temporary)';
+  document.getElementById('bc-header-title').textContent = 'Sparkly Closer (Temporary)';
   document.getElementById('bc-messages').innerHTML = '';
   showBcEmptyState(true);
   document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.remove('active'));
@@ -9037,7 +9037,7 @@ window.startIncognitoBusinessChat = function() {
 window.openExistingBusinessConversation = async function(conversationId) {
   activeConversationId = conversationId;
   document.getElementById('bc-incognito-banner').style.display = 'none';
-  document.getElementById('bc-header-title').textContent = 'Sparkly Assistant';
+  document.getElementById('bc-header-title').textContent = 'Sparkly Closer';
   document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.toggle('active', el.dataset.id === conversationId));
 
   const messagesEl = document.getElementById('bc-messages');
@@ -10777,7 +10777,7 @@ async function loadAiName() {
     AI_NAME = (rows && rows[0] && rows[0].ai_name) || null;
   } catch (e) { AI_NAME = null; }
   const navLabel = document.getElementById('nav-ai-label');
-  if (navLabel) navLabel.textContent = AI_NAME || 'Assistant';
+  if (navLabel) navLabel.textContent = AI_NAME || 'Closer';
 }
 
 document.addEventListener('DOMContentLoaded', initAuth);
