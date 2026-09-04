@@ -3053,7 +3053,14 @@
     -webkit-user-select: none;
     user-select: none;
   }
-  .bc-conv-item:hover { background: var(--panel-2); }
+  @media (hover: hover) {
+    /* Only real pointer devices get hover feedback — on touch devices,
+       :hover rules on a clickable element make the first tap "activate"
+       hover state instead of firing the click, requiring a second tap
+       to actually open anything. Scoping to (hover: hover) fixes this. */
+    .bc-conv-item:hover { background: var(--panel-2); }
+    .bc-conv-item:hover .bc-conv-item-menu-btn { display: flex; }
+  }
   .bc-conv-item.active { background: var(--panel-2); font-weight: 600; }
   .bc-conv-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; display: flex; align-items: center; gap: 5px; }
   .bc-conv-item-title .pin-icon { flex-shrink: 0; color: var(--accent); }
@@ -3066,8 +3073,13 @@
     flex-shrink: 0;
     display: none;
   }
-  .bc-conv-item:hover .bc-conv-item-menu-btn,
   .bc-conv-item-menu-btn.force-visible { display: flex; }
+  @media (max-width: 720px) {
+    /* On mobile there's no hover at all, so always show the menu button —
+       otherwise it would only ever appear via force-visible, which nothing
+       currently sets. */
+    .bc-conv-item-menu-btn { display: flex; }
+  }
 
   #bc-conv-menu {
     position: fixed;
@@ -8889,6 +8901,48 @@ window.sendBcExample = function(btn) {
 window.toggleBcSidebar = function() {
   document.getElementById('bc-conv-sidebar').classList.toggle('collapsed');
 };
+
+// Swipe gestures for the sidebar, mobile only — swipe right anywhere in the
+// chat area to open it, swipe left anywhere in the sidebar to close it.
+// This runs alongside the toggle button, not instead of it.
+(function setupBcSwipeGestures() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  function onTouchStart(e) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+
+  function onTouchEnd(e, direction) {
+    if (window.innerWidth > 720) return; // desktop doesn't use the overlay/swipe model
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const dx = touchEndX - touchStartX;
+    const dy = touchEndY - touchStartY;
+    // Require a clearly horizontal, deliberate swipe — not a vertical scroll
+    // or an accidental brush.
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+    const sidebar = document.getElementById('bc-conv-sidebar');
+    if (direction === 'open' && dx > 0) {
+      sidebar.classList.remove('collapsed');
+    } else if (direction === 'close' && dx < 0) {
+      sidebar.classList.add('collapsed');
+    }
+  }
+
+  const mainArea = document.getElementById('bc-main');
+  const sidebarArea = document.getElementById('bc-conv-sidebar');
+  if (mainArea) {
+    mainArea.addEventListener('touchstart', onTouchStart, { passive: true });
+    mainArea.addEventListener('touchend', (e) => onTouchEnd(e, 'open'), { passive: true });
+  }
+  if (sidebarArea) {
+    sidebarArea.addEventListener('touchstart', onTouchStart, { passive: true });
+    sidebarArea.addEventListener('touchend', (e) => onTouchEnd(e, 'close'), { passive: true });
+  }
+})();
 
 function closeBcConvMenu() {
   document.getElementById('bc-conv-menu').style.display = 'none';
