@@ -9002,6 +9002,12 @@ async function loadBusinessChatConversationList() {
   }
 }
 
+function closeBcSidebarOnMobile() {
+  if (window.innerWidth <= 720) {
+    document.getElementById('bc-conv-sidebar').classList.add('collapsed');
+  }
+}
+
 window.startNewBusinessChat = async function() {
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations', {
@@ -9019,6 +9025,7 @@ window.startNewBusinessChat = async function() {
     document.getElementById('bc-messages').innerHTML = '';
     showBcEmptyState(true);
     await loadBusinessChatConversationList();
+    closeBcSidebarOnMobile();
   } catch (e) {
     debugLog('startNewBusinessChat failed: ' + (e && e.message));
   }
@@ -9032,6 +9039,7 @@ window.startIncognitoBusinessChat = function() {
   document.getElementById('bc-messages').innerHTML = '';
   showBcEmptyState(true);
   document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.remove('active'));
+  closeBcSidebarOnMobile();
 };
 
 window.openExistingBusinessConversation = async function(conversationId) {
@@ -9039,6 +9047,7 @@ window.openExistingBusinessConversation = async function(conversationId) {
   document.getElementById('bc-incognito-banner').style.display = 'none';
   document.getElementById('bc-header-title').textContent = 'Sparkly Closer';
   document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.toggle('active', el.dataset.id === conversationId));
+  closeBcSidebarOnMobile();
 
   const messagesEl = document.getElementById('bc-messages');
   showBcEmptyState(false);
