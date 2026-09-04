@@ -1597,6 +1597,63 @@
     justify-content: center;
     z-index: 50;
   }
+  #admin-chat-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+    z-index: 100;
+  }
+  #admin-chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--text);
+  }
+  #admin-chat-header button {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #admin-chat-messages { flex: 1; overflow-y: auto; padding: 24px; max-width: 700px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+  #admin-chat-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    max-width: 700px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+  #admin-chat-input {
+    flex: 1;
+    padding: 11px 16px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+  }
+  #admin-chat-send-btn {
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    padding: 0 20px;
+    border-radius: 20px;
+    cursor: pointer;
+  }
   #login-card {
     width: 340px;
     max-width: 88vw;
@@ -6414,6 +6471,11 @@ function initAuth() {
   applyTheme();
   document.getElementById('app').style.display = 'none';
 
+  if (localStorage.getItem('sparkly_is_admin') === 'true') {
+    startAdminApp();
+    return;
+  }
+
   const savedId = localStorage.getItem('sparkly_seller_chat_id');
   if (savedId) {
     SELLER_CHAT_ID = savedId;
@@ -6705,6 +6767,22 @@ window.doLoginWithEmail = async function() {
       showLoginScreen('Incorrect email or password.');
       return;
     }
+
+    // Admin accounts are checked first and are completely separate from
+    // seller accounts — an admin login has no chat_id/seller profile at all,
+    // it goes straight to the platform-wide admin chat instead.
+    const adminRows = await fetch(SUPABASE_URL + '/rest/v1/admin_users?auth_user_id=eq.' + authData.user.id + '&select=id', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    }).then(r => r.json());
+    if (adminRows && adminRows.length > 0) {
+      localStorage.setItem('sparkly_is_admin', 'true');
+      localStorage.setItem('sparkly_auth_token', authData.access_token);
+      const overlay = document.getElementById('login-overlay');
+      if (overlay) overlay.remove();
+      startAdminApp();
+      return;
+    }
+
     const sellerRows = await fetch(SUPABASE_URL + '/rest/v1/sellers?auth_user_id=eq.' + authData.user.id + '&select=chat_id', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     }).then(r => r.json());
@@ -10371,6 +10449,99 @@ async function heartbeatSession() {
       body: JSON.stringify({ last_seen_at: new Date().toISOString() })
     });
   } catch (e) {}
+}
+
+const ADMIN_CHAT_WEBHOOK_URL = 'https://sparklly.site/webhook/web-admin-chat';
+let adminChatHistory = [];
+
+function startAdminApp() {
+  applyLanguageDirection();
+  applyTheme();
+  document.getElementById('app').style.display = 'none';
+  const landing = document.getElementById('landing');
+  if (landing) landing.remove();
+
+  let overlay = document.getElementById('admin-chat-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'admin-chat-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div id="admin-chat-header">
+      <span>Sparkly Admin — Platform Defaults</span>
+      <button onclick="adminLogout()">Log out</button>
+    </div>
+    <div id="admin-chat-messages"></div>
+    <div id="admin-chat-input-row">
+      <input type="text" id="admin-chat-input" placeholder="e.g. default objection handling should be..." onkeydown="if(event.key==='Enter') sendAdminChatMessage();">
+      <button id="admin-chat-send-btn" onclick="sendAdminChatMessage()">Send</button>
+    </div>
+  `;
+  overlay.style.display = 'flex';
+  adminChatHistory = [];
+  sendAdminChatTurn('');
+}
+
+window.adminLogout = function() {
+  localStorage.removeItem('sparkly_is_admin');
+  localStorage.removeItem('sparkly_auth_token');
+  location.reload();
+};
+
+function renderAdminMessage(text, role) {
+  const wrap = document.getElementById('admin-chat-messages');
+  const div = document.createElement('div');
+  div.className = 'ob-msg ' + role;
+  div.textContent = text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function showAdminTyping() {
+  const wrap = document.getElementById('admin-chat-messages');
+  const div = document.createElement('div');
+  div.className = 'ob-msg assistant typing';
+  div.id = 'admin-typing-indicator';
+  div.textContent = 'Typing...';
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function hideAdminTyping() {
+  const el = document.getElementById('admin-typing-indicator');
+  if (el) el.remove();
+}
+
+window.sendAdminChatMessage = async function() {
+  const input = document.getElementById('admin-chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  renderAdminMessage(text, 'user');
+  await sendAdminChatTurn(text);
+};
+
+async function sendAdminChatTurn(userText) {
+  showAdminTyping();
+  const btn = document.getElementById('admin-chat-send-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(ADMIN_CHAT_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userText, chatHistory: adminChatHistory })
+    });
+    const data = await res.json();
+    hideAdminTyping();
+    renderAdminMessage(data.reply || '...', 'assistant');
+    adminChatHistory = data.chatHistory || [];
+  } catch (e) {
+    hideAdminTyping();
+    renderAdminMessage('Something went wrong — please try again.', 'assistant');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function startApp() {
