@@ -31,8 +31,8 @@
     --accent: #2E4A87;
     --accent-soft: rgba(46,74,135,0.08);
     --on-accent: #FFFFFF;
-    --accent-2: #2F9E6E;
-    --accent-2-soft: rgba(47,158,110,0.08);
+    --accent-2: #2E4A87;
+    --accent-2-soft: rgba(46,74,135,0.08);
     --danger: #D2483F;
     --danger-soft: rgba(210,72,63,0.08);
     --bubble-out-bg: #FBF7EE;
@@ -53,8 +53,8 @@
     --accent: #7297EE;
     --accent-soft: rgba(114,151,238,0.13);
     --on-accent: #10152A;
-    --accent-2: #4EBF93;
-    --accent-2-soft: rgba(78,191,147,0.13);
+    --accent-2: #7297EE;
+    --accent-2-soft: rgba(114,151,238,0.13);
     --danger: #E37066;
     --danger-soft: rgba(227,112,102,0.13);
     --bubble-out-bg: #201F1C;
@@ -5712,7 +5712,7 @@ function renderAttachmentContent(message) {
   if (locMatch) {
     const lat = locMatch[1], lng = locMatch[2];
     return `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="msg-attachment-card">
-      <div class="msg-attachment-icon" style="background:#2F9E6E;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div class="msg-attachment-icon" style="background:#2E4A87;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
       <div><div class="msg-attachment-title">Location</div><div class="msg-attachment-sub">Tap to open in Maps</div></div>
     </a>`;
   }
@@ -7618,7 +7618,7 @@ function getCurrentInvoiceTotal() {
   const shipping = shippingRaw === '' ? 0 : (Number(shippingRaw) || 0);
   return (subtotal - invoiceDiscountAmount) + shipping;
 }
-const POS_TILE_COLORS = ['#2E4A87', '#2F9E6E', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
+const POS_TILE_COLORS = ['#2E4A87', '#A64B5C', '#D2483F', '#C98A2E', '#6B4FA0', '#2E8A9E'];
 let currentEditingOrderId = null;
 
 window.openEditOrder = async function(orderId) {
