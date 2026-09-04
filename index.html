@@ -2987,11 +2987,14 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .bc-conv-item:hover { background: var(--panel-2); }
   .bc-conv-item.active { background: var(--panel-2); font-weight: 600; }
-  .bc-conv-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .bc-conv-item-delete {
+  .bc-conv-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; display: flex; align-items: center; gap: 5px; }
+  .bc-conv-item-title .pin-icon { flex-shrink: 0; color: var(--accent); }
+  .bc-conv-item-menu-btn {
     border: none;
     background: none;
     color: var(--text-muted);
@@ -3000,7 +3003,50 @@
     flex-shrink: 0;
     display: none;
   }
-  .bc-conv-item:hover .bc-conv-item-delete { display: flex; }
+  .bc-conv-item:hover .bc-conv-item-menu-btn,
+  .bc-conv-item-menu-btn.force-visible { display: flex; }
+
+  #bc-conv-menu {
+    position: fixed;
+    z-index: 500;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(var(--shadow-color),0.18);
+    padding: 6px;
+    min-width: 150px;
+  }
+  .bc-conv-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .bc-conv-menu-item:hover { background: var(--panel-2); }
+  .bc-conv-menu-item.danger { color: var(--danger); }
+
+  #bc-sidebar-toggle-btn { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #bc-conv-sidebar.collapsed { display: none; }
+
+  #bc-empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+  #bc-empty-state-title { font-family: var(--font-display); font-size: 26px; color: var(--text); margin-bottom: 8px; }
+  #bc-empty-state-sub { font-size: 13.5px; color: var(--text-muted); max-width: 420px; margin-bottom: 24px; }
+  #bc-empty-state-examples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 520px; }
+  #bc-empty-state-examples button {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  #bc-empty-state-examples button:hover { border-color: var(--accent); color: var(--accent); }
+
   #bc-main { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   #bc-header-row {
     display: flex;
@@ -3478,11 +3524,23 @@
       </div>
       <div id="bc-main">
         <div id="bc-header-row">
-          <span style="width:32px;"></span>
+          <button id="bc-sidebar-toggle-btn" onclick="toggleBcSidebar()" title="Show/hide conversations">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          </button>
           <span id="bc-header-title">Sparkly Assistant</span>
           <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
         </div>
         <div id="bc-incognito-banner" style="display:none;">Temporary chat — nothing here is saved, and it won't appear in your conversation list. Any real business or product change you confirm will still take effect, though.</div>
+        <div id="bc-empty-state" style="display:none;">
+          <div id="bc-empty-state-title">Sparkly Assistant</div>
+          <div id="bc-empty-state-sub">Ask me to update anything about your business or products, or ask for sales advice.</div>
+          <div id="bc-empty-state-examples">
+            <button onclick="sendBcExample(this)">Raise the price of a product</button>
+            <button onclick="sendBcExample(this)">Change my delivery policy</button>
+            <button onclick="sendBcExample(this)">What do you think, how can I improve my sales?</button>
+            <button onclick="sendBcExample(this)">Add a new product</button>
+          </div>
+        </div>
         <div id="bc-messages"></div>
         <div id="bc-csv-row">
           <button id="bc-csv-btn" onclick="document.getElementById('bc-csv-input').click()">Bulk-add products from a CSV</button>
@@ -3492,6 +3550,20 @@
           <input type="text" id="bc-input" placeholder="e.g. raise the price of X to $12..." onkeydown="if(event.key==='Enter') sendBusinessChatMessage();">
           <button id="bc-send-btn" onclick="sendBusinessChatMessage()">Send</button>
         </div>
+      </div>
+    </div>
+    <div id="bc-conv-menu" style="display:none;">
+      <div class="bc-conv-menu-item" onclick="renameBcConversationPrompt()">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+        Rename
+      </div>
+      <div class="bc-conv-menu-item" onclick="toggleBcConversationPin()">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.4-7A2 2 0 0 0 15.6 8H8.4a2 2 0 0 0-2 2Z"/><path d="M9 8V4h6v4"/></svg>
+        <span id="bc-conv-menu-pin-label">Pin</span>
+      </div>
+      <div class="bc-conv-menu-item danger" onclick="deleteBcConversationFromMenu()">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Delete
       </div>
     </div>
     <div id="test-mode-tab-content" style="display:none;">
@@ -8696,19 +8768,128 @@ window.openSparklyAssistant = async function() {
   }
 };
 
+let bcMenuTargetConvId = null;
+let bcLongPressTimer = null;
+
+function showBcEmptyState(show) {
+  document.getElementById('bc-empty-state').style.display = show ? 'flex' : 'none';
+  document.getElementById('bc-messages').style.display = show ? 'none' : 'block';
+}
+
+window.sendBcExample = function(btn) {
+  document.getElementById('bc-input').value = btn.textContent;
+  sendBusinessChatMessage();
+};
+
+window.toggleBcSidebar = function() {
+  document.getElementById('bc-conv-sidebar').classList.toggle('collapsed');
+};
+
+function closeBcConvMenu() {
+  document.getElementById('bc-conv-menu').style.display = 'none';
+  bcMenuTargetConvId = null;
+}
+
+function openBcConvMenu(convId, x, y) {
+  bcMenuTargetConvId = convId;
+  const menu = document.getElementById('bc-conv-menu');
+  const pinLabel = document.getElementById('bc-conv-menu-pin-label');
+  const item = document.querySelector('.bc-conv-item[data-id="' + convId + '"]');
+  pinLabel.textContent = item && item.dataset.pinned === 'true' ? 'Unpin' : 'Pin';
+
+  menu.style.display = 'block';
+  // Clamp so the menu never renders off the right/bottom edge of the screen
+  const menuWidth = 160, menuHeight = 130;
+  const clampedX = Math.min(x, window.innerWidth - menuWidth - 10);
+  const clampedY = Math.min(y, window.innerHeight - menuHeight - 10);
+  menu.style.left = clampedX + 'px';
+  menu.style.top = clampedY + 'px';
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('bc-conv-menu');
+  if (menu && menu.style.display === 'block' && !menu.contains(e.target) && !e.target.closest('.bc-conv-item-menu-btn')) {
+    closeBcConvMenu();
+  }
+});
+
+window.renameBcConversationPrompt = async function() {
+  const convId = bcMenuTargetConvId;
+  closeBcConvMenu();
+  if (!convId) return;
+  const item = document.querySelector('.bc-conv-item[data-id="' + convId + '"]');
+  const currentTitle = item ? item.querySelector('.bc-conv-item-title span').textContent : '';
+  const newTitle = prompt('Rename conversation', currentTitle);
+  if (!newTitle || !newTitle.trim()) return;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ title: newTitle.trim() })
+    });
+    await loadBusinessChatConversationList();
+  } catch (e) {
+    debugLog('renameBcConversationPrompt failed: ' + (e && e.message));
+  }
+};
+
+window.toggleBcConversationPin = async function() {
+  const convId = bcMenuTargetConvId;
+  closeBcConvMenu();
+  if (!convId) return;
+  const item = document.querySelector('.bc-conv-item[data-id="' + convId + '"]');
+  const currentlyPinned = item && item.dataset.pinned === 'true';
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ pinned: !currentlyPinned })
+    });
+    await loadBusinessChatConversationList();
+  } catch (e) {
+    debugLog('toggleBcConversationPin failed: ' + (e && e.message));
+  }
+};
+
+window.deleteBcConversationFromMenu = function() {
+  const convId = bcMenuTargetConvId;
+  closeBcConvMenu();
+  if (convId) deleteBusinessConversation(convId);
+};
+
 async function loadBusinessChatConversationList() {
   const listEl = document.getElementById('bc-conv-list');
   try {
-    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at&order=updated_at.desc');
+    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');
     listEl.innerHTML = '';
     (rows || []).forEach(conv => {
       const item = document.createElement('div');
       item.className = 'bc-conv-item' + (conv.id === activeConversationId ? ' active' : '');
       item.dataset.id = conv.id;
+      item.dataset.pinned = conv.pinned ? 'true' : 'false';
       item.onclick = () => openExistingBusinessConversation(conv.id);
-      item.innerHTML = `<span class="bc-conv-item-title"></span><button class="bc-conv-item-delete" title="Delete"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
-      item.querySelector('.bc-conv-item-title').textContent = conv.title;
-      item.querySelector('.bc-conv-item-delete').onclick = (e) => { e.stopPropagation(); deleteBusinessConversation(conv.id); };
+
+      const pinIconHtml = conv.pinned ? '<svg class="pin-icon" viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 2l1.5 5.5L19 9l-5 3.5L15.5 18 12 15l-3.5 3L10 12.5 5 9l5.5-1.5Z"/></svg>' : '';
+      item.innerHTML = `<span class="bc-conv-item-title">${pinIconHtml}<span></span></span><button class="bc-conv-item-menu-btn" title="More"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>`;
+      item.querySelector('.bc-conv-item-title span').textContent = conv.title;
+
+      const menuBtn = item.querySelector('.bc-conv-item-menu-btn');
+      menuBtn.onclick = (e) => {
+        e.stopPropagation();
+        const rect = menuBtn.getBoundingClientRect();
+        openBcConvMenu(conv.id, rect.left, rect.bottom + 4);
+      };
+
+      // Mobile: holding down the conversation name brings up the same menu
+      item.addEventListener('touchstart', (e) => {
+        bcLongPressTimer = setTimeout(() => {
+          const touch = e.touches[0];
+          openBcConvMenu(conv.id, touch.clientX, touch.clientY);
+        }, 500);
+      });
+      item.addEventListener('touchend', () => clearTimeout(bcLongPressTimer));
+      item.addEventListener('touchmove', () => clearTimeout(bcLongPressTimer));
+
       listEl.appendChild(item);
     });
   } catch (e) {
@@ -8731,8 +8912,8 @@ window.startNewBusinessChat = async function() {
     document.getElementById('bc-incognito-banner').style.display = 'none';
     document.getElementById('bc-header-title').textContent = 'Sparkly Assistant';
     document.getElementById('bc-messages').innerHTML = '';
+    showBcEmptyState(true);
     await loadBusinessChatConversationList();
-    await sendBusinessChatTurn(''); // kick off with the AI's opening message
   } catch (e) {
     debugLog('startNewBusinessChat failed: ' + (e && e.message));
   }
@@ -8744,8 +8925,8 @@ window.startIncognitoBusinessChat = function() {
   document.getElementById('bc-incognito-banner').style.display = 'block';
   document.getElementById('bc-header-title').textContent = 'Sparkly Assistant (Temporary)';
   document.getElementById('bc-messages').innerHTML = '';
+  showBcEmptyState(true);
   document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.remove('active'));
-  sendBusinessChatTurn(''); // kick off with the AI's opening message
 };
 
 window.openExistingBusinessConversation = async function(conversationId) {
@@ -8755,14 +8936,16 @@ window.openExistingBusinessConversation = async function(conversationId) {
   document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.toggle('active', el.dataset.id === conversationId));
 
   const messagesEl = document.getElementById('bc-messages');
+  showBcEmptyState(false);
   messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
     const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content&order=created_at.asc');
     messagesEl.innerHTML = '';
     bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
-    (rows || []).forEach(m => renderBcMessage(m.content, m.role));
     if (!rows || rows.length === 0) {
-      await sendBusinessChatTurn(''); // brand-new empty conversation, show the opening message
+      showBcEmptyState(true);
+    } else {
+      (rows || []).forEach(m => renderBcMessage(m.content, m.role));
     }
   } catch (e) {
     messagesEl.innerHTML = '';
@@ -8835,6 +9018,7 @@ window.sendBusinessChatMessage = async function() {
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
+  showBcEmptyState(false);
   renderBcMessage(text, 'user');
   await sendBusinessChatTurn(text);
 };
