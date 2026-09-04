@@ -2938,7 +2938,70 @@
   }
 
   /* ═══ ONGOING BUSINESS CHAT ═══ */
-  #business-chat-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #business-chat-tab-content { flex: 1; display: flex; flex-direction: row; min-height: 0; }
+  #bc-conv-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #bc-conv-sidebar-header {
+    display: flex;
+    gap: 6px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #bc-new-chat-btn {
+    flex: 1;
+    border: none;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 9px 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #bc-incognito-btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 0 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+  }
+  #bc-conv-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .bc-conv-item {
+    padding: 10px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .bc-conv-item:hover { background: var(--panel-2); }
+  .bc-conv-item.active { background: var(--panel-2); font-weight: 600; }
+  .bc-conv-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .bc-conv-item-delete {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    flex-shrink: 0;
+    display: none;
+  }
+  .bc-conv-item:hover .bc-conv-item-delete { display: flex; }
+  #bc-main { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   #bc-header-row {
     display: flex;
     align-items: center;
@@ -2948,8 +3011,16 @@
     flex-shrink: 0;
   }
   #bc-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
-  #bc-messages { flex: 1; overflow-y: auto; padding: 20px 18px; max-width: 640px; margin: 0 auto; width: 100%; }
-  #bc-csv-row { max-width: 640px; margin: 0 auto 8px; padding: 0 18px; text-align: center; }
+  #bc-incognito-banner {
+    background: #fde8d7;
+    color: #92400e;
+    font-size: 12px;
+    padding: 10px 16px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  #bc-messages { flex: 1; overflow-y: auto; padding: 20px 18px; }
+  #bc-csv-row { text-align: center; padding: 0 18px 8px; }
   #bc-csv-btn {
     border: 1px dashed var(--border);
     background: none;
@@ -2965,9 +3036,6 @@
     gap: 8px;
     padding: 14px 18px;
     border-top: 1px solid var(--border);
-    max-width: 640px;
-    margin: 0 auto;
-    width: 100%;
     box-sizing: border-box;
     flex-shrink: 0;
   }
@@ -3399,19 +3467,31 @@
       </div>
     </div>
     <div id="business-chat-tab-content" style="display:none;">
-      <div id="bc-header-row">
-        <span style="width:32px;"></span>
-        <span>Sparkly Assistant</span>
-        <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
+      <div id="bc-conv-sidebar">
+        <div id="bc-conv-sidebar-header">
+          <button id="bc-new-chat-btn" onclick="startNewBusinessChat()">+ New Chat</button>
+          <button id="bc-incognito-btn" onclick="startIncognitoBusinessChat()" title="Temporary chat, never saved">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14v-3a5 5 0 0 0-10 0v3"/><path d="M2 14h20l-1.5 6h-17z"/><circle cx="8.5" cy="17.5" r="1"/><circle cx="15.5" cy="17.5" r="1"/></svg>
+          </button>
+        </div>
+        <div id="bc-conv-list"></div>
       </div>
-      <div id="bc-messages"></div>
-      <div id="bc-csv-row">
-        <button id="bc-csv-btn" onclick="document.getElementById('bc-csv-input').click()">Bulk-add products from a CSV</button>
-        <input type="file" id="bc-csv-input" accept=".csv,text/csv" style="display:none;" onchange="handleBcCsvSelect(event)">
-      </div>
-      <div id="bc-input-row">
-        <input type="text" id="bc-input" placeholder="e.g. raise the price of X to $12..." onkeydown="if(event.key==='Enter') sendBusinessChatMessage();">
-        <button id="bc-send-btn" onclick="sendBusinessChatMessage()">Send</button>
+      <div id="bc-main">
+        <div id="bc-header-row">
+          <span style="width:32px;"></span>
+          <span id="bc-header-title">Sparkly Assistant</span>
+          <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
+        </div>
+        <div id="bc-incognito-banner" style="display:none;">Temporary chat — nothing here is saved, and it won't appear in your conversation list. Any real business or product change you confirm will still take effect, though.</div>
+        <div id="bc-messages"></div>
+        <div id="bc-csv-row">
+          <button id="bc-csv-btn" onclick="document.getElementById('bc-csv-input').click()">Bulk-add products from a CSV</button>
+          <input type="file" id="bc-csv-input" accept=".csv,text/csv" style="display:none;" onchange="handleBcCsvSelect(event)">
+        </div>
+        <div id="bc-input-row">
+          <input type="text" id="bc-input" placeholder="e.g. raise the price of X to $12..." onkeydown="if(event.key==='Enter') sendBusinessChatMessage();">
+          <button id="bc-send-btn" onclick="sendBusinessChatMessage()">Send</button>
+        </div>
       </div>
     </div>
     <div id="test-mode-tab-content" style="display:none;">
@@ -8583,6 +8663,8 @@ window.sendTestModeMessage = async function() {
   }
 };
 
+let activeConversationId = null; // null = incognito/temporary chat, never saved
+
 window.openSparklyAssistant = async function() {
   saveCurrentDraft();
   ahmadChatOpen = false;
@@ -8603,9 +8685,111 @@ window.openSparklyAssistant = async function() {
     document.getElementById('app').classList.remove('sidebar-hidden');
   }
 
-  document.getElementById('bc-messages').innerHTML = '';
+  await loadBusinessChatConversationList();
+
+  // Resume the most recent conversation if one exists, otherwise start fresh.
+  const list = document.querySelectorAll('.bc-conv-item');
+  if (list.length > 0) {
+    await openExistingBusinessConversation(list[0].dataset.id);
+  } else {
+    await startNewBusinessChat();
+  }
+};
+
+async function loadBusinessChatConversationList() {
+  const listEl = document.getElementById('bc-conv-list');
+  try {
+    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at&order=updated_at.desc');
+    listEl.innerHTML = '';
+    (rows || []).forEach(conv => {
+      const item = document.createElement('div');
+      item.className = 'bc-conv-item' + (conv.id === activeConversationId ? ' active' : '');
+      item.dataset.id = conv.id;
+      item.onclick = () => openExistingBusinessConversation(conv.id);
+      item.innerHTML = `<span class="bc-conv-item-title"></span><button class="bc-conv-item-delete" title="Delete"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+      item.querySelector('.bc-conv-item-title').textContent = conv.title;
+      item.querySelector('.bc-conv-item-delete').onclick = (e) => { e.stopPropagation(); deleteBusinessConversation(conv.id); };
+      listEl.appendChild(item);
+    });
+  } catch (e) {
+    debugLog('loadBusinessChatConversationList failed: ' + (e && e.message));
+  }
+}
+
+window.startNewBusinessChat = async function() {
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+      body: JSON.stringify({ chat_id: SELLER_CHAT_ID, title: 'New Chat' })
+    });
+    const rows = await res.json();
+    const newConv = rows && rows[0];
+    if (!newConv) return;
+    activeConversationId = newConv.id;
+    bcHistory = [];
+    document.getElementById('bc-incognito-banner').style.display = 'none';
+    document.getElementById('bc-header-title').textContent = 'Sparkly Assistant';
+    document.getElementById('bc-messages').innerHTML = '';
+    await loadBusinessChatConversationList();
+    await sendBusinessChatTurn(''); // kick off with the AI's opening message
+  } catch (e) {
+    debugLog('startNewBusinessChat failed: ' + (e && e.message));
+  }
+};
+
+window.startIncognitoBusinessChat = function() {
+  activeConversationId = null;
   bcHistory = [];
-  await sendBusinessChatTurn(''); // kick off with the AI's opening message
+  document.getElementById('bc-incognito-banner').style.display = 'block';
+  document.getElementById('bc-header-title').textContent = 'Sparkly Assistant (Temporary)';
+  document.getElementById('bc-messages').innerHTML = '';
+  document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.remove('active'));
+  sendBusinessChatTurn(''); // kick off with the AI's opening message
+};
+
+window.openExistingBusinessConversation = async function(conversationId) {
+  activeConversationId = conversationId;
+  document.getElementById('bc-incognito-banner').style.display = 'none';
+  document.getElementById('bc-header-title').textContent = 'Sparkly Assistant';
+  document.querySelectorAll('.bc-conv-item').forEach(el => el.classList.toggle('active', el.dataset.id === conversationId));
+
+  const messagesEl = document.getElementById('bc-messages');
+  messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
+  try {
+    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content&order=created_at.asc');
+    messagesEl.innerHTML = '';
+    bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
+    (rows || []).forEach(m => renderBcMessage(m.content, m.role));
+    if (!rows || rows.length === 0) {
+      await sendBusinessChatTurn(''); // brand-new empty conversation, show the opening message
+    }
+  } catch (e) {
+    messagesEl.innerHTML = '';
+    debugLog('openExistingBusinessConversation failed: ' + (e && e.message));
+  }
+};
+
+window.deleteBusinessConversation = async function(conversationId) {
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + conversationId, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    if (activeConversationId === conversationId) {
+      await loadBusinessChatConversationList();
+      const list = document.querySelectorAll('.bc-conv-item');
+      if (list.length > 0) {
+        await openExistingBusinessConversation(list[0].dataset.id);
+      } else {
+        await startNewBusinessChat();
+      }
+    } else {
+      await loadBusinessChatConversationList();
+    }
+  } catch (e) {
+    debugLog('deleteBusinessConversation failed: ' + (e && e.message));
+  }
 };
 
 window.openBusinessChatPanel = async function() {
@@ -8615,10 +8799,6 @@ window.openBusinessChatPanel = async function() {
   panel.classList.remove('screen-transition');
   void panel.offsetWidth;
   panel.classList.add('screen-transition');
-
-  document.getElementById('bc-messages').innerHTML = '';
-  bcHistory = [];
-  await sendBusinessChatTurn(''); // kick off with the AI's opening message
 };
 
 window.closeBusinessChatPanel = function() {
@@ -8666,12 +8846,13 @@ async function sendBusinessChatTurn(userText) {
     const res = await fetch(BUSINESS_CHAT_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId: SELLER_CHAT_ID, userText, chatHistory: bcHistory })
+      body: JSON.stringify({ chatId: SELLER_CHAT_ID, userText, chatHistory: bcHistory, conversationId: activeConversationId })
     });
     const data = await res.json();
     hideBcTyping();
     renderBcMessage(data.reply || '...', 'assistant');
     bcHistory = data.chatHistory || [];
+    if (activeConversationId) await loadBusinessChatConversationList(); // refresh title/order after first message
   } catch (e) {
     hideBcTyping();
     renderBcMessage('Something went wrong — please try again.', 'assistant');
