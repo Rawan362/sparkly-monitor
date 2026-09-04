@@ -2938,7 +2938,7 @@
   }
 
   /* ═══ ONGOING BUSINESS CHAT ═══ */
-  #business-chat-tab-content { flex: 1; display: flex; flex-direction: row; min-height: 0; }
+  #business-chat-tab-content { flex: 1; display: flex; flex-direction: row; min-height: 0; position: relative; overflow: hidden; }
   #bc-conv-sidebar {
     width: 240px;
     flex-shrink: 0;
@@ -2946,7 +2946,13 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: var(--panel);
+    transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  /* Desktop: smoothly squeeze the sidebar's width down to nothing, letting
+     the chat area expand to fill the freed space — no layout jump, no
+     content flash, just a clean width animation. */
+  #bc-conv-sidebar.collapsed { width: 0; border-right-color: transparent; }
   #bc-conv-sidebar-header {
     display: flex;
     gap: 6px;
@@ -3030,7 +3036,28 @@
   .bc-conv-menu-item.danger { color: var(--danger); }
 
   #bc-sidebar-toggle-btn { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
-  #bc-conv-sidebar.collapsed { display: none; }
+
+  @media (max-width: 720px) {
+    /* Mobile: the sidebar becomes a full-width overlay that slides in over
+       the chat rather than squeezing it — there isn't enough room to show
+       both meaningfully side by side on a narrow screen. Open by default
+       (matching desktop's "visible unless toggled" behavior), slides
+       completely off-screen when collapsed, leaving the chat fully visible
+       and interactive underneath. */
+    #bc-conv-sidebar {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      width: 100%;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: translateX(0);
+    }
+    #bc-conv-sidebar.collapsed {
+      width: 100%;
+      transform: translateX(-100%);
+      border-right-color: var(--border);
+    }
+  }
 
   #bc-empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
   #bc-empty-state-title { font-family: var(--font-display); font-size: 26px; color: var(--text); margin-bottom: 8px; }
