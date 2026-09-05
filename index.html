@@ -2930,6 +2930,41 @@
   .ob-msg.assistant { background: var(--panel-2); border-bottom-left-radius: 4px; margin-right: auto; }
   .ob-msg.user { background: var(--accent-2); color: #fff; border-bottom-right-radius: 4px; margin-left: auto; }
   .ob-msg.typing { color: var(--text-muted); font-style: italic; }
+
+  /* Message wrapper with copy/retry/edit actions + relative timestamp —
+     used only in Sparkly Closer and Admin chat, not onboarding/Test Mode,
+     which keep the plain .ob-msg-only rendering. */
+  .msg-wrap { display: flex; flex-direction: column; margin-bottom: 14px; max-width: 78%; }
+  .msg-wrap.user { margin-left: auto; align-items: flex-end; }
+  .msg-wrap.assistant { margin-right: auto; align-items: flex-start; }
+  .msg-wrap .ob-msg { max-width: 100%; margin-bottom: 4px; }
+  .msg-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  @media (hover: none), (max-width: 720px) {
+    /* No hover on touch devices — always show the actions row */
+    .msg-actions-row { opacity: 1; }
+  }
+  @media (hover: hover) {
+    .msg-wrap:hover .msg-actions-row { opacity: 1; }
+  }
+  .msg-action-btn {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 3px;
+    display: flex;
+    border-radius: 4px;
+  }
+  .msg-action-btn:hover { color: var(--accent); background: var(--panel-2); }
+  .msg-timestamp { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
   #onboarding-csv-row { max-width: 640px; margin: 0 auto 8px; padding: 0 18px; text-align: center; }
   #onboarding-csv-btn {
     border: 1px dashed var(--border);
@@ -9107,13 +9142,13 @@ window.openExistingBusinessConversation = async function(conversationId) {
   showBcEmptyState(false);
   messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content&order=created_at.asc');
+    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');
     messagesEl.innerHTML = '';
     bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
     if (!rows || rows.length === 0) {
       showBcEmptyState(true);
     } else {
-      (rows || []).forEach(m => renderBcMessage(m.content, m.role));
+      (rows || []).forEach(m => renderBcMessage(m.content, m.role, new Date(m.created_at)));
     }
   } catch (e) {
     messagesEl.innerHTML = '';
@@ -9157,13 +9192,155 @@ window.closeBusinessChatPanel = function() {
   document.getElementById('settings-tab-content').style.display = 'block';
 };
 
-function renderBcMessage(text, role) {
-  const wrap = document.getElementById('bc-messages');
-  const div = document.createElement('div');
-  div.className = 'ob-msg ' + role;
-  div.textContent = text;
-  wrap.appendChild(div);
-  wrap.scrollTop = wrap.scrollHeight;
+// Shared relative-time formatter — "2 minutes ago", "3 hours ago", "5 days
+// ago" — used for message timestamps in Sparkly Closer and Admin chat.
+function formatRelativeTime(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return diffMin + (diffMin === 1 ? ' minute ago' : ' minutes ago');
+  if (diffHr < 24) return diffHr + (diffHr === 1 ? ' hour ago' : ' hours ago');
+  return diffDay + (diffDay === 1 ? ' day ago' : ' days ago');
+}
+
+// Renders a message bubble with a copy/retry/edit actions row and a
+// relative timestamp underneath — shared by Sparkly Closer and Admin chat.
+// chatType is 'business' or 'admin', used by the action handlers to know
+// which history array and resend function to operate on.
+function renderMessageWithActions(containerId, text, role, chatType, timestamp) {
+  const container = document.getElementById(containerId);
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + role;
+  wrap.dataset.chatType = chatType;
+  wrap.dataset.rawText = text;
+  wrap.dataset.timestamp = (timestamp || new Date()).toISOString();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'ob-msg ' + role;
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+
+  const actionsRow = document.createElement('div');
+  actionsRow.className = 'msg-actions-row';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'msg-action-btn';
+  copyBtn.title = 'Copy';
+  copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  copyBtn.onclick = () => copyMessageText(wrap);
+  actionsRow.appendChild(copyBtn);
+
+  if (role === 'assistant') {
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'msg-action-btn';
+    retryBtn.title = 'Retry';
+    retryBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+    retryBtn.onclick = () => retryAiMessage(wrap);
+    actionsRow.appendChild(retryBtn);
+  } else {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'msg-action-btn';
+    editBtn.title = 'Edit';
+    editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>';
+    editBtn.onclick = () => editUserMessage(wrap);
+    actionsRow.appendChild(editBtn);
+  }
+
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'msg-timestamp';
+  timeSpan.textContent = formatRelativeTime(timestamp || new Date());
+  actionsRow.appendChild(timeSpan);
+
+  wrap.appendChild(actionsRow);
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+  return wrap;
+}
+
+window.copyMessageText = function(wrapEl) {
+  const text = wrapEl.dataset.rawText;
+  navigator.clipboard.writeText(text).catch(() => {});
+};
+
+window.retryAiMessage = async function(wrapEl) {
+  const chatType = wrapEl.dataset.chatType;
+  // Find the user message immediately before this assistant reply, in the
+  // same message list, to resend it and regenerate a fresh response.
+  let prevWrap = wrapEl.previousElementSibling;
+  while (prevWrap && !prevWrap.classList.contains('user')) {
+    prevWrap = prevWrap.previousElementSibling;
+  }
+  if (!prevWrap) return;
+  const userText = prevWrap.dataset.rawText;
+  const staleTimestamp = wrapEl.dataset.timestamp;
+
+  wrapEl.remove();
+
+  if (chatType === 'business') {
+    bcHistory = bcHistory.slice(0, -1); // drop the stale assistant turn only; the user turn stays
+    // For a saved conversation, the backend reloads history straight from
+    // Supabase regardless of what we send it — so the stale reply (and
+    // anything saved after it) must be deleted there too, or it'll still
+    // see the old answer and the retry will look like it did nothing.
+    if (activeConversationId && staleTimestamp) {
+      try {
+        await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(staleTimestamp), {
+          method: 'DELETE',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+      } catch (e) {}
+    }
+    await sendBusinessChatTurn(userText);
+  } else if (chatType === 'admin') {
+    adminChatHistory = adminChatHistory.slice(0, -1);
+    await sendAdminChatTurn(userText);
+  }
+};
+
+window.editUserMessage = async function(wrapEl) {
+  const chatType = wrapEl.dataset.chatType;
+  const text = wrapEl.dataset.rawText;
+  const editedTimestamp = wrapEl.dataset.timestamp;
+  // Remove this message and everything after it (both from the DOM and the
+  // history arrays) so resending continues from a clean point, matching how
+  // editing works in other chat apps — the old branch is discarded.
+  let sibling = wrapEl.nextElementSibling;
+  while (sibling) {
+    const toRemove = sibling;
+    sibling = sibling.nextElementSibling;
+    toRemove.remove();
+  }
+  wrapEl.remove();
+
+  if (chatType === 'business') {
+    const idx = bcHistory.findIndex(m => m.role === 'user' && m.content === text);
+    if (idx !== -1) bcHistory = bcHistory.slice(0, idx);
+    // Same reasoning as retry above — delete this message and everything
+    // after it from Supabase too, for a saved conversation.
+    if (activeConversationId && editedTimestamp) {
+      try {
+        await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(editedTimestamp), {
+          method: 'DELETE',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+      } catch (e) {}
+    }
+    document.getElementById('bc-input').value = text;
+    document.getElementById('bc-input').focus();
+  } else if (chatType === 'admin') {
+    const idx = adminChatHistory.findIndex(m => m.role === 'user' && m.content === text);
+    if (idx !== -1) adminChatHistory = adminChatHistory.slice(0, idx);
+    document.getElementById('admin-chat-input').value = text;
+    document.getElementById('admin-chat-input').focus();
+  }
+};
+
+function renderBcMessage(text, role, timestamp) {
+  renderMessageWithActions('bc-messages', text, role, 'business', timestamp);
 }
 
 function showBcTyping() {
@@ -10552,13 +10729,8 @@ window.adminLogout = function() {
   location.reload();
 };
 
-function renderAdminMessage(text, role) {
-  const wrap = document.getElementById('admin-chat-messages');
-  const div = document.createElement('div');
-  div.className = 'ob-msg ' + role;
-  div.textContent = text;
-  wrap.appendChild(div);
-  wrap.scrollTop = wrap.scrollHeight;
+function renderAdminMessage(text, role, timestamp) {
+  renderMessageWithActions('admin-chat-messages', text, role, 'admin', timestamp);
 }
 
 function showAdminTyping() {
