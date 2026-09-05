@@ -244,12 +244,35 @@
     background: var(--panel-2);
     border: 1px solid transparent;
     border-radius: 10px;
-    padding: 9px 90px 9px 34px;
+    padding: 9px 128px 9px 34px;
     font-size: 13.5px;
     color: var(--text);
   }
   #search-box:focus { outline: none; background: var(--panel); border-color: var(--border); }
   #search-icon { position: absolute; left: 30px; top: 14px; color: var(--text-muted); font-size: 13px; pointer-events: none; }
+  #chats-inbox-btn {
+    position: absolute;
+    right: 78px;
+    top: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+  }
+  #chats-inbox-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    border: 2px solid var(--panel);
+  }
+  #chats-inbox-dot.has-pending { background: var(--danger); }
   #chats-test-mode-btn {
     position: absolute;
     right: 20px;
@@ -3500,6 +3523,10 @@
       <div id="search-wrap">
         <span id="search-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
         <input id="search-box" placeholder="Search conversations" oninput="filterConvos(this.value)">
+        <button id="chats-inbox-btn" onclick="openSellerInboxFromChats()" title="Questions the AI couldn't answer">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          <span id="chats-inbox-dot"></span>
+        </button>
         <button id="chats-test-mode-btn" onclick="openTestModeFromChats()">Test Mode</button>
       </div>
       <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
@@ -8983,13 +9010,19 @@ let inboxPollTimer = null;
 async function checkInboxDot() {
   try {
     const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=eq.pending&select=id&limit=1');
-    const dot = document.getElementById('bc-inbox-dot');
-    if (dot) dot.classList.toggle('has-pending', rows && rows.length > 0);
+    const hasPending = rows && rows.length > 0;
+    const dot1 = document.getElementById('bc-inbox-dot');
+    const dot2 = document.getElementById('chats-inbox-dot');
+    if (dot1) dot1.classList.toggle('has-pending', hasPending);
+    if (dot2) dot2.classList.toggle('has-pending', hasPending);
   } catch (e) {}
 }
 
-window.openSellerInbox = async function() {
-  document.getElementById('business-chat-tab-content').style.display = 'none';
+let inboxOpenedFrom = 'business-chat';
+
+async function openSellerInboxCommon(fromScreen, fromPanelId) {
+  inboxOpenedFrom = fromScreen;
+  if (fromPanelId) document.getElementById(fromPanelId).style.display = 'none';
   const panel = document.getElementById('seller-inbox-tab-content');
   panel.style.display = 'flex';
   panel.classList.remove('screen-transition');
@@ -8997,12 +9030,31 @@ window.openSellerInbox = async function() {
   panel.classList.add('screen-transition');
   document.getElementById('inbox-detail').style.display = 'none';
   document.getElementById('inbox-list').style.display = 'block';
+
+  // Inbox is a detail/chat-style panel like Talk to your AI or Test Mode —
+  // needs the sidebar expanded to full width, same reasoning as those.
+  document.getElementById('app').classList.add('wide-panel-mode');
+
   await loadInboxList();
+}
+
+window.openSellerInbox = async function() {
+  await openSellerInboxCommon('business-chat', 'business-chat-tab-content');
+};
+
+window.openSellerInboxFromChats = async function() {
+  await openSellerInboxCommon('chats', 'chats-tab-content');
 };
 
 window.closeSellerInbox = function() {
   document.getElementById('seller-inbox-tab-content').style.display = 'none';
-  document.getElementById('business-chat-tab-content').style.display = 'flex';
+
+  if (inboxOpenedFrom === 'chats') {
+    document.getElementById('app').classList.remove('wide-panel-mode');
+    document.getElementById('chats-tab-content').style.display = 'flex';
+  } else {
+    document.getElementById('business-chat-tab-content').style.display = 'flex';
+  }
 };
 
 async function loadInboxList() {
