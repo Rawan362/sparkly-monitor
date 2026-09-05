@@ -4561,16 +4561,20 @@ function renderChannelPills() {
   if (!el) return;
   const order = ['all', 'whatsapp', 'instagram', 'messenger', 'tiktok', 'email'];
   const testModePill = `<div class="channel-pill test-mode-pill" onclick="openTestModeFromChats()">Test Mode</div>`;
-  el.innerHTML = testModePill + order.map(key => {
+  el.innerHTML = order.map(key => {
+    let pillHtml;
     if (key === 'all') {
-      return `<div class="channel-pill ${channelFilter === 'all' ? 'active' : ''}" onclick="setChannelFilter('all')">All</div>`;
+      pillHtml = `<div class="channel-pill ${channelFilter === 'all' ? 'active' : ''}" onclick="setChannelFilter('all')">All</div>`;
+    } else {
+      const meta = CHANNEL_META[key];
+      const isLive = LIVE_CHANNELS.includes(key);
+      const cls = 'channel-pill' + (channelFilter === key ? ' active' : '') + (isLive ? '' : ' disabled');
+      const title = isLive ? meta.label : meta.label + ' — coming soon';
+      const onclick = isLive ? `onclick="setChannelFilter('${key}')"` : '';
+      pillHtml = `<div class="${cls}" title="${title}" ${onclick}><span class="dot" style="background:${meta.color}"></span>${meta.label}</div>`;
     }
-    const meta = CHANNEL_META[key];
-    const isLive = LIVE_CHANNELS.includes(key);
-    const cls = 'channel-pill' + (channelFilter === key ? ' active' : '') + (isLive ? '' : ' disabled');
-    const title = isLive ? meta.label : meta.label + ' — coming soon';
-    const onclick = isLive ? `onclick="setChannelFilter('${key}')"` : '';
-    return `<div class="${cls}" title="${title}" ${onclick}><span class="dot" style="background:${meta.color}"></span>${meta.label}</div>`;
+    // Insert Test Mode right after "all", so the order reads: All, Test Mode, WhatsApp, ...
+    return key === 'all' ? pillHtml + testModePill : pillHtml;
   }).join('');
 }
 
