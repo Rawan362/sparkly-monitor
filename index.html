@@ -3141,6 +3141,24 @@
   .bc-conv-menu-item:hover { background: var(--panel-2); }
   .bc-conv-menu-item.danger { color: var(--danger); }
 
+  #select-ask-btn {
+    position: fixed;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(var(--shadow-color),0.25);
+    white-space: nowrap;
+  }
+
   #bc-sidebar-toggle-btn { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
 
   @media (max-width: 720px) {
@@ -3699,6 +3717,10 @@
         Delete
       </div>
     </div>
+    <button id="select-ask-btn" style="display:none;" onclick="askAboutSelection()">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Ask about this
+    </button>
     <div id="test-mode-tab-content" style="display:none;">
       <div id="tm-header-row">
         <button onclick="closeTestModePanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
@@ -8980,6 +9002,85 @@ window.toggleBcSidebar = function() {
     sidebarArea.addEventListener('touchend', (e) => onTouchEnd(e, 'close'), { passive: true });
   }
 })();
+
+// "Select text, ask about it" — works on any message (user or assistant) in
+// both Sparkly Closer and Admin chat. Selecting text inside a message shows
+// a floating button; clicking it pre-fills the input with a reference to
+// exactly the selected portion, so the AI knows precisely which part of a
+// past message the seller/admin means, rather than the whole thing.
+let selectAskContext = null; // { chatType: 'business' | 'admin', text: '...' }
+
+function handleMessageSelection() {
+  const selection = window.getSelection();
+  const btn = document.getElementById('select-ask-btn');
+  const selectedText = selection ? selection.toString().trim() : '';
+
+  if (!selectedText || selection.rangeCount === 0) {
+    btn.style.display = 'none';
+    selectAskContext = null;
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  const anchorNode = selection.anchorNode;
+  const msgWrap = anchorNode && anchorNode.nodeType === 3 ? anchorNode.parentElement.closest('.msg-wrap') : (anchorNode && anchorNode.closest && anchorNode.closest('.msg-wrap'));
+  if (!msgWrap) {
+    btn.style.display = 'none';
+    selectAskContext = null;
+    return;
+  }
+
+  const chatType = msgWrap.dataset.chatType;
+  if (chatType !== 'business' && chatType !== 'admin') {
+    btn.style.display = 'none';
+    return;
+  }
+
+  selectAskContext = { chatType, text: selectedText };
+
+  const rect = range.getBoundingClientRect();
+  btn.style.display = 'flex';
+  const btnWidth = 140;
+  const left = Math.min(Math.max(rect.left + rect.width / 2 - btnWidth / 2, 8), window.innerWidth - btnWidth - 8);
+  const top = Math.max(rect.top - 40, 8);
+  btn.style.left = left + 'px';
+  btn.style.top = top + 'px';
+}
+
+document.addEventListener('selectionchange', () => {
+  // Debounce slightly — selectionchange fires very frequently while dragging
+  clearTimeout(window._selectAskDebounce);
+  window._selectAskDebounce = setTimeout(handleMessageSelection, 150);
+});
+
+// Hide the button if the user clicks elsewhere without making a new selection
+document.addEventListener('mousedown', (e) => {
+  if (e.target.id !== 'select-ask-btn') {
+    const btn = document.getElementById('select-ask-btn');
+    if (btn && !window.getSelection().toString().trim()) btn.style.display = 'none';
+  }
+});
+
+window.askAboutSelection = function() {
+  if (!selectAskContext) return;
+  const quoted = selectAskContext.text.length > 150 ? selectAskContext.text.slice(0, 150) + '...' : selectAskContext.text;
+  const prefill = `About "${quoted}": `;
+
+  if (selectAskContext.chatType === 'business') {
+    const input = document.getElementById('bc-input');
+    input.value = prefill;
+    input.focus();
+    input.setSelectionRange(prefill.length, prefill.length);
+  } else if (selectAskContext.chatType === 'admin') {
+    const input = document.getElementById('admin-chat-input');
+    input.value = prefill;
+    input.focus();
+    input.setSelectionRange(prefill.length, prefill.length);
+  }
+
+  document.getElementById('select-ask-btn').style.display = 'none';
+  window.getSelection().removeAllRanges();
+};
 
 function closeBcConvMenu() {
   document.getElementById('bc-conv-menu').style.display = 'none';
