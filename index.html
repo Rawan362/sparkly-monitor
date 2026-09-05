@@ -2963,6 +2963,8 @@
     border-radius: 4px;
   }
   .msg-action-btn:hover { color: var(--accent); background: var(--panel-2); }
+  .msg-action-btn.copied { color: var(--accent); }
+  .msg-wrap:has(.msg-action-btn.copied) .msg-actions-row { opacity: 1; }
   .msg-timestamp { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
   #onboarding-csv-row { max-width: 640px; margin: 0 auto 8px; padding: 0 18px; text-align: center; }
@@ -9231,7 +9233,7 @@ function renderMessageWithActions(containerId, text, role, chatType, timestamp) 
   copyBtn.className = 'msg-action-btn';
   copyBtn.title = 'Copy';
   copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-  copyBtn.onclick = () => copyMessageText(wrap);
+  copyBtn.onclick = () => copyMessageText(wrap, copyBtn);
   actionsRow.appendChild(copyBtn);
 
   if (role === 'assistant') {
@@ -9261,9 +9263,21 @@ function renderMessageWithActions(containerId, text, role, chatType, timestamp) 
   return wrap;
 }
 
-window.copyMessageText = function(wrapEl) {
+window.copyMessageText = function(wrapEl, btnEl) {
   const text = wrapEl.dataset.rawText;
-  navigator.clipboard.writeText(text).catch(() => {});
+  navigator.clipboard.writeText(text).then(() => {
+    if (!btnEl) return;
+    const originalTitle = btnEl.title;
+    const originalHtml = btnEl.innerHTML;
+    btnEl.title = 'Copied!';
+    btnEl.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    btnEl.classList.add('copied');
+    setTimeout(() => {
+      btnEl.title = originalTitle;
+      btnEl.innerHTML = originalHtml;
+      btnEl.classList.remove('copied');
+    }, 1500);
+  }).catch(() => {});
 };
 
 window.retryAiMessage = async function(wrapEl) {
