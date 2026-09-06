@@ -929,12 +929,28 @@
     border-radius: 10px;
     object-fit: cover;
   }
-  .msg-attachment-photo-caption { font-size: 12.5px; color: inherit; margin-top: 5px; }
+  .msg-attachment-photo-caption {
+    font-size: 12.5px;
+    color: inherit;
+    margin-top: 6px;
+    background: var(--panel-2);
+    padding: 6px 9px;
+    border-radius: 8px;
+  }
   .msg-attachment-photo img.media-expired {
     width: 220px;
     height: 140px;
     background: var(--panel-2);
     object-fit: none;
+  }
+  /* Attachments (photo/video/document) are block-level, so their timestamp
+     sits on its own line below by default and reads left-aligned like the
+     caption text above it — pushing it to the right instead keeps it
+     visually consistent with how a plain text bubble's timestamp reads. */
+  .bubble:has(.msg-attachment-photo) .ts,
+  .bubble:has(.msg-attachment-card) .ts {
+    display: flex;
+    justify-content: flex-end;
   }
   .msg-row { position: relative; }
   .msg-row.long-press-active .bubble { filter: brightness(0.93); transform: scale(0.98); transition: filter 0.15s ease, transform 0.15s ease; }
