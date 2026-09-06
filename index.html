@@ -6165,6 +6165,23 @@ async function loadThread(phone, silent) {
 }
 
 function renderAttachmentContent(message) {
+  // A single incoming message can bundle multiple attachments together
+  // (e.g. a customer sending a file and a photo within the same few
+  // seconds gets combined into one message with a newline between them,
+  // by design, so the AI sees one coherent message rather than fragments).
+  // If every line here is itself a recognized attachment, render each one
+  // individually rather than falling through to a single, broken pattern
+  // match on the whole combined string.
+  if (message.includes('\n')) {
+    const lines = message.split('\n').filter(l => l.trim());
+    if (lines.length > 1) {
+      const rendered = lines.map(l => renderAttachmentContent(l));
+      if (rendered.every(r => r !== null)) {
+        return rendered.join('');
+      }
+    }
+  }
+
   // Location: "📍 Location: LAT,LNG"
   const locMatch = message.match(/^📍 Location: (-?\d+\.?\d*),(-?\d+\.?\d*)$/);
   if (locMatch) {
