@@ -937,6 +937,11 @@
     padding: 6px 9px;
     border-radius: 8px;
   }
+  /* Outgoing (seller-sent) bubbles use a blue text color meant to read
+     against their own tinted bubble background — but the caption sits on
+     the neutral panel-2 background above, where that same blue is hard to
+     read. White reads cleanly there instead. */
+  .msg-row.out .msg-attachment-photo-caption { color: #FFFFFF; }
   .msg-attachment-photo img.media-expired {
     width: 220px;
     height: 140px;
