@@ -6193,7 +6193,7 @@ function renderAttachmentContent(message) {
     const url = videoUrlMatch[1];
     const caption = videoUrlMatch[2] || '';
     return `<div class="msg-attachment-photo">
-      <video src="${url}" controls preload="metadata" style="max-width:220px;max-height:260px;border-radius:10px;display:block;" onloadeddata="ensureMediaCached('${url}')"></video>
+      <video src="${url}" controls preload="auto" style="max-width:220px;max-height:260px;border-radius:10px;display:block;background:#000;" onloadeddata="ensureMediaCached('${url}')"></video>
       ${caption ? '<div class="msg-attachment-photo-caption">' + escapeHtml(caption) + '</div>' : ''}
     </div>`;
   }
