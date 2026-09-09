@@ -11598,7 +11598,7 @@ async function loadAiName() {
     AI_NAME = (rows && rows[0] && rows[0].ai_name) || null;
   } catch (e) { AI_NAME = null; }
   const navLabel = document.getElementById('nav-ai-label');
-  if (navLabel) navLabel.textContent = AI_NAME || 'Closer';
+  if (navLabel) navLabel.textContent = AI_NAME || 'Agent';
 }
 
 document.addEventListener('DOMContentLoaded', initAuth);
