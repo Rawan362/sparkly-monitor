@@ -2914,6 +2914,31 @@
   .invoice-footer { margin-top: 32px; text-align: center; font-size: 11.5px; color: #999; }
 
   /* ═══ AI ONBOARDING CHAT ═══ */
+  #whatsapp-connect-gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 8100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  #whatsapp-connect-gate-inner { max-width: 420px; text-align: center; }
+  #whatsapp-connect-gate-inner h1 { font-family: var(--font-display); font-size: 28px; margin-bottom: 12px; }
+  #whatsapp-connect-gate-inner p { color: var(--text-muted); font-size: 14.5px; line-height: 1.6; margin-bottom: 28px; }
+  #whatsapp-connect-gate-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: #25D366;
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  #whatsapp-connect-gate-status { display: block; margin-top: 14px; font-size: 13px; color: var(--text-muted); }
   #onboarding-overlay {
     position: fixed;
     inset: 0;
@@ -3525,6 +3550,14 @@
   </div>
   <div id="invoice-view-scroll">
     <div id="invoice-content"></div>
+  </div>
+</div>
+<div id="whatsapp-connect-gate" style="display:none;">
+  <div id="whatsapp-connect-gate-inner">
+    <h1>Connect your WhatsApp</h1>
+    <p>Before we teach your AI about your business, let's connect the WhatsApp number your customers will message.</p>
+    <button id="whatsapp-connect-gate-btn" onclick="launchWhatsAppSignup()">Connect WhatsApp Number</button>
+    <span id="whatsapp-connect-gate-status"></span>
   </div>
 </div>
 <div id="onboarding-overlay" style="display:none;">
@@ -11377,11 +11410,31 @@ function startApp() {
   if (inboxPollTimer) clearInterval(inboxPollTimer);
   inboxPollTimer = setInterval(checkInboxDot, 15000);
   debugLog('startApp: polling interval started (every 8s)');
-  checkOnboardingNeeded();
+  checkWhatsAppConnectedThenOnboarding();
   // Sparkly Closer (the AI chat) is the primary surface now, not the
   // customer Chats list — opens there by default instead of leaving the
   // Chats tab's own default HTML/CSS visibility as the landing view.
   openSparklyAssistant();
+}
+
+// Gates the app behind connecting a WhatsApp number first, then the
+// existing AI onboarding chat, in that order — a seller can't reach the
+// main app until both are done. Chained here (rather than both being
+// independent calls from startApp) since the onboarding check should only
+// run once we know WhatsApp is actually connected.
+async function checkWhatsAppConnectedThenOnboarding() {
+  try {
+    const rows = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=phone_number_id&limit=1');
+    const isConnected = rows && rows.length > 0 && rows[0].phone_number_id;
+    if (!isConnected) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('whatsapp-connect-gate').style.display = 'flex';
+      return;
+    }
+  } catch (e) {
+    debugLog('checkWhatsAppConnectedThenOnboarding failed: ' + (e && e.message));
+  }
+  checkOnboardingNeeded();
 }
 
 async function checkOnboardingNeeded() {
@@ -11747,7 +11800,11 @@ if ('serviceWorker' in navigator) {
 <script async defer src="https://connect.facebook.net/en_US/sdk.js"></script>
 <script>
   window.launchWhatsAppSignup = function() {
-    const statusEl = document.getElementById('whatsapp-connect-status');
+    // Could be launched from the Settings button OR the new first-run gate
+    // screen (before onboarding) — whichever one is actually visible right
+    // now is the active context, and only that one gets status updates.
+    const isGateActive = document.getElementById('whatsapp-connect-gate').style.display !== 'none';
+    const statusEl = document.getElementById(isGateActive ? 'whatsapp-connect-gate-status' : 'whatsapp-connect-status');
     if (statusEl) statusEl.textContent = 'Opening...';
 
     // Meta fires this "message" event mid-flow with the WABA ID and
@@ -11781,6 +11838,14 @@ if ('serviceWorker' in navigator) {
             if (data.success) {
               if (statusEl) statusEl.textContent = 'Connected ✓';
               debugLog('WhatsApp Embedded Signup: connected successfully');
+              // On the first-run gate, a successful connection immediately
+              // moves on to AI onboarding — the seller shouldn't need to
+              // navigate anywhere themselves for this next step.
+              if (isGateActive) {
+                document.getElementById('whatsapp-connect-gate').style.display = 'none';
+                document.getElementById('app').style.display = 'flex';
+                checkOnboardingNeeded();
+              }
             } else {
               if (statusEl) statusEl.textContent = 'Failed';
               alert('Could not connect your WhatsApp number: ' + (data.error || 'unknown error'));
