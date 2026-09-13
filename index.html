@@ -3317,6 +3317,43 @@
     cursor: pointer;
     flex-shrink: 0;
   }
+  #bc-attach-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    flex-shrink: 0;
+  }
+  #bc-attach-btn:hover { color: var(--accent-2); }
+  #bc-attach-menu {
+    display: none;
+    position: fixed;
+    z-index: 55;
+    width: 190px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--elevate-lg, 0 12px 30px -10px rgba(42,42,38,0.3));
+    overflow: hidden;
+    padding: 6px 0;
+  }
+  #bc-attach-menu.show { display: block; }
+  #bc-attach-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  #bc-attach-preview img { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; }
+  #bc-attach-preview .bc-attach-remove { margin-left: auto; border: none; background: none; color: var(--text-muted); cursor: pointer; display: flex; }
   #bc-test-mode-btn {
     border: 1px solid var(--accent-2);
     background: none;
@@ -3922,10 +3959,18 @@
           <button id="bc-csv-btn" onclick="document.getElementById('bc-csv-input').click()">Bulk-add products from a CSV</button>
           <input type="file" id="bc-csv-input" accept=".csv,text/csv" style="display:none;" onchange="handleBcCsvSelect(event)">
         </div>
+        <div id="bc-attach-preview" style="display:none;"></div>
         <div id="bc-input-row">
+          <button id="bc-attach-btn" onclick="toggleBcAttachMenu()" title="Attach">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <input type="file" id="bc-photo-input" accept="image/*" style="display:none;" onchange="handleBcAttachFile(this, 'image')">
+          <input type="file" id="bc-video-input" accept="video/*" style="display:none;" onchange="handleBcAttachFile(this, 'video')">
+          <input type="file" id="bc-file-input" style="display:none;" onchange="handleBcAttachFile(this, 'document')">
           <input type="text" id="bc-input" placeholder="e.g. raise the price of X to $12..." onkeydown="if(event.key==='Enter') sendBusinessChatMessage();">
           <button id="bc-send-btn" onclick="sendBusinessChatMessage()">Send</button>
         </div>
+        <div id="bc-attach-menu"></div>
       </div>
     </div>
     <div id="bc-conv-menu" style="display:none;">
@@ -9977,24 +10022,151 @@ function hideBcTyping() {
   if (el) el.remove();
 }
 
+window.toggleBcAttachMenu = function() {
+  const menu = document.getElementById('bc-attach-menu');
+  if (menu.classList.contains('show')) { closeBcAttachMenu(); return; }
+
+  if (!menu.dataset.built) {
+    menu.innerHTML = `
+      <div class="attach-menu-item" onclick="closeBcAttachMenu(); document.getElementById('bc-photo-input').click();">
+        <div class="attach-menu-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        Photo
+      </div>
+      <div class="attach-menu-item" onclick="closeBcAttachMenu(); document.getElementById('bc-video-input').click();">
+        <div class="attach-menu-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+        Video
+      </div>
+      <div class="attach-menu-item" onclick="closeBcAttachMenu(); document.getElementById('bc-file-input').click();">
+        <div class="attach-menu-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        File
+      </div>
+    `;
+    menu.dataset.built = '1';
+  }
+
+  const btn = document.getElementById('bc-attach-btn');
+  positionFloatingPanel(menu, btn, 190, 130);
+  menu.classList.add('show');
+  setTimeout(() => document.addEventListener('click', bcAttachOutsideClick), 0);
+};
+
+window.closeBcAttachMenu = function() {
+  document.getElementById('bc-attach-menu').classList.remove('show');
+  document.removeEventListener('click', bcAttachOutsideClick);
+};
+
+function bcAttachOutsideClick(e) {
+  const menu = document.getElementById('bc-attach-menu');
+  const btn = document.getElementById('bc-attach-btn');
+  if (menu && !menu.contains(e.target) && e.target !== btn && !(btn && btn.contains(e.target))) {
+    closeBcAttachMenu();
+  }
+}
+
+window.handleBcAttachFile = function(input, kind) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const maxBytes = 15 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    const fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    alert('File too large — please choose a file under 15 MB (yours is ' + fileSizeMb + ' MB).');
+    input.value = '';
+    return;
+  }
+
+  if (kind === 'image') {
+    // Same HEIC/WebP-to-JPEG normalization as the customer chat's own
+    // attach flow, so the AI's vision input always gets a format it can
+    // reliably read regardless of source device.
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      stageBcAttachment(jpegDataUrl, 'image/jpeg', kind, (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg');
+      input.value = '';
+    };
+    img.onerror = async () => {
+      URL.revokeObjectURL(objectUrl);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        stageBcAttachment(reader.result, file.type || 'image/jpeg', kind, file.name);
+        input.value = '';
+      };
+      reader.readAsDataURL(file);
+    };
+    img.src = objectUrl;
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onloadend = async () => {
+    stageBcAttachment(reader.result, file.type || 'application/octet-stream', kind, file.name);
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+let bcStagedAttachment = null;
+
+window.stageBcAttachment = function(dataUrl, mimeType, kind, fileName) {
+  bcStagedAttachment = { dataUrl, mimeType, kind, fileName };
+  const bar = document.getElementById('bc-attach-preview');
+  const isImage = kind === 'image';
+  const label = kind === 'document' ? fileName : (kind === 'image' ? 'Photo' : 'Video');
+  const videoIcon = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`;
+  const fileIcon = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  bar.innerHTML = `
+    ${isImage ? `<img src="${dataUrl}">` : `<div>${kind === 'video' ? videoIcon : fileIcon}</div>`}
+    <span>${escapeHtml(label)}</span>
+    <button class="bc-attach-remove" onclick="removeBcAttachment()" title="Remove">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  `;
+  bar.style.display = 'flex';
+  document.getElementById('bc-input').focus();
+};
+
+window.removeBcAttachment = function() {
+  bcStagedAttachment = null;
+  const bar = document.getElementById('bc-attach-preview');
+  bar.style.display = 'none';
+  bar.innerHTML = '';
+};
+
 window.sendBusinessChatMessage = async function() {
   const input = document.getElementById('bc-input');
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && !bcStagedAttachment) return;
   input.value = '';
   showBcEmptyState(false);
-  renderBcMessage(text, 'user');
-  await sendBusinessChatTurn(text);
+
+  const attachment = bcStagedAttachment;
+  removeBcAttachment();
+
+  renderBcMessage(text || (attachment ? '[' + attachment.kind + ']' : ''), 'user');
+  await sendBusinessChatTurn(text, attachment);
 };
 
-async function sendBusinessChatTurn(userText) {
+async function sendBusinessChatTurn(userText, attachment) {
   showBcTyping();
   document.getElementById('bc-send-btn').disabled = true;
   try {
+    const payload = { chatId: SELLER_CHAT_ID, userText, chatHistory: bcHistory, conversationId: activeConversationId };
+    if (attachment) {
+      payload.attachmentBase64 = attachment.dataUrl;
+      payload.attachmentMimeType = attachment.mimeType;
+      payload.attachmentKind = attachment.kind;
+      payload.attachmentFileName = attachment.fileName;
+    }
     const res = await fetch(BUSINESS_CHAT_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId: SELLER_CHAT_ID, userText, chatHistory: bcHistory, conversationId: activeConversationId })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     hideBcTyping();
