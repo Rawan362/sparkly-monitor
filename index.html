@@ -10004,7 +10004,7 @@ window.editUserMessage = async function(wrapEl) {
 };
 
 function renderBcMessage(text, role, timestamp) {
-  renderMessageWithActions('bc-messages', text, role, 'business', timestamp);
+  return renderMessageWithActions('bc-messages', text, role, 'business', timestamp);
 }
 
 function showBcTyping() {
@@ -10150,11 +10150,11 @@ window.sendBusinessChatMessage = async function() {
 
   const attachmentLabel = attachment ? (attachment.kind === 'document' ? '📎 ' + (attachment.fileName || 'File') : attachment.kind === 'image' ? '📷 Photo' : '🎥 Video') : '';
   const displayText = attachment ? (attachmentLabel + (text ? '\n' + text : '')) : text;
-  renderBcMessage(displayText, 'user');
-  await sendBusinessChatTurn(text, attachment);
+  const userMsgEl = renderBcMessage(displayText, 'user');
+  await sendBusinessChatTurn(text, attachment, userMsgEl, attachmentLabel);
 };
 
-async function sendBusinessChatTurn(userText, attachment) {
+async function sendBusinessChatTurn(userText, attachment, userMsgEl, attachmentLabel) {
   showBcTyping();
   document.getElementById('bc-send-btn').disabled = true;
   try {
@@ -10174,6 +10174,19 @@ async function sendBusinessChatTurn(userText, attachment) {
     hideBcTyping();
     renderBcMessage(data.reply || '...', 'assistant');
     bcHistory = data.chatHistory || [];
+    // Once the file is actually uploaded and a real URL comes back, turn
+    // the already-sent attachment label into an actual clickable link —
+    // this couldn't happen at send time since uploading happens
+    // server-side, after the message was already shown.
+    if (data.attachmentUrl && userMsgEl && attachmentLabel) {
+      const bubble = userMsgEl.querySelector('.ob-msg');
+      if (bubble) {
+        bubble.innerHTML = bubble.innerHTML.replace(
+          escapeHtml(attachmentLabel),
+          `<a href="${data.attachmentUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(attachmentLabel)}</a>`
+        );
+      }
+    }
     if (activeConversationId) await loadBusinessChatConversationList(); // refresh title/order after first message
   } catch (e) {
     hideBcTyping();
