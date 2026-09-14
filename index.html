@@ -10148,7 +10148,9 @@ window.sendBusinessChatMessage = async function() {
   const attachment = bcStagedAttachment;
   removeBcAttachment();
 
-  renderBcMessage(text || (attachment ? '[' + attachment.kind + ']' : ''), 'user');
+  const attachmentLabel = attachment ? (attachment.kind === 'document' ? '📎 ' + (attachment.fileName || 'File') : attachment.kind === 'image' ? '📷 Photo' : '🎥 Video') : '';
+  const displayText = attachment ? (attachmentLabel + (text ? '\n' + text : '')) : text;
+  renderBcMessage(displayText, 'user');
   await sendBusinessChatTurn(text, attachment);
 };
 
