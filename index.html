@@ -9289,7 +9289,13 @@ window.handleInboxFileSelect = async function(event) {
   if (!file) return;
 
   const statusEl = document.getElementById('inbox-upload-status');
+  const sendBtn = document.getElementById('inbox-send-answer-btn');
   statusEl.textContent = 'Uploading...';
+  // Lock the send button for the duration of the upload — without this,
+  // clicking Send while a photo/file was still uploading in the
+  // background would submit the answer with no attachment at all, since
+  // inboxAttachedFile hadn't been set yet.
+  sendBtn.disabled = true;
 
   try {
     const isImage = file.type.startsWith('image/');
@@ -9309,7 +9315,8 @@ window.handleInboxFileSelect = async function(event) {
     if (!uploadRes.ok) throw new Error('Upload failed with status ' + uploadRes.status);
 
     const publicUrl = SUPABASE_URL + '/storage/v1/object/public/chat-media/' + path;
-    inboxAttachedFile = { url: publicUrl, name: file.name, isImage };
+    const isVideo = file.type.startsWith('video/');
+    inboxAttachedFile = { url: publicUrl, name: file.name, isImage, isVideo };
 
     document.getElementById('inbox-attached-file-name').textContent = file.name;
     document.getElementById('inbox-attached-file-chip').style.display = 'flex';
@@ -9317,6 +9324,8 @@ window.handleInboxFileSelect = async function(event) {
   } catch (e) {
     statusEl.textContent = 'Upload failed — please try again.';
     debugLog('handleInboxFileSelect failed: ' + (e && e.message));
+  } finally {
+    sendBtn.disabled = false;
   }
 };
 
@@ -9350,6 +9359,7 @@ window.submitInboxAnswer = async function() {
       payload.fileUrl = inboxAttachedFile.url;
       payload.fileName = inboxAttachedFile.name;
       payload.isImage = inboxAttachedFile.isImage;
+      payload.isVideo = inboxAttachedFile.isVideo;
     }
     const res = await fetch(ANSWER_INBOX_WEBHOOK_URL, {
       method: 'POST',
