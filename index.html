@@ -268,6 +268,18 @@
     cursor: pointer;
     display: flex;
   }
+  #new-conversation-btn {
+    position: absolute;
+    right: 58px;
+    top: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+  }
   #chats-inbox-dot {
     position: absolute;
     top: -2px;
@@ -2939,6 +2951,80 @@
     cursor: pointer;
   }
   #whatsapp-connect-gate-status { display: block; margin-top: 14px; font-size: 13px; color: var(--text-muted); }
+  #new-conversation-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  #new-conversation-modal-inner {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 380px;
+    width: 100%;
+  }
+  #new-conversation-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  #new-conversation-modal-header button { background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; }
+  #new-conversation-step-number p,
+  #new-conversation-step-confirm p {
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  #new-conversation-phone-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  #new-conversation-check-btn,
+  #new-conversation-send-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #new-conversation-back-btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  #new-conversation-check-status,
+  #new-conversation-send-status {
+    display: block;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    text-align: center;
+  }
   #onboarding-overlay {
     position: fixed;
     inset: 0;
@@ -3594,6 +3680,28 @@
     <div id="invoice-content"></div>
   </div>
 </div>
+<div id="new-conversation-modal" style="display:none;">
+  <div id="new-conversation-modal-inner">
+    <div id="new-conversation-modal-header">
+      <span>Start a new conversation</span>
+      <button onclick="closeNewConversationModal()" title="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="new-conversation-step-number">
+      <p>Enter the customer's phone number to check if they have WhatsApp, then start the conversation.</p>
+      <input type="tel" id="new-conversation-phone-input" placeholder="e.g. +964 751 122 8485">
+      <button id="new-conversation-check-btn" onclick="checkNewConversationNumber()">Check Number</button>
+      <span id="new-conversation-check-status"></span>
+    </div>
+    <div id="new-conversation-step-confirm" style="display:none;">
+      <p id="new-conversation-confirm-text"></p>
+      <button id="new-conversation-send-btn" onclick="sendNewConversationTemplate()">Send Message</button>
+      <button id="new-conversation-back-btn" onclick="backToPhoneStep()">Try a different number</button>
+      <span id="new-conversation-send-status"></span>
+    </div>
+  </div>
+</div>
 <div id="whatsapp-connect-gate" style="display:none;">
   <div id="whatsapp-connect-gate-inner">
     <h1>Connect your WhatsApp</h1>
@@ -3642,6 +3750,9 @@
         <button id="chats-inbox-btn" onclick="openSellerInboxFromChats()" title="Questions the AI couldn't answer">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
           <span id="chats-inbox-dot"></span>
+        </button>
+        <button id="new-conversation-btn" onclick="openNewConversationModal()" title="Start a new conversation">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
       <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
@@ -4552,6 +4663,7 @@ const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbW1vb2J3enVoaWltbWppeGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTMzNDcsImV4cCI6MjA5NDI2OTM0N30.ZC81X_-Fe3tjPDhL7s6oemlTJDuIWRnguDIq3ZklxeA';
 const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
 const WHATSAPP_SIGNUP_CALLBACK_URL = 'https://sparklly.site/webhook/whatsapp-signup-callback';
+const START_NEW_CONVERSATION_URL = 'https://sparklly.site/webhook/start-new-conversation';
 const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
 let ahmadChatOpen = false;
 let SELLER_CHAT_ID = null; // set after login
@@ -12069,6 +12181,102 @@ if ('serviceWorker' in navigator) {
       override_default_response_type: true,
       extras: { setup: {}, featureType: '', sessionInfoVersion: '3' }
     });
+  };
+
+  let newConversationVerifiedNumber = null;
+
+  window.openNewConversationModal = function() {
+    document.getElementById('new-conversation-phone-input').value = '';
+    document.getElementById('new-conversation-check-status').textContent = '';
+    document.getElementById('new-conversation-step-number').style.display = 'block';
+    document.getElementById('new-conversation-step-confirm').style.display = 'none';
+    document.getElementById('new-conversation-modal').style.display = 'flex';
+  };
+
+  window.closeNewConversationModal = function() {
+    document.getElementById('new-conversation-modal').style.display = 'none';
+  };
+
+  window.backToPhoneStep = function() {
+    document.getElementById('new-conversation-step-number').style.display = 'block';
+    document.getElementById('new-conversation-step-confirm').style.display = 'none';
+  };
+
+  window.checkNewConversationNumber = async function() {
+    const input = document.getElementById('new-conversation-phone-input');
+    const statusEl = document.getElementById('new-conversation-check-status');
+    const btn = document.getElementById('new-conversation-check-btn');
+    const phoneNumber = input.value.replace(/[^0-9]/g, '');
+
+    if (!phoneNumber) {
+      statusEl.textContent = 'Please enter a phone number.';
+      return;
+    }
+
+    statusEl.textContent = 'Checking...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(START_NEW_CONVERSATION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sellerChatId: SELLER_CHAT_ID, phoneNumber, action: 'check' })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        statusEl.textContent = data.error || 'Something went wrong — please try again.';
+        return;
+      }
+
+      if (!data.isValidWhatsApp) {
+        statusEl.textContent = 'This number does not appear to have WhatsApp — please double check it.';
+        return;
+      }
+
+      newConversationVerifiedNumber = phoneNumber;
+      document.getElementById('new-conversation-confirm-text').textContent =
+        'This number is on WhatsApp. Since they haven\'t messaged you before, we\'ll send them an approved introduction message to start the conversation. Once they reply, you can chat with them freely — text, photos, everything works normally from there.';
+      document.getElementById('new-conversation-step-number').style.display = 'none';
+      document.getElementById('new-conversation-step-confirm').style.display = 'block';
+      document.getElementById('new-conversation-send-status').textContent = '';
+      statusEl.textContent = '';
+    } catch (e) {
+      statusEl.textContent = 'Something went wrong — please try again.';
+      debugLog('checkNewConversationNumber failed: ' + (e && e.message));
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  window.sendNewConversationTemplate = async function() {
+    if (!newConversationVerifiedNumber) return;
+    const statusEl = document.getElementById('new-conversation-send-status');
+    const btn = document.getElementById('new-conversation-send-btn');
+
+    statusEl.textContent = 'Sending...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(START_NEW_CONVERSATION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sellerChatId: SELLER_CHAT_ID, phoneNumber: newConversationVerifiedNumber, action: 'send' })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        closeNewConversationModal();
+        await loadConversations();
+      } else {
+        statusEl.textContent = data.error || 'Failed to send — please try again.';
+      }
+    } catch (e) {
+      statusEl.textContent = 'Something went wrong — please try again.';
+      debugLog('sendNewConversationTemplate failed: ' + (e && e.message));
+    } finally {
+      btn.disabled = false;
+    }
   };
 </script>
 </body>
