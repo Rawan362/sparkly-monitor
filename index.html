@@ -4238,6 +4238,14 @@
         <label>Assistant name</label>
         <input type="text" id="biz-ai-name" data-key="ai_name" data-table="seller_sales_config" placeholder="e.g. Ahmad" onchange="saveBizField(this)">
       </div>
+      <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
+        <label>Voice replies on WhatsApp</label>
+        <select id="biz-voice-reply-mode" data-key="voice_reply_mode" data-table="seller_sales_config" onchange="saveBizField(this)">
+          <option value="off">Never — always reply with text</option>
+          <option value="match_customer">Only when the customer sends a voice note</option>
+          <option value="always">Always reply with voice</option>
+        </select>
+      </div>
       <div class="biz-row">
         <div class="biz-row-label"><span class="biz-title">AI replies (all customers)</span><span class="biz-sub">Turn off to pause every automatic reply</span></div>
         <button class="biz-toggle" id="biz-toggle-global_ai_active" data-key="global_ai_active" onclick="toggleBizSetting(this)"></button>
@@ -10735,7 +10743,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,voice_reply_mode', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -10810,6 +10818,7 @@ async function loadBizSettings() {
     if (currencyData.selling_type) document.getElementById('biz-selling-type').value = currencyData.selling_type;
     if (currencyData.invoice_layout) document.getElementById('biz-invoice-layout').value = currencyData.invoice_layout;
     if (currencyData.invoice_business_name != null) document.getElementById('biz-invoice-business-name').value = currencyData.invoice_business_name;
+    if (currencyData.voice_reply_mode) document.getElementById('biz-voice-reply-mode').value = currencyData.voice_reply_mode;
 
     bizSettingsLoaded = true;
   } catch (e) {
