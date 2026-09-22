@@ -4246,6 +4246,11 @@
           <option value="always">Always reply with voice</option>
         </select>
       </div>
+      <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
+        <label>Voice tone &amp; style</label>
+        <textarea id="biz-voice-tone" data-key="voice_tone_instructions" data-table="seller_sales_config" rows="2" placeholder="e.g. Speak warmly and casually, like a friendly, helpful salesperson" onchange="saveBizField(this)" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea>
+        <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">Describes how the AI's voice should sound in every voice reply — tone, pace, warmth, formality</span>
+      </div>
       <div class="biz-row">
         <div class="biz-row-label"><span class="biz-title">AI replies (all customers)</span><span class="biz-sub">Turn off to pause every automatic reply</span></div>
         <button class="biz-toggle" id="biz-toggle-global_ai_active" data-key="global_ai_active" onclick="toggleBizSetting(this)"></button>
@@ -10743,7 +10748,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,voice_reply_mode', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,voice_reply_mode,voice_tone_instructions', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -10819,6 +10824,7 @@ async function loadBizSettings() {
     if (currencyData.invoice_layout) document.getElementById('biz-invoice-layout').value = currencyData.invoice_layout;
     if (currencyData.invoice_business_name != null) document.getElementById('biz-invoice-business-name').value = currencyData.invoice_business_name;
     if (currencyData.voice_reply_mode) document.getElementById('biz-voice-reply-mode').value = currencyData.voice_reply_mode;
+    if (currencyData.voice_tone_instructions) document.getElementById('biz-voice-tone').value = currencyData.voice_tone_instructions;
 
     bizSettingsLoaded = true;
   } catch (e) {
