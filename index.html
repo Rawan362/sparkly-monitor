@@ -3461,7 +3461,7 @@
     cursor: pointer;
     display: flex;
   }
-  #bc-inbox-dot {
+  #bc-inbox-dot, #bc-notifications-dot {
     position: absolute;
     top: -3px;
     right: -3px;
@@ -3472,6 +3472,7 @@
     border: 2px solid var(--panel);
   }
   #bc-inbox-dot.has-pending { background: var(--danger); }
+  #bc-notifications-dot.has-pending { background: var(--danger); }
 
   /* ═══ SELLER INBOX ═══ */
   #seller-inbox-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -3498,6 +3499,61 @@
   .inbox-item-question { font-size: 14px; color: var(--text); }
   .inbox-item-time { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
   #inbox-empty-msg { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 13.5px; }
+
+  /* ═══ NOTIFICATIONS ═══ */
+  #seller-notifications-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #notifications-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 8px;
+  }
+  #notifications-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #notifications-header-row span { flex: 1; font-weight: 600; }
+  #notifications-mark-all-read-btn {
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    color: var(--accent) !important;
+    padding: 6px 10px !important;
+    border-radius: 8px !important;
+  }
+  #notifications-mark-all-read-btn:hover { background: var(--panel-2) !important; }
+  #notifications-list { flex: 1; overflow-y: auto; padding: 14px; }
+  .notification-item {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    background: var(--panel);
+    position: relative;
+  }
+  .notification-item.unread { border-color: var(--accent); background: var(--panel-2); }
+  .notification-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .notification-item-type {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--text-muted);
+  }
+  .notification-item.unread .notification-item-type { background: var(--accent); color: #fff; }
+  .notification-item-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+  .notification-item-message { font-size: 13.5px; color: var(--text); white-space: pre-wrap; margin-bottom: 8px; }
+  .notification-item-bottom { display: flex; align-items: center; justify-content: space-between; }
+  .notification-item-time { font-size: 11px; color: var(--text-muted); }
+  .notification-item-toggle-read {
+    font-size: 11.5px;
+    color: var(--accent);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+  }
+  #notifications-empty-msg { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 13.5px; }
 
   #inbox-detail { flex: 1; display: flex; flex-direction: column; padding: 18px; overflow-y: auto; }
   #inbox-detail-back {
@@ -4056,6 +4112,10 @@
               <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
               <span id="bc-inbox-dot"></span>
             </button>
+            <button id="bc-notifications-btn" onclick="openNotificationsPanel()" title="Updates from your AI">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span id="bc-notifications-dot"></span>
+            </button>
             <button id="bc-test-mode-btn" onclick="openTestModePanel()">Test Mode</button>
           </div>
         </div>
@@ -4146,6 +4206,14 @@
         </div>
         <button id="inbox-send-answer-btn" onclick="submitInboxAnswer()">Send Answer</button>
       </div>
+    </div>
+    <div id="seller-notifications-tab-content" style="display:none;">
+      <div id="notifications-header-row">
+        <button onclick="closeNotificationsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span>Notifications</span>
+        <button id="notifications-mark-all-read-btn" onclick="markAllNotificationsRead()">Mark all as read</button>
+      </div>
+      <div id="notifications-list"></div>
     </div>
     <div id="test-mode-tab-content" style="display:none;">
       <div id="tm-header-row">
@@ -7503,7 +7571,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -9315,6 +9383,101 @@ async function checkInboxDot() {
     if (dot2) dot2.classList.toggle('has-pending', hasPending);
   } catch (e) {}
 }
+
+let notificationsPollTimer = null;
+
+async function checkNotificationsDot() {
+  try {
+    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&is_read=eq.false&select=id&limit=1');
+    const hasUnread = rows && rows.length > 0;
+    const dot = document.getElementById('bc-notifications-dot');
+    if (dot) dot.classList.toggle('has-pending', hasUnread);
+  } catch (e) {}
+}
+
+const NOTIFICATION_TYPE_LABELS = {
+  daily_summary: 'Daily Summary',
+  ad_performance: 'Ad Performance',
+  strategy_suggestion: 'Strategy Suggestion'
+};
+
+function formatNotificationTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
+    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+window.openNotificationsPanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('seller-notifications-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  await loadNotifications();
+};
+
+window.closeNotificationsPanel = function() {
+  document.getElementById('seller-notifications-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+async function loadNotifications() {
+  const listEl = document.getElementById('notifications-list');
+  listEl.innerHTML = '<div class="spinner"></div>';
+  try {
+    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');
+    if (!rows || rows.length === 0) {
+      listEl.innerHTML = '<div id="notifications-empty-msg">Nothing here yet — updates from your AI (daily summaries, ad performance, strategy suggestions) will show up here.</div>';
+      return;
+    }
+    listEl.innerHTML = rows.map(renderNotificationItem).join('');
+  } catch (e) {
+    listEl.innerHTML = '<div id="notifications-empty-msg">Could not load notifications — please try again.</div>';
+  }
+}
+
+function renderNotificationItem(n) {
+  const typeLabel = NOTIFICATION_TYPE_LABELS[n.type] || n.type;
+  const unreadClass = n.is_read ? '' : ' unread';
+  const toggleLabel = n.is_read ? 'Mark as unread' : 'Mark as read';
+  return `
+    <div class="notification-item${unreadClass}" data-id="${n.id}">
+      <div class="notification-item-top">
+        <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
+        <span class="notification-item-title">${escapeHtml(n.title)}</span>
+      </div>
+      <div class="notification-item-message">${escapeHtml(n.message)}</div>
+      <div class="notification-item-bottom">
+        <span class="notification-item-time">${formatNotificationTime(n.created_at)}</span>
+        <button class="notification-item-toggle-read" onclick="toggleNotificationRead(${n.id}, ${!n.is_read})">${toggleLabel}</button>
+      </div>
+    </div>`;
+}
+
+window.toggleNotificationRead = async function(id, markAsRead) {
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ is_read: markAsRead })
+    });
+    await loadNotifications();
+    await checkNotificationsDot();
+  } catch (e) {}
+};
+
+window.markAllNotificationsRead = async function() {
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ is_read: true })
+    });
+    await loadNotifications();
+    await checkNotificationsDot();
+  } catch (e) {}
+};
 
 let inboxOpenedFrom = 'business-chat';
 
@@ -11735,10 +11898,13 @@ function startApp() {
   loadAiName();
   loadConversations();
   checkInboxDot();
+  checkNotificationsDot();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadConversations, 8000);
   if (inboxPollTimer) clearInterval(inboxPollTimer);
   inboxPollTimer = setInterval(checkInboxDot, 15000);
+  if (notificationsPollTimer) clearInterval(notificationsPollTimer);
+  notificationsPollTimer = setInterval(checkNotificationsDot, 15000);
   debugLog('startApp: polling interval started (every 8s)');
   checkWhatsAppConnectedThenOnboarding();
   // Sparkly Closer (the AI chat) is the primary surface now, not the
