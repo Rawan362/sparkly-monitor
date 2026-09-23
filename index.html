@@ -9408,7 +9408,7 @@ function formatNotificationTime(iso) {
 }
 
 window.openNotificationsPanel = async function() {
-  document.getElementById('settings-tab-content').style.display = 'none';
+  document.getElementById('business-chat-tab-content').style.display = 'none';
   const panel = document.getElementById('seller-notifications-tab-content');
   panel.style.display = 'flex';
   panel.classList.remove('screen-transition');
@@ -9423,8 +9423,8 @@ window.openNotificationsPanel = async function() {
 
 window.closeNotificationsPanel = function() {
   document.getElementById('seller-notifications-tab-content').style.display = 'none';
-  document.getElementById('settings-tab-content').style.display = 'block';
-  document.getElementById('app').classList.remove('wide-panel-mode');
+  document.getElementById('business-chat-tab-content').style.display = 'flex';
+  document.getElementById('app').classList.add('wide-panel-mode');
 };
 
 async function loadNotifications() {
@@ -9470,11 +9470,17 @@ window.discussNotification = async function(id) {
     if (!n) return;
 
     if (!n.is_read) {
-      await toggleNotificationRead(id, true);
+      try {
+        await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+          method: 'PATCH',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ is_read: true })
+        });
+        checkNotificationsDot();
+      } catch (e) {}
     }
 
     closeNotificationsPanel();
-    await openSparklyAssistant();
     await startNewBusinessChat();
 
     const typeLabel = NOTIFICATION_TYPE_LABELS[n.type] || n.type;
