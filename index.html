@@ -3554,6 +3554,50 @@
     padding: 2px 6px;
   }
   #notifications-empty-msg { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 13.5px; }
+  #notifications-select-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #notifications-select-all-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); flex: 1; cursor: pointer; }
+  #notifications-select-all-checkbox, .notification-item-checkbox { width: 17px; height: 17px; cursor: pointer; }
+  #notifications-delete-selected-btn {
+    border: none;
+    background: var(--danger);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #notifications-delete-selected-btn:disabled { opacity: 0.4; cursor: default; }
+  #notifications-cancel-select-btn {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  .notification-item-checkbox { display: none; margin-right: 10px; }
+  #seller-notifications-tab-content.select-mode .notification-item-checkbox { display: inline-block; }
+  #seller-notifications-tab-content.select-mode .notification-item-delete-btn { display: none; }
+  .notification-item-row { display: flex; align-items: flex-start; }
+  .notification-item-body { flex: 1; min-width: 0; }
+  .notification-item-delete-btn {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    flex-shrink: 0;
+  }
+  .notification-item-delete-btn:hover { color: var(--danger); }
 
   #inbox-detail { flex: 1; display: flex; flex-direction: column; padding: 18px; overflow-y: auto; }
   #inbox-detail-back {
@@ -4211,7 +4255,16 @@
       <div id="notifications-header-row">
         <button onclick="closeNotificationsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <span>Notifications</span>
+        <button id="notifications-select-btn" onclick="enterNotificationsSelectMode()" title="Select multiple to delete"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         <button id="notifications-mark-all-read-btn" onclick="markAllNotificationsRead()">Mark all as read</button>
+      </div>
+      <div id="notifications-select-row" style="display:none;">
+        <label id="notifications-select-all-label">
+          <input type="checkbox" id="notifications-select-all-checkbox" onchange="toggleSelectAllNotifications(this)">
+          Select all
+        </label>
+        <button id="notifications-delete-selected-btn" onclick="deleteSelectedNotifications()" disabled>Delete</button>
+        <button id="notifications-cancel-select-btn" onclick="exitNotificationsSelectMode()">Cancel</button>
       </div>
       <div id="notifications-list"></div>
     </div>
@@ -9447,15 +9500,21 @@ function renderNotificationItem(n) {
   const unreadClass = n.is_read ? '' : ' unread';
   const toggleLabel = n.is_read ? 'Mark as unread' : 'Mark as read';
   return `
-    <div class="notification-item${unreadClass}" data-id="${n.id}" onclick="discussNotification(${n.id})">
-      <div class="notification-item-top">
-        <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
-        <span class="notification-item-title">${escapeHtml(n.title)}</span>
-      </div>
-      <div class="notification-item-message">${escapeHtml(n.message)}</div>
-      <div class="notification-item-bottom">
-        <span class="notification-item-time">${formatNotificationTime(n.created_at)}</span>
-        <button class="notification-item-toggle-read" onclick="event.stopPropagation(); toggleNotificationRead(${n.id}, ${!n.is_read})">${toggleLabel}</button>
+    <div class="notification-item${unreadClass}" data-id="${n.id}">
+      <div class="notification-item-row">
+        <input type="checkbox" class="notification-item-checkbox" data-id="${n.id}" onclick="event.stopPropagation(); onNotificationCheckboxChange()">
+        <div class="notification-item-body" onclick="discussNotification(${n.id})">
+          <div class="notification-item-top">
+            <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
+            <span class="notification-item-title">${escapeHtml(n.title)}</span>
+          </div>
+          <div class="notification-item-message">${escapeHtml(n.message)}</div>
+          <div class="notification-item-bottom">
+            <span class="notification-item-time">${formatNotificationTime(n.created_at)}</span>
+            <button class="notification-item-toggle-read" onclick="event.stopPropagation(); toggleNotificationRead(${n.id}, ${!n.is_read})">${toggleLabel}</button>
+          </div>
+        </div>
+        <button class="notification-item-delete-btn" title="Delete" onclick="event.stopPropagation(); deleteOneNotification(${n.id})"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </div>
     </div>`;
 }
@@ -9482,6 +9541,7 @@ window.discussNotification = async function(id) {
 
     closeNotificationsPanel();
     await startNewBusinessChat();
+    showBcEmptyState(false);
 
     const typeLabel = NOTIFICATION_TYPE_LABELS[n.type] || n.type;
     const seedMessage = `I just got this ${typeLabel} notification:\n\n"${n.title}"\n${n.message}\n\nLet's talk about it.`;
@@ -9511,6 +9571,58 @@ window.markAllNotificationsRead = async function() {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: true })
     });
+    await loadNotifications();
+    await checkNotificationsDot();
+  } catch (e) {}
+};
+
+window.enterNotificationsSelectMode = function() {
+  document.getElementById('seller-notifications-tab-content').classList.add('select-mode');
+  document.getElementById('notifications-select-row').style.display = 'flex';
+  document.getElementById('notifications-select-all-checkbox').checked = false;
+  updateDeleteSelectedButtonState();
+};
+
+window.exitNotificationsSelectMode = function() {
+  document.getElementById('seller-notifications-tab-content').classList.remove('select-mode');
+  document.getElementById('notifications-select-row').style.display = 'none';
+  document.querySelectorAll('.notification-item-checkbox').forEach((cb) => { cb.checked = false; });
+};
+
+window.toggleSelectAllNotifications = function(checkboxEl) {
+  document.querySelectorAll('.notification-item-checkbox').forEach((cb) => { cb.checked = checkboxEl.checked; });
+  updateDeleteSelectedButtonState();
+};
+
+window.onNotificationCheckboxChange = function() {
+  updateDeleteSelectedButtonState();
+};
+
+function updateDeleteSelectedButtonState() {
+  const checked = document.querySelectorAll('.notification-item-checkbox:checked');
+  document.getElementById('notifications-delete-selected-btn').disabled = checked.length === 0;
+}
+
+window.deleteOneNotification = async function(id) {
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
+    });
+    await loadNotifications();
+    await checkNotificationsDot();
+  } catch (e) {}
+};
+
+window.deleteSelectedNotifications = async function() {
+  const ids = Array.from(document.querySelectorAll('.notification-item-checkbox:checked')).map((cb) => cb.dataset.id);
+  if (ids.length === 0) return;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
+    });
+    exitNotificationsSelectMode();
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
