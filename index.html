@@ -9388,16 +9388,11 @@ let notificationsPollTimer = null;
 
 async function checkNotificationsDot() {
   try {
-    debugLog('checkNotificationsDot: querying for seller_id=' + SELLER_CHAT_ID);
     const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&is_read=eq.false&select=id&limit=1');
     const hasUnread = rows && rows.length > 0;
-    debugLog('checkNotificationsDot: got ' + (rows ? rows.length : 'null') + ' rows, hasUnread=' + hasUnread);
     const dot = document.getElementById('bc-notifications-dot');
-    debugLog('checkNotificationsDot: dot element found=' + !!dot);
     if (dot) dot.classList.toggle('has-pending', hasUnread);
-  } catch (e) {
-    debugLog('checkNotificationsDot FAILED: ' + (e && e.message));
-  }
+  } catch (e) {}
 }
 
 const NOTIFICATION_TYPE_LABELS = {
@@ -9419,29 +9414,30 @@ window.openNotificationsPanel = async function() {
   panel.classList.remove('screen-transition');
   void panel.offsetWidth;
   panel.classList.add('screen-transition');
+  document.getElementById('app').classList.add('wide-panel-mode');
+  if (window.innerWidth <= 720) {
+    document.getElementById('app').classList.remove('sidebar-hidden');
+  }
   await loadNotifications();
 };
 
 window.closeNotificationsPanel = function() {
   document.getElementById('seller-notifications-tab-content').style.display = 'none';
   document.getElementById('settings-tab-content').style.display = 'block';
+  document.getElementById('app').classList.remove('wide-panel-mode');
 };
 
 async function loadNotifications() {
   const listEl = document.getElementById('notifications-list');
-  debugLog('loadNotifications: listEl found=' + !!listEl);
   listEl.innerHTML = '<div class="spinner"></div>';
   try {
-    debugLog('loadNotifications: querying for seller_id=' + SELLER_CHAT_ID);
     const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');
-    debugLog('loadNotifications: got ' + (rows ? rows.length : 'null') + ' rows');
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="notifications-empty-msg">Nothing here yet — updates from your AI (daily summaries, ad performance, strategy suggestions) will show up here.</div>';
       return;
     }
     listEl.innerHTML = rows.map(renderNotificationItem).join('');
   } catch (e) {
-    debugLog('loadNotifications FAILED: ' + (e && e.message));
     listEl.innerHTML = '<div id="notifications-empty-msg">Could not load notifications — please try again.</div>';
   }
 }
