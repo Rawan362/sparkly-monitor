@@ -9442,7 +9442,7 @@ function renderNotificationItem(n) {
   const unreadClass = n.is_read ? '' : ' unread';
   const toggleLabel = n.is_read ? 'Mark as unread' : 'Mark as read';
   return `
-    <div class="notification-item${unreadClass}" data-id="${n.id}">
+    <div class="notification-item${unreadClass}" data-id="${n.id}" onclick="discussNotification(${n.id})">
       <div class="notification-item-top">
         <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
         <span class="notification-item-title">${escapeHtml(n.title)}</span>
@@ -9450,10 +9450,36 @@ function renderNotificationItem(n) {
       <div class="notification-item-message">${escapeHtml(n.message)}</div>
       <div class="notification-item-bottom">
         <span class="notification-item-time">${formatNotificationTime(n.created_at)}</span>
-        <button class="notification-item-toggle-read" onclick="toggleNotificationRead(${n.id}, ${!n.is_read})">${toggleLabel}</button>
+        <button class="notification-item-toggle-read" onclick="event.stopPropagation(); toggleNotificationRead(${n.id}, ${!n.is_read})">${toggleLabel}</button>
       </div>
     </div>`;
 }
+
+/** Opens a fresh, dedicated AI conversation seeded with this notification's
+ * content, so the seller can immediately ask follow-up questions or give
+ * instructions about it — a focused thread just about this one alert. */
+window.discussNotification = async function(id) {
+  try {
+    const rows = await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');
+    const n = rows && rows[0];
+    if (!n) return;
+
+    if (!n.is_read) {
+      await toggleNotificationRead(id, true);
+    }
+
+    closeNotificationsPanel();
+    await openSparklyAssistant();
+    await startNewBusinessChat();
+
+    const typeLabel = NOTIFICATION_TYPE_LABELS[n.type] || n.type;
+    const seedMessage = `I just got this ${typeLabel} notification:\n\n"${n.title}"\n${n.message}\n\nLet's talk about it.`;
+    const userMsgEl = renderBcMessage(seedMessage, 'user');
+    await sendBusinessChatTurn(seedMessage, null, userMsgEl, '');
+  } catch (e) {
+    debugLog('discussNotification failed: ' + (e && e.message));
+  }
+};
 
 window.toggleNotificationRead = async function(id, markAsRead) {
   try {
