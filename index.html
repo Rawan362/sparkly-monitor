@@ -5735,7 +5735,7 @@ function handleMsgMenuAction(action) {
   const ctx = msgMenuContext;
   if (!ctx) return;
   closeMessageActionMenu();
-  if (action === 'copy') copyMessageText(ctx.text);
+  if (action === 'copy') copyTextToClipboard(ctx.text);
   else if (action === 'reply') startReplyMode(ctx.id, ctx.text);
   else if (action === 'transcript') showVoiceTranscript(ctx);
   else if (action === 'forward') openForwardPicker(ctx.text);
@@ -5745,7 +5745,7 @@ function handleMsgMenuAction(action) {
   else if (action === 'delete') deleteMessage(ctx.id, ctx.table);
 }
 
-async function copyMessageText(text) {
+async function copyTextToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text || '');
   } catch (e) {
@@ -5761,7 +5761,7 @@ async function copyMessageText(text) {
       document.execCommand('copy');
       document.body.removeChild(ta);
     } catch (e2) {
-      debugLog('copyMessageText failed: ' + (e2 && e2.message));
+      debugLog('copyTextToClipboard failed: ' + (e2 && e2.message));
       return;
     }
   }
@@ -9655,9 +9655,7 @@ function vnT(en, ar) { return (typeof currentLang !== 'undefined' && currentLang
 
 function vnTranscriptEsc(e) { if (e.key === 'Escape') closeVoiceTranscript(); }
 
-// Own copy routine on purpose: the page has two different functions named
-// copyMessageText and the later one replaces the first, so this window does not
-// depend on either.
+// Copy routine for this window: clipboard first, with a fallback and a small "Copied" note.
 async function vnCopyText(text) {
   try {
     await navigator.clipboard.writeText(text || '');
