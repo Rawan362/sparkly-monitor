@@ -338,6 +338,9 @@
   .ob-count.ob-pulse { animation: obPulse 0.9s ease 2; }
   @keyframes obPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
+  .msg-transcript { margin-top: 6px; max-width: 260px; font-size: 12.5px; line-height: 1.45; opacity: 0.9; padding-inline-start: 8px; border-inline-start: 2px solid var(--border); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .msg-transcript-label { display: block; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1px; }
+
   #orders-box-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #orders-box-header {
     display: flex;
@@ -4949,6 +4952,14 @@ async function sb(path) {
   return res.json();
 }
 
+// Loads chat rows including the voice-note transcript column. If the database
+// ever rejects that column (e.g. an older database), fall back to the same
+// query without it, so a chat can never fail to open just because of this.
+async function sbThreadRows(path) {
+  try { return await sb(path); }
+  catch (e) { return await sb(path.replace(',transcript', '')); }
+}
+
 // Central failure log — any part of the app (or n8n) writes here on error,
 // so every failure shows up in one place (Settings → Error Log) instead of
 // being silently swallowed or buried in a browser console nobody checks.
@@ -6357,10 +6368,10 @@ window.loadOlderThreadMessages = async function(phone) {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    const older = await sbThreadRows(
       'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
       '&timestamp=lt.' + encodeURIComponent(oldest) +
-      '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=100'
+      '&select=id,role,message,transcript,timestamp,starred,pinned&order=timestamp.desc&limit=100'
     );
     older.reverse();
 
@@ -6417,13 +6428,13 @@ async function loadThread(phone, silent) {
     wasNearBottom = (oldBox.scrollHeight - oldBox.scrollTop - oldBox.clientHeight) < 120;
   }
 
-  const rows = await sb(
+  const rows = await sbThreadRows(
     // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
     // the oldest — otherwise any customer conversation that grows past 200
     // total messages would silently stop showing new messages forever,
     // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=200'
+    '&select=id,role,message,transcript,timestamp,starred,pinned&order=timestamp.desc&limit=200'
   );
   rows.reverse();
   let isTypingNow = false;
@@ -6728,7 +6739,12 @@ function renderBubble(m) {
   ].filter(Boolean).join('');
   const replyQuoteHtml = m.replyToText ? `<div class="msg-reply-quote">${escapeHtml(m.replyToText.slice(0, 80))}</div>` : '';
   const attachmentHtml = renderAttachmentContent(m.message || '');
-  const bodyHtml = attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`;
+  // A customer voice note keeps its playable link in `message`; what they actually
+  // said is saved next to it in `transcript` and shown under the player.
+  const transcriptHtml = (m.transcript && /^🎤 Voice: /.test(m.message || ''))
+    ? `<div class="msg-transcript" dir="auto"><span class="msg-transcript-label">${currentLang === 'ar' ? 'النص المكتوب' : 'Transcript'}</span>${escapeHtml(m.transcript)}</div>`
+    : '';
+  const bodyHtml = (attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`) + transcriptHtml;
   const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>`;
