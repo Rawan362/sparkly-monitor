@@ -338,8 +338,16 @@
   .ob-count.ob-pulse { animation: obPulse 0.9s ease 2; }
   @keyframes obPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
-  .msg-transcript { margin-top: 6px; max-width: 260px; font-size: 12.5px; line-height: 1.45; opacity: 0.9; padding-inline-start: 8px; border-inline-start: 2px solid var(--border); overflow-wrap: anywhere; white-space: pre-wrap; }
-  .msg-transcript-label { display: block; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1px; }
+  #vn-transcript-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #vn-transcript-card { width: min(100%, 380px); max-height: 85vh; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  #vn-transcript-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 15px; margin-bottom: 10px; }
+  #vn-transcript-close { border: none; background: none; color: var(--text-muted); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px; }
+  #vn-transcript-players audio { width: 100%; display: block; }
+  #vn-transcript-players audio + audio { margin-top: 8px; }
+  #vn-transcript-label { margin-top: 14px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+  #vn-transcript-text { margin-top: 6px; padding: 10px 12px; background: var(--panel-2); border-radius: 10px; font-size: 14px; line-height: 1.55; overflow-y: auto; min-height: 44px; max-height: 40vh; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+  #vn-transcript-text.empty { color: var(--text-muted); }
+  #vn-transcript-copy { margin-top: 10px; align-self: flex-start; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
 
   #orders-box-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #orders-box-header {
@@ -4952,14 +4960,6 @@ async function sb(path) {
   return res.json();
 }
 
-// Loads chat rows including the voice-note transcript column. If the database
-// ever rejects that column (e.g. an older database), fall back to the same
-// query without it, so a chat can never fail to open just because of this.
-async function sbThreadRows(path) {
-  try { return await sb(path); }
-  catch (e) { return await sb(path.replace(',transcript', '')); }
-}
-
 // Central failure log — any part of the app (or n8n) writes here on error,
 // so every failure shows up in one place (Settings → Error Log) instead of
 // being silently swallowed or buried in a browser console nobody checks.
@@ -5679,10 +5679,13 @@ function openMessageActionMenu(row, x, y) {
     table: row.dataset.table,
     role: row.dataset.role,
     text: textEl ? textEl.textContent : '',
-    timestamp: tsEl ? tsEl.textContent : ''
+    timestamp: tsEl ? tsEl.textContent : '',
+    audioUrls: Array.from(row.querySelectorAll('audio')).map(a => a.getAttribute('src')).filter(Boolean)
   };
 
   const showForward = msgMenuContext.table === 'conversations';
+  // Only a customer's voice note gets the Transcript option.
+  const showTranscript = msgMenuContext.table === 'conversations' && msgMenuContext.role === 'user' && msgMenuContext.audioUrls.length > 0;
   menu.innerHTML = `
     <div class="msg-action-item" data-action="copy">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -5692,6 +5695,10 @@ function openMessageActionMenu(row, x, y) {
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
       Reply
     </div>
+    ${showTranscript ? `<div class="msg-action-item" data-action="transcript">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+      ${currentLang === 'ar' ? 'النص المكتوب' : 'Transcript'}
+    </div>` : ''}
     ${showForward ? `<div class="msg-action-item" data-action="forward">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
       Forward
@@ -5730,6 +5737,7 @@ function handleMsgMenuAction(action) {
   closeMessageActionMenu();
   if (action === 'copy') copyMessageText(ctx.text);
   else if (action === 'reply') startReplyMode(ctx.id, ctx.text);
+  else if (action === 'transcript') showVoiceTranscript(ctx);
   else if (action === 'forward') openForwardPicker(ctx.text);
   else if (action === 'star') toggleStarMessage(ctx.id, ctx.table);
   else if (action === 'pin') togglePinMessage(ctx.id, ctx.table);
@@ -6368,10 +6376,10 @@ window.loadOlderThreadMessages = async function(phone) {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sbThreadRows(
+    const older = await sb(
       'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
       '&timestamp=lt.' + encodeURIComponent(oldest) +
-      '&select=id,role,message,transcript,timestamp,starred,pinned&order=timestamp.desc&limit=100'
+      '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=100'
     );
     older.reverse();
 
@@ -6428,13 +6436,13 @@ async function loadThread(phone, silent) {
     wasNearBottom = (oldBox.scrollHeight - oldBox.scrollTop - oldBox.clientHeight) < 120;
   }
 
-  const rows = await sbThreadRows(
+  const rows = await sb(
     // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
     // the oldest — otherwise any customer conversation that grows past 200
     // total messages would silently stop showing new messages forever,
     // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,transcript,timestamp,starred,pinned&order=timestamp.desc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=200'
   );
   rows.reverse();
   let isTypingNow = false;
@@ -6739,12 +6747,7 @@ function renderBubble(m) {
   ].filter(Boolean).join('');
   const replyQuoteHtml = m.replyToText ? `<div class="msg-reply-quote">${escapeHtml(m.replyToText.slice(0, 80))}</div>` : '';
   const attachmentHtml = renderAttachmentContent(m.message || '');
-  // A customer voice note keeps its playable link in `message`; what they actually
-  // said is saved next to it in `transcript` and shown under the player.
-  const transcriptHtml = (m.transcript && /^🎤 Voice: /.test(m.message || ''))
-    ? `<div class="msg-transcript" dir="auto"><span class="msg-transcript-label">${currentLang === 'ar' ? 'النص المكتوب' : 'Transcript'}</span>${escapeHtml(m.transcript)}</div>`
-    : '';
-  const bodyHtml = (attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`) + transcriptHtml;
+  const bodyHtml = attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`;
   const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>`;
@@ -9640,6 +9643,129 @@ window.openBoxOrderChat = function(phone) {
   selectConvo(phone);
 };
 // </ORDERS-BOX-JS>
+
+// ═══ VOICE NOTE TRANSCRIPT — optional, opened from the message menu ═══
+// The transcript is saved in the database next to every customer voice note, but
+// it is NOT shown in the chat. The seller opens it on purpose: the arrow on a
+// voice note, a long-press on a phone, or a right-click opens the usual menu,
+// which then has a "Transcript" option. It opens a small window with the audio
+// player on top and the transcript under it, so they can listen and read at the
+// same time. The text is only fetched when asked for.
+function vnT(en, ar) { return (typeof currentLang !== 'undefined' && currentLang === 'ar') ? ar : en; }
+
+function vnTranscriptEsc(e) { if (e.key === 'Escape') closeVoiceTranscript(); }
+
+// Own copy routine on purpose: the page has two different functions named
+// copyMessageText and the later one replaces the first, so this window does not
+// depend on either.
+async function vnCopyText(text) {
+  try {
+    await navigator.clipboard.writeText(text || '');
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text || '';
+      ta.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (e2) {
+      debugLog('vnCopyText failed: ' + (e2 && e2.message));
+      return;
+    }
+  }
+  const toast = document.createElement('div');
+  toast.textContent = vnT('Copied', 'تم النسخ');
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--panel-2);color:var(--text);padding:8px 16px;border-radius:20px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,0.15);z-index:10001;';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1500);
+}
+
+window.closeVoiceTranscript = function() {
+  document.removeEventListener('keydown', vnTranscriptEsc);
+  const overlay = document.getElementById('vn-transcript-overlay');
+  if (!overlay) return;
+  overlay.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch (e) {} });
+  overlay.remove();
+};
+
+window.showVoiceTranscript = async function(ctx) {
+  closeVoiceTranscript();
+  if (!ctx || !ctx.id) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'vn-transcript-overlay';
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeVoiceTranscript(); });
+
+  const card = document.createElement('div');
+  card.id = 'vn-transcript-card';
+
+  const head = document.createElement('div');
+  head.id = 'vn-transcript-head';
+  const title = document.createElement('span');
+  title.textContent = vnT('Voice note', 'رسالة صوتية');
+  const closeBtn = document.createElement('button');
+  closeBtn.id = 'vn-transcript-close';
+  closeBtn.type = 'button';
+  closeBtn.title = vnT('Close', 'إغلاق');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', closeVoiceTranscript);
+  head.appendChild(title);
+  head.appendChild(closeBtn);
+
+  const players = document.createElement('div');
+  players.id = 'vn-transcript-players';
+  (ctx.audioUrls || []).forEach(url => {
+    const a = document.createElement('audio');
+    a.controls = true;
+    a.preload = 'auto';
+    a.src = url;
+    a.addEventListener('loadeddata', () => { try { if (typeof ensureMediaCached === 'function') ensureMediaCached(url); } catch (e) {} });
+    players.appendChild(a);
+  });
+
+  const label = document.createElement('div');
+  label.id = 'vn-transcript-label';
+  label.textContent = vnT('Transcript', 'النص المكتوب');
+  const body = document.createElement('div');
+  body.id = 'vn-transcript-text';
+  body.setAttribute('dir', 'auto');
+  body.textContent = vnT('Loading...', 'جارٍ التحميل...');
+  const copyBtn = document.createElement('button');
+  copyBtn.id = 'vn-transcript-copy';
+  copyBtn.type = 'button';
+  copyBtn.textContent = vnT('Copy text', 'نسخ النص');
+  copyBtn.style.display = 'none';
+
+  card.appendChild(head);
+  card.appendChild(players);
+  card.appendChild(label);
+  card.appendChild(body);
+  card.appendChild(copyBtn);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', vnTranscriptEsc);
+
+  try {
+    const rows = await sb('conversations?id=eq.' + encodeURIComponent(ctx.id) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=transcript&limit=1');
+    if (!document.body.contains(overlay)) return; // closed while it was loading
+    const text = rows && rows[0] && typeof rows[0].transcript === 'string' ? rows[0].transcript.trim() : '';
+    if (text) {
+      body.textContent = text;
+      copyBtn.style.display = '';
+      copyBtn.addEventListener('click', () => vnCopyText(text));
+    } else {
+      body.textContent = vnT('No transcript was saved for this voice note.', 'لم يتم حفظ نص لهذه الرسالة الصوتية.');
+      body.classList.add('empty');
+    }
+  } catch (e) {
+    if (!document.body.contains(overlay)) return;
+    debugLog('showVoiceTranscript failed: ' + (e && e.message));
+    body.textContent = vnT('Could not load the transcript. Try again.', 'تعذر تحميل النص. حاول مرة أخرى.');
+    body.classList.add('empty');
+  }
+};
 
 // ═══ ALERTS (replaces Telegram's proactive alerts / "show alerts") ═══
 window.openAlertsPanel = async function() {
