@@ -349,12 +349,18 @@
   #vn-transcript-text.empty { color: var(--text-muted); }
   #vn-transcript-copy { margin-top: 10px; align-self: flex-start; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
 
-  .call-card-row { display: flex; justify-content: center; margin: 10px 0; padding: 0 12px; }
-  .call-card { width: min(100%, 320px); background: var(--panel); border: 1px dashed var(--border); border-radius: 14px; padding: 10px 12px; }
-  .call-card-title { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; }
-  .call-card audio { width: 100%; display: block; margin-top: 8px; }
-  .call-card-missing { margin-top: 8px; font-size: 12.5px; color: var(--text-muted); }
-  .call-card-foot { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text-muted); }
+  .msg-row.call-row { justify-content: center; margin: 8px 0; }
+  .bubble.call-bubble { max-width: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 16px; background: var(--panel); border: 1px dashed var(--border); color: var(--text); font-size: 13px; line-height: 1.3; }
+  .call-bubble .call-icon { flex-shrink: 0; color: var(--text-muted); }
+  .call-bubble .call-label { font-weight: 600; }
+  .call-bubble .call-dur { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .call-bubble .ts { margin-top: 0; color: var(--text-muted); }
+  #vn-call-lines { margin-top: 6px; padding: 10px 12px; background: var(--panel-2); border-radius: 10px; font-size: 14px; line-height: 1.55; overflow-y: auto; min-height: 44px; max-height: 40vh; user-select: text; -webkit-user-select: text; }
+  #vn-call-lines.empty { color: var(--text-muted); }
+  .vn-line + .vn-line { margin-top: 9px; }
+  .vn-who { display: block; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+  .vn-line.ai .vn-who { color: var(--accent); }
+  .vn-say { white-space: pre-wrap; overflow-wrap: anywhere; }
 
   #orders-box-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #orders-box-header {
@@ -5670,6 +5676,7 @@ function cancelLongPress() {
   document.addEventListener('dblclick', (e) => {
     const row = e.target.closest('.msg-row');
     if (!row || !row.closest('#messages')) return;
+    if (row.dataset.table === 'call_recordings') return;
     const text = row.querySelector('.msg-text');
     startReplyMode(row.dataset.msgId, text ? text.textContent : '');
   });
@@ -5678,6 +5685,7 @@ function cancelLongPress() {
 let msgMenuContext = null; // { id, table, role, text, timestamp }
 
 function openMessageActionMenu(row, x, y) {
+  if (row.dataset.table === 'call_recordings') { openCallActionMenu(row, x, y); return; }
   const menu = document.getElementById('msg-action-menu');
   const textEl = row.querySelector('.msg-text');
   const tsEl = row.querySelector('.ts');
@@ -9656,21 +9664,24 @@ window.openBoxOrderChat = function(phone) {
 };
 // </ORDERS-BOX-JS>
 
-// ═══ CALL RECORDINGS — shown inside the customer's chat, for the seller only ═══
-// The phone agent saves the audio of every call and one row in `call_recordings`.
-// Those rows are merged into the chat here, in time order, as a card with an audio
-// player. They live in their own table on purpose: they are never sent to the
-// customer on WhatsApp and the AI never reads them.
+// ═══ CALL RECORDINGS — a small item in the customer's chat, for the seller only ═══
+// The phone agent saves the audio of every call, how long it lasted and what was
+// said, in the `call_recordings` table. Here each call shows as a small item with a
+// phone icon and its duration, in time order between the messages. It has the same
+// arrow / hold / right-click menu as a message, with two actions: Transcript and
+// Audio. Both open the small window. These items are never sent to the customer on
+// WhatsApp, the AI never reads them, and the audio and the text are only loaded when
+// the seller asks for them.
 async function fetchCallRecordingCards(phone, fromTs, toTs) {
   try {
     let q = 'call_recordings?phone_number=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) +
-            '&select=id,audio_url,duration_seconds,ended_at&order=ended_at.desc&limit=100';
+            '&select=id,duration_seconds,ended_at&order=ended_at.desc&limit=100';
     if (fromTs) q += '&ended_at=gte.' + encodeURIComponent(fromTs);
     if (toTs) q += '&ended_at=lt.' + encodeURIComponent(toTs);
     const found = await sb(q);
-    return (found || []).map(r => ({ kind: 'call_recording', id: 'call-' + r.id, role: 'system', message: '', timestamp: r.ended_at, audioUrl: r.audio_url, durationSeconds: r.duration_seconds }));
+    return (found || []).map(r => ({ kind: 'call_recording', id: 'call-' + r.id, callId: r.id, role: 'system', message: '', timestamp: r.ended_at, durationSeconds: r.duration_seconds }));
   } catch (e) {
-    return []; // table unreachable: the chat just shows no call cards, nothing else changes
+    return []; // table unreachable: the chat just shows no call items, nothing else changes
   }
 }
 
@@ -9679,25 +9690,162 @@ function mergeCallCards(rows, cards) {
   return rows.concat(cards).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
 
+function formatCallDuration(secondsValue) {
+  const secs = Math.max(0, Math.round(Number(secondsValue) || 0));
+  if (secs <= 0) return '';
+  return Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+}
+
 function renderCallRecordingCard(m) {
   const ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
-  const secs = Math.max(0, Math.round(Number(m.durationSeconds) || 0));
-  const dur = secs > 0 ? Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : '';
+  const dur = formatCallDuration(m.durationSeconds);
   const time = new Date(m.timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const raw = String(m.audioUrl || '');
-  const url = /^https?:\/\//i.test(raw) ? raw.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
-  const title = (ar ? 'تسجيل المكالمة' : 'Call recording') + (dur ? ' · ' + dur : '');
-  const player = url
-    ? `<audio src="${url}" controls preload="none"></audio>`
-    : `<div class="call-card-missing">${ar ? 'التسجيل غير متوفر' : 'Recording unavailable'}</div>`;
-  return `<div class="call-card-row" data-call-id="${escapeHtml(String(m.id))}">
-    <div class="call-card">
-      <div class="call-card-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>${escapeHtml(title)}</div>
-      ${player}
-      <div class="call-card-foot"><span>${ar ? 'يراه البائع فقط' : 'Only you can see this'}</span><span>${time}</span></div>
+  const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>`;
+  return `<div class="msg-row call-row" data-msg-id="${escapeHtml(String(m.id))}" data-call-id="${escapeHtml(String(m.callId))}" data-table="call_recordings" data-role="system">
+    <div class="bubble call-bubble" title="${ar ? 'يراه البائع فقط' : 'Only you can see this'}">
+      <svg class="call-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <span class="call-label">${ar ? 'مكالمة' : 'Call'}</span>${dur ? `<span class="call-dur">${dur}</span>` : ''}
+      <span class="ts">${time}${arrowBtn}</span>
     </div>
   </div>`;
 }
+
+// The same menu a message has (arrow, hold on a phone, right-click) - with the two call actions.
+function openCallActionMenu(row, x, y) {
+  const menu = document.getElementById('msg-action-menu');
+  const ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
+  msgMenuContext = null; // none of the message actions (reply, forward, star, delete...) apply to a call
+  menu.innerHTML = `
+    <div class="msg-action-item" data-action="call-transcript">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+      ${ar ? 'النص المكتوب' : 'Transcript'}
+    </div>
+    <div class="msg-action-item" data-action="call-audio">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      ${ar ? 'الصوت' : 'Audio'}
+    </div>
+  `;
+  const callId = row.dataset.callId;
+  menu.querySelectorAll('.msg-action-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const mode = item.dataset.action === 'call-transcript' ? 'transcript' : 'audio';
+      closeMessageActionMenu();
+      showCallWindow(callId, mode);
+    });
+  });
+  const menuWidth = 200, menuHeight = menu.children.length * 42 + 12;
+  menu.style.left = Math.min(x, window.innerWidth - menuWidth - 10) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - menuHeight - 10) + 'px';
+  menu.classList.add('show');
+  setTimeout(() => document.addEventListener('click', msgMenuOutsideClick), 0);
+}
+
+// The small window: the call's audio on top and, for "Transcript", what was said under it.
+window.showCallWindow = async function(callId, mode) {
+  closeVoiceTranscript();
+  if (!callId) return;
+  const ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
+  const T = (en, arabic) => ar ? arabic : en;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'vn-transcript-overlay';
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeVoiceTranscript(); });
+  const card = document.createElement('div');
+  card.id = 'vn-transcript-card';
+
+  const head = document.createElement('div');
+  head.id = 'vn-transcript-head';
+  const title = document.createElement('span');
+  title.textContent = T('Call', 'مكالمة');
+  const closeBtn = document.createElement('button');
+  closeBtn.id = 'vn-transcript-close';
+  closeBtn.type = 'button';
+  closeBtn.title = T('Close', 'إغلاق');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', closeVoiceTranscript);
+  head.appendChild(title);
+  head.appendChild(closeBtn);
+
+  const players = document.createElement('div');
+  players.id = 'vn-transcript-players';
+  players.textContent = T('Loading...', 'جارٍ التحميل...');
+  card.appendChild(head);
+  card.appendChild(players);
+
+  let label = null, lines = null, copyBtn = null;
+  if (mode === 'transcript') {
+    label = document.createElement('div');
+    label.id = 'vn-transcript-label';
+    label.textContent = T('Transcript', 'النص المكتوب');
+    lines = document.createElement('div');
+    lines.id = 'vn-call-lines';
+    lines.setAttribute('dir', 'auto');
+    copyBtn = document.createElement('button');
+    copyBtn.id = 'vn-transcript-copy';
+    copyBtn.type = 'button';
+    copyBtn.textContent = T('Copy text', 'نسخ النص');
+    copyBtn.style.display = 'none';
+    card.appendChild(label);
+    card.appendChild(lines);
+    card.appendChild(copyBtn);
+  }
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', vnTranscriptEsc);
+
+  const fail = (text) => { players.textContent = ''; if (lines) { lines.textContent = text; lines.classList.add('empty'); } else { players.textContent = text; } };
+  try {
+    const select = 'audio_url,duration_seconds' + (mode === 'transcript' ? ',transcript' : '');
+    const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
+    if (!document.body.contains(overlay)) return; // closed while it was loading
+    const r = rows && rows[0];
+    if (!r) { fail(T('Recording not found.', 'التسجيل غير موجود.')); return; }
+
+    const dur = formatCallDuration(r.duration_seconds);
+    title.textContent = T('Call', 'مكالمة') + (dur ? ' · ' + dur : '');
+    players.textContent = '';
+    if (/^https?:\/\//i.test(String(r.audio_url || ''))) {
+      const a = document.createElement('audio');
+      a.controls = true;
+      a.preload = 'metadata';
+      a.src = r.audio_url;
+      players.appendChild(a);
+    } else {
+      players.textContent = T('Recording unavailable.', 'التسجيل غير متوفر.');
+    }
+
+    if (mode === 'transcript') {
+      const items = Array.isArray(r.transcript) ? r.transcript.filter(l => l && String(l.text || '').trim()) : [];
+      if (items.length === 0) {
+        lines.textContent = T('No transcript was saved for this call.', 'لم يتم حفظ نص لهذه المكالمة.');
+        lines.classList.add('empty');
+      } else {
+        const whoLabel = (w) => w === 'customer' ? T('Customer', 'الزبون') : T('AI', 'الذكاء الاصطناعي');
+        items.forEach(l => {
+          const line = document.createElement('div');
+          line.className = 'vn-line ' + (l.who === 'customer' ? 'customer' : 'ai');
+          const who = document.createElement('span');
+          who.className = 'vn-who';
+          who.textContent = whoLabel(l.who);
+          const say = document.createElement('span');
+          say.className = 'vn-say';
+          say.textContent = String(l.text);
+          line.appendChild(who);
+          line.appendChild(say);
+          lines.appendChild(line);
+        });
+        copyBtn.style.display = '';
+        copyBtn.addEventListener('click', () => vnCopyText(items.map(l => whoLabel(l.who) + ': ' + l.text).join('\n')));
+      }
+    }
+  } catch (e) {
+    if (!document.body.contains(overlay)) return;
+    debugLog('showCallWindow failed: ' + (e && e.message));
+    fail(T('Could not load the call. Try again.', 'تعذر تحميل المكالمة. حاول مرة أخرى.'));
+  }
+};
 
 // ═══ VOICE NOTE TRANSCRIPT — optional, opened from the message menu ═══
 // The transcript is saved in the database next to every customer voice note, but
