@@ -362,6 +362,13 @@
   .vn-line.ai .vn-who { color: var(--accent); }
   .vn-say { white-space: pre-wrap; overflow-wrap: anywhere; }
 
+  .audio-row { display: flex; align-items: center; gap: 6px; }
+  .audio-row audio { flex: 1 1 auto; min-width: 0; }
+  .media-dl { flex-shrink: 0; width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
+  .media-dl:hover { background: var(--panel-2); }
+  #vn-transcript-players .audio-row + .audio-row { margin-top: 8px; }
+  #vn-transcript-players .audio-row audio { max-width: none; }
+
   #orders-box-tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #orders-box-header {
     display: flex;
@@ -6675,7 +6682,8 @@ function renderAttachmentContent(message) {
   const voiceUrlMatch = message.match(/^🎤 Voice: (\S+)$/);
   if (voiceUrlMatch) {
     const urls = voiceUrlMatch[1].split(',');
-    return urls.map(url => `<audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')"></audio>`).join('<div style="height:6px;"></div>');
+    const dlLabel = (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تحميل' : 'Download';
+    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')"></audio><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
   }
   // Real photo with a viewable URL: "🖼️ Photo: URL | optional caption"
   const photoUrlMatch = message.match(/^🖼️ Photo: (\S+)(?:\s\|\s(.*))?$/);
@@ -9797,7 +9805,7 @@ window.showCallWindow = async function(callId, mode) {
 
   const fail = (text) => { players.textContent = ''; if (lines) { lines.textContent = text; lines.classList.add('empty'); } else { players.textContent = text; } };
   try {
-    const select = 'audio_url,duration_seconds' + (mode === 'transcript' ? ',transcript' : '');
+    const select = 'audio_url,duration_seconds,ended_at,phone_number' + (mode === 'transcript' ? ',transcript' : '');
     const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
     if (!document.body.contains(overlay)) return; // closed while it was loading
     const r = rows && rows[0];
@@ -9811,7 +9819,7 @@ window.showCallWindow = async function(callId, mode) {
       a.controls = true;
       a.preload = 'metadata';
       a.src = r.audio_url;
-      players.appendChild(a);
+      players.appendChild(makeAudioRowWithDownload(a, () => mediaFileName('call', r.phone_number || (typeof activePhone !== 'undefined' ? activePhone : ''), r.ended_at, r.duration_seconds, r.audio_url)));
     } else {
       players.textContent = T('Recording unavailable.', 'التسجيل غير متوفر.');
     }
@@ -9846,6 +9854,87 @@ window.showCallWindow = async function(callId, mode) {
     fail(T('Could not load the call. Try again.', 'تعذر تحميل المكالمة. حاول مرة أخرى.'));
   }
 };
+
+// ═══ DOWNLOAD AUDIO — one tap on voice notes and calls ═══
+// Files in the Supabase public bucket are downloaded with Supabase's own ?download=<name>
+// option (the browser's plain "download" attribute is ignored for another website's files).
+// Any other host: fetch it and save it, or open it in a new tab if that is not allowed.
+const DL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 11 12 16 17 11"/><path d="M5 21h14"/></svg>';
+
+function mediaFileName(kind, phone, whenIso, durationSecs, url) {
+  let d = whenIso ? new Date(whenIso) : new Date();
+  if (isNaN(d.getTime())) d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes());
+  const ext = (String(url || '').match(/\.([a-z0-9]{2,4})(?:[?#]|$)/i) || [, kind === 'call' ? 'mp3' : 'ogg'])[1].toLowerCase();
+  const digits = String(phone || '').replace(/[^0-9]/g, '');
+  const secs = Math.max(0, Math.round(Number(durationSecs) || 0));
+  const dur = secs > 0 ? '_' + Math.floor(secs / 60) + 'm' + pad(secs % 60) + 's' : '';
+  return (kind === 'call' ? 'call' : 'voice-note') + (digits ? '_' + digits : '') + '_' + stamp + dur + '.' + ext;
+}
+
+// Voice-note files are named after the moment they were saved (milliseconds), e.g. 1790970049567.ogg
+function voiceNoteTimeFromUrl(url) {
+  try {
+    const m = String(url || '').match(/(\d{12,14})\.[a-z0-9]{2,4}(?:[?#]|$)/i);
+    return m ? new Date(Number(m[1])).toISOString() : null;
+  } catch (e) { return null; }
+}
+
+function triggerDownload(href, name) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+window.downloadMedia = function(url, fileName) {
+  try {
+    const u = String(url || '');
+    if (!/^https?:\/\//i.test(u)) return;
+    if (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL && u.startsWith(SUPABASE_URL + '/storage/v1/object/public/')) {
+      triggerDownload(u + (u.includes('?') ? '&' : '?') + 'download=' + encodeURIComponent(fileName), fileName);
+      return;
+    }
+    fetch(u).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }).then(blob => {
+      const objectUrl = URL.createObjectURL(blob);
+      triggerDownload(objectUrl, fileName);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+    }).catch(() => { window.open(u, '_blank', 'noopener'); });
+  } catch (e) {
+    debugLog('downloadMedia failed: ' + (e && e.message));
+  }
+};
+
+// The download button of a voice note drawn in the chat.
+window.downloadVoiceNoteFromRow = function(btn) {
+  const row = btn && btn.closest('.audio-row');
+  const audio = row && row.querySelector('audio');
+  if (!audio) return;
+  const url = audio.getAttribute('src');
+  downloadMedia(url, mediaFileName('voice', typeof activePhone !== 'undefined' ? activePhone : '', voiceNoteTimeFromUrl(url), 0, url));
+};
+
+// An audio player with its download button beside it (used inside the small windows).
+function makeAudioRowWithDownload(audioEl, fileNameFn) {
+  const row = document.createElement('div');
+  row.className = 'audio-row';
+  row.appendChild(audioEl);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'media-dl';
+  const label = (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تحميل' : 'Download';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.innerHTML = DL_ICON;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); downloadMedia(audioEl.getAttribute('src'), fileNameFn()); });
+  row.appendChild(btn);
+  return row;
+}
 
 // ═══ VOICE NOTE TRANSCRIPT — optional, opened from the message menu ═══
 // The transcript is saved in the database next to every customer voice note, but
@@ -9923,7 +10012,7 @@ window.showVoiceTranscript = async function(ctx) {
     a.preload = 'auto';
     a.src = url;
     a.addEventListener('loadeddata', () => { try { if (typeof ensureMediaCached === 'function') ensureMediaCached(url); } catch (e) {} });
-    players.appendChild(a);
+    players.appendChild(makeAudioRowWithDownload(a, () => mediaFileName('voice', typeof activePhone !== 'undefined' ? activePhone : '', voiceNoteTimeFromUrl(url), 0, url)));
   });
 
   const label = document.createElement('div');
