@@ -366,6 +366,7 @@
   .audio-row audio { flex: 1 1 auto; min-width: 0; }
   .media-dl { flex-shrink: 0; width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
   .media-dl:hover { background: var(--panel-2); }
+  .audio-gone { padding: 6px 0; font-size: 12.5px; font-style: italic; color: var(--text-muted); }
   #vn-transcript-players .audio-row + .audio-row { margin-top: 8px; }
   #vn-transcript-players .audio-row audio { max-width: none; }
 
@@ -6683,7 +6684,7 @@ function renderAttachmentContent(message) {
   if (voiceUrlMatch) {
     const urls = voiceUrlMatch[1].split(',');
     const dlLabel = (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تحميل' : 'Download';
-    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')"></audio><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
+    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')" onerror="checkAudioMissing(this)"></audio><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
   }
   // Real photo with a viewable URL: "🖼️ Photo: URL | optional caption"
   const photoUrlMatch = message.match(/^🖼️ Photo: (\S+)(?:\s\|\s(.*))?$/);
@@ -9805,7 +9806,7 @@ window.showCallWindow = async function(callId, mode) {
 
   const fail = (text) => { players.textContent = ''; if (lines) { lines.textContent = text; lines.classList.add('empty'); } else { players.textContent = text; } };
   try {
-    const select = 'audio_url,duration_seconds,ended_at,phone_number' + (mode === 'transcript' ? ',transcript' : '');
+    const select = 'audio_url,duration_seconds,ended_at,phone_number,audio_deleted_at' + (mode === 'transcript' ? ',transcript' : '');
     const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
     if (!document.body.contains(overlay)) return; // closed while it was loading
     const r = rows && rows[0];
@@ -9814,8 +9815,15 @@ window.showCallWindow = async function(callId, mode) {
     const dur = formatCallDuration(r.duration_seconds);
     title.textContent = T('Call', 'مكالمة') + (dur ? ' · ' + dur : '');
     players.textContent = '';
-    if (/^https?:\/\//i.test(String(r.audio_url || ''))) {
+    if (r.audio_deleted_at) {
+      // The sound was removed to save space; the call and its transcript are still here.
+      const note = document.createElement('div');
+      note.className = 'audio-gone';
+      note.textContent = audioGoneText();
+      players.appendChild(note);
+    } else if (/^https?:\/\//i.test(String(r.audio_url || ''))) {
       const a = document.createElement('audio');
+      a.addEventListener('error', () => checkAudioMissing(a));
       a.controls = true;
       a.preload = 'metadata';
       a.src = r.audio_url;
@@ -9853,6 +9861,36 @@ window.showCallWindow = async function(callId, mode) {
     debugLog('showCallWindow failed: ' + (e && e.message));
     fail(T('Could not load the call. Try again.', 'تعذر تحميل المكالمة. حاول مرة أخرى.'));
   }
+};
+
+// ═══ AUDIO THAT WAS REMOVED TO SAVE SPACE ═══
+// When storage nears its limit the server removes the oldest voice notes and call
+// recordings (messages and transcripts stay). A player must not just look broken, so
+// when a player fails to load we ask the server whether the file is really gone - only
+// then do we say so. (A player can also fail for other reasons, e.g. a browser that
+// cannot play the format; in that case nothing changes, so the download button stays.)
+function audioGoneText() {
+  return (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تم حذف الصوت لتوفير المساحة.' : 'Audio was deleted to save space.';
+}
+
+function markAudioGone(audioEl) {
+  const holder = audioEl.closest('.audio-row') || audioEl;
+  const note = document.createElement('div');
+  note.className = 'audio-gone';
+  note.textContent = audioGoneText();
+  holder.replaceWith(note);
+}
+
+window.checkAudioMissing = function(audioEl) {
+  try {
+    const url = audioEl && audioEl.getAttribute('src');
+    if (!url || !/^https?:\/\//i.test(url) || audioEl.dataset.gonecheck === '1') return;
+    audioEl.dataset.gonecheck = '1';
+    fetch(url, { method: 'HEAD' }).then(r => {
+      // Supabase answers 404 (older versions: 400) for a file that no longer exists
+      if (r.status === 404 || r.status === 400) markAudioGone(audioEl);
+    }).catch(() => {});
+  } catch (e) {}
 };
 
 // ═══ DOWNLOAD AUDIO — one tap on voice notes and calls ═══
@@ -10012,6 +10050,7 @@ window.showVoiceTranscript = async function(ctx) {
     a.preload = 'auto';
     a.src = url;
     a.addEventListener('loadeddata', () => { try { if (typeof ensureMediaCached === 'function') ensureMediaCached(url); } catch (e) {} });
+    a.addEventListener('error', () => checkAudioMissing(a));
     players.appendChild(makeAudioRowWithDownload(a, () => mediaFileName('voice', typeof activePhone !== 'undefined' ? activePhone : '', voiceNoteTimeFromUrl(url), 0, url)));
   });
 
