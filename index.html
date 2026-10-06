@@ -6485,7 +6485,7 @@ window.loadOlderThreadMessages = async function(phone) {
     const older = await sb(
       'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
       '&timestamp=lt.' + encodeURIComponent(oldest) +
-      '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=100'
+      '&select=id,role,message,timestamp,starred,pinned,channel&order=timestamp.desc&limit=100'
     );
     older.reverse();
     const olderCards = await fetchCallRecordingCards(phone, older.length >= 100 ? older[0].timestamp : null, oldest);
@@ -6549,7 +6549,7 @@ async function loadThread(phone, silent) {
     // total messages would silently stop showing new messages forever,
     // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,timestamp,starred,pinned&order=timestamp.desc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned,channel&order=timestamp.desc&limit=200'
   );
   rows.reverse();
   // Call recordings for the same window as the loaded messages (everything, unless
@@ -9783,7 +9783,21 @@ async function fetchCallRecordingCards(phone, fromTs, toTs) {
 
 function mergeCallCards(rows, cards) {
   if (!cards || cards.length === 0) return rows;
-  return rows.concat(cards).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  // The words spoken on a call are saved as messages (channel 'voice') so the AI
+  // remembers them, but in the chat a call shows ONLY as its call item (Transcript
+  // / Audio). So hide the spoken-words lines that belong to a call which has a
+  // call item. Calls from before call items existed keep showing their lines.
+  const windows = cards.map(c => {
+    const end = new Date(c.timestamp).getTime();
+    const dur = (Number(c.durationSeconds) > 0 ? Number(c.durationSeconds) * 1000 : 30 * 60 * 1000);
+    return [end - dur - 120000, end + 120000];
+  });
+  const kept = rows.filter(r => {
+    if (r.channel !== 'voice') return true;
+    const t = new Date(r.timestamp).getTime();
+    return !windows.some(w => t >= w[0] && t <= w[1]);
+  });
+  return kept.concat(cards).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
 
 function formatCallDuration(secondsValue) {
