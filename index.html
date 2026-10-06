@@ -4506,6 +4506,9 @@
         <button class="biz-toggle" id="biz-toggle-calls" onclick="toggleCalling(this)" disabled></button>
       </div>
       <div class="biz-row">
+        <div class="biz-row-label"><span class="biz-title">Photos, videos and voice notes on this device</span><span class="biz-sub" id="biz-device-media-sub">Checking...</span></div>
+      </div>
+      <div class="biz-row">
         <div class="biz-row-label"><span class="biz-title">AI replies (all customers)</span><span class="biz-sub">Turn off to pause every automatic reply</span></div>
         <button class="biz-toggle" id="biz-toggle-global_ai_active" data-key="global_ai_active" onclick="toggleBizSetting(this)"></button>
       </div>
@@ -4933,6 +4936,8 @@ const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
 // (Photos, files, voice notes and locations still use the older workflow above.)
 const SELLER_SEND_TEXT_WEBHOOK = 'https://sparklly.site/webhook/seller-send-text';
 const SELLER_SEND_MEDIA_WEBHOOK = 'https://sparklly.site/webhook/seller-send-media'; // photos, videos, files (with or without a caption)
+const SELLER_SEND_VOICE_WEBHOOK = 'https://sparklly.site/webhook/seller-send-voice';
+const SELLER_SEND_LOCATION_WEBHOOK = 'https://sparklly.site/webhook/seller-send-location';
 const WHATSAPP_SIGNUP_CALLBACK_URL = 'https://sparklly.site/webhook/whatsapp-signup-callback';
 const START_NEW_CONVERSATION_URL = 'https://sparklly.site/webhook/start-new-conversation';
 const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
@@ -5093,6 +5098,81 @@ window.toggleCalling = async function(btn) {
     alert(msg);
   }
   btn.disabled = false;
+};
+
+// ---- The phone keeps its own copy of photos, videos, voice notes and call audio (WhatsApp style) ----
+// Files are saved in the browser's media cache; the service worker plays them from there. After a file is
+// safely on this device, a "receipt" is stored on the server. A file may only ever be removed from the
+// server after a receipt exists (and its text or transcript is saved) - that rule is enforced server-side.
+const DEVICE_MEDIA_CACHE = 'sparkly-media-v1';
+const DEVICE_MEDIA_MARK = '/storage/v1/object/public/chat-media/';
+let _deviceSaveBusy = false;
+
+function getDeviceId() {
+  let id = localStorage.getItem('sparkly_device_id');
+  if (!id) { id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('sparkly_device_id', id); }
+  return id;
+}
+function mediaPathOf(url) {
+  const i = url.indexOf(DEVICE_MEDIA_MARK);
+  if (i === -1) return null;
+  try { return decodeURIComponent(url.slice(i + DEVICE_MEDIA_MARK.length).split('?')[0]); } catch (e) { return null; }
+}
+
+window.saveMediaToDevice = async function() {
+  if (_deviceSaveBusy || !SELLER_CHAT_ID || !('caches' in window)) return;
+  if (navigator.connection && navigator.connection.saveData) return;
+  _deviceSaveBusy = true;
+  try {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    const found = new Set();
+    const grab = (text) => String(text || '').split(/[\s|,]+/).forEach(w => { if (w.startsWith('http') && w.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(w); });
+    const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
+    rows.forEach(r => grab(r.message));
+    try {
+      const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
+      calls.forEach(r => grab(r.audio_url));
+    } catch (e) {}
+    const cache = await caches.open(DEVICE_MEDIA_CACHE);
+    const sent = new Set(JSON.parse(localStorage.getItem('sparkly_receipts_sent') || '[]'));
+    let downloaded = 0;
+    const toConfirm = [];
+    for (const url of found) {
+      const path = mediaPathOf(url);
+      if (!path) continue;
+      if (await cache.match(url)) { if (!sent.has(path)) toConfirm.push(path); continue; }
+      if (downloaded >= 25) continue;   // a few per round, so the phone is never overloaded
+      try {
+        const r = await fetch(url, { mode: 'cors' });
+        if (r.status === 200) { await cache.put(url, r); downloaded++; toConfirm.push(path); }
+      } catch (e) {}
+    }
+    if (toConfirm.length) {
+      const device = getDeviceId();
+      const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(toConfirm.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
+      });
+      if (resp.ok) { toConfirm.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
+    }
+    if (window.refreshDeviceMediaInfo) window.refreshDeviceMediaInfo();
+  } catch (e) {} finally { _deviceSaveBusy = false; }
+};
+
+window.refreshDeviceMediaInfo = async function() {
+  const el = document.getElementById('biz-device-media-sub');
+  if (!el) return;
+  try {
+    const cache = await caches.open(DEVICE_MEDIA_CACHE);
+    const keys = await cache.keys();
+    let usage = '';
+    if (navigator.storage && navigator.storage.estimate) {
+      const e = await navigator.storage.estimate();
+      usage = ' Using ' + Math.round((e.usage || 0) / 1048576) + ' MB of ' + Math.round((e.quota || 0) / 1048576) + ' MB available on this device.';
+    }
+    el.textContent = keys.length + ' files saved on this device.' + usage;
+  } catch (e) { el.textContent = 'Not available in this browser.'; }
 };
 
 function timeAgo(ts) {
@@ -5806,12 +5886,14 @@ window.sendLocation = async function() {
   }
   navigator.geolocation.getCurrentPosition(async (pos) => {
     try {
-      const res = await fetch(MANUAL_SEND_WEBHOOK, {
+      const authToken = await getValidAuthToken();
+      const res = await fetch(SELLER_SEND_LOCATION_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: activePhone,
           sellerChatId: SELLER_CHAT_ID,
+          token: authToken,
           locationLat: pos.coords.latitude,
           locationLng: pos.coords.longitude
         })
@@ -7363,10 +7445,11 @@ async function sendVoiceNote(phone, dataUrl) {
   const micBtn = document.getElementById('mic-btn');
   micBtn.disabled = true;
   try {
-    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+    const authToken = await getValidAuthToken();
+    const res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: window._recordedMimeType || 'audio/webm', sellerChatId: SELLER_CHAT_ID })
+      body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: window._recordedMimeType || 'audio/webm', sellerChatId: SELLER_CHAT_ID, token: authToken })
     });
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
@@ -12171,6 +12254,7 @@ async function loadBizSettings() {
 
     bizSettingsLoaded = true;
     window.refreshCallingStatus();
+    window.refreshDeviceMediaInfo();
   } catch (e) {
     debugLog('loadBizSettings failed: ' + (e && e.message));
   }
@@ -13116,6 +13200,8 @@ async function checkWhatsAppConnectedThenOnboarding() {
   }
   checkOnboardingNeeded();
   setTimeout(() => window.refreshCallingStatus(), 4000);
+  setTimeout(() => window.saveMediaToDevice(), 9000);
+  setInterval(() => window.saveMediaToDevice(), 10 * 60 * 1000);
 }
 
 async function checkOnboardingNeeded() {
