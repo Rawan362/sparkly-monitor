@@ -4932,6 +4932,7 @@ const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
 // Plain typed text goes through its own small workflow that reports the REAL WhatsApp result.
 // (Photos, files, voice notes and locations still use the older workflow above.)
 const SELLER_SEND_TEXT_WEBHOOK = 'https://sparklly.site/webhook/seller-send-text';
+const SELLER_SEND_MEDIA_WEBHOOK = 'https://sparklly.site/webhook/seller-send-media'; // photos, videos, files (with or without a caption)
 const WHATSAPP_SIGNUP_CALLBACK_URL = 'https://sparklly.site/webhook/whatsapp-signup-callback';
 const START_NEW_CONVERSATION_URL = 'https://sparklly.site/webhook/start-new-conversation';
 const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
@@ -5570,54 +5571,128 @@ function attachOutsideClick(e) {
   }
 }
 
-window.handleAttachFile = function(input, kind) {
+// ---- Preparing photos / videos / files so WhatsApp accepts them ----
+// WhatsApp accepts only: photos as JPEG or PNG (max 5 MB); videos as MP4 or 3GP with
+// H.264 video + AAC audio (max 16 MB); files of any type (max 100 MB). Everything is
+// checked and converted HERE, before sending, so the seller never gets a vague failure.
+// Our current connection to the server carries about 12 MB per send, so videos and
+// files are limited to 12 MB for now.
+const ATTACH_MAX_BYTES = 12 * 1024 * 1024;     // videos and files
+const PHOTO_TARGET_BYTES = 3.5 * 1024 * 1024;  // photos are shrunk to fit under this
+function _attAr() { return (typeof currentLang !== 'undefined' && currentLang === 'ar'); }
+
+function _fileToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(r.result);
+    r.onerror = () => reject(new Error('read'));
+    r.readAsDataURL(blob);
+  });
+}
+
+function _loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-src="' + src + '"]')) return resolve();
+    const el = document.createElement('script');
+    el.src = src; el.dataset.src = src;
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error('script'));
+    document.head.appendChild(el);
+  });
+}
+
+// Opens any photo the phone or browser can show. HEIC/HEIF (iPhone) is converted by a
+// small helper that is downloaded only when it is needed.
+async function _decodePhoto(file) {
+  try { if (window.createImageBitmap) return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) {}
+  try {
+    return await new Promise((resolve, reject) => {
+      const img = new Image(); const u = URL.createObjectURL(file);
+      img.onload = () => { URL.revokeObjectURL(u); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(u); reject(new Error('decode')); };
+      img.src = u;
+    });
+  } catch (e) {}
+  const isHeic = /hei[cf]/i.test(file.type || '') || /\.(heic|heif)$/i.test(file.name || '');
+  if (isHeic) {
+    await _loadScriptOnce('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+    const out = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    return await _decodePhoto(Array.isArray(out) ? out[0] : out);
+  }
+  throw new Error('unsupported');
+}
+
+// Returns { dataUrl, mime, name } with a JPEG or PNG that fits WhatsApp's limit.
+async function _preparePhoto(file) {
+  const baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+  if ((file.type === 'image/jpeg' || file.type === 'image/png') && file.size <= PHOTO_TARGET_BYTES) {
+    return { dataUrl: await _fileToDataUrl(file), mime: file.type, name: file.name || (baseName + (file.type === 'image/png' ? '.png' : '.jpg')) };
+  }
+  const src = await _decodePhoto(file);
+  const w = src.width || src.naturalWidth, h = src.height || src.naturalHeight;
+  const firstScale = Math.min(1, 2560 / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  for (const factor of [1, 0.8, 0.65, 0.5, 0.35]) {
+    const sc = firstScale * factor;
+    canvas.width = Math.max(1, Math.round(w * sc)); canvas.height = Math.max(1, Math.round(h * sc));
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // flatten transparency
+    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+    for (const q of [0.88, 0.78, 0.68]) {
+      const dataUrl = canvas.toDataURL('image/jpeg', q);
+      if ((dataUrl.length - 23) * 0.75 <= PHOTO_TARGET_BYTES) return { dataUrl, mime: 'image/jpeg', name: baseName + '.jpg' };
+    }
+  }
+  throw new Error('too_big');
+}
+
+window.handleAttachFile = async function(input, kind) {
   const file = input.files && input.files[0];
   if (!file) return;
-  const maxBytes = 15 * 1024 * 1024;
-  if (file.size > maxBytes) {
-    const fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
-    alert(t('file_too_large_title') + '\n\n' + t('file_too_large_max') + '\n' + t('file_too_large_yours') + ' ' + fileSizeMb + ' MB\n\n' + t('file_too_large_action'));
-    input.value = '';
-    return;
-  }
-
-  if (kind === 'image') {
-    // WhatsApp's API only accepts JPEG/PNG for image messages — convert
-    // everything else (HEIC from iPhone/Mac photos, WebP, etc.) to JPEG so
-    // it always works regardless of source format.
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = async () => {
-      URL.revokeObjectURL(objectUrl);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-      const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      stageAttachment(jpegDataUrl, 'image/jpeg', kind, (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg');
+  const ar = _attAr();
+  const fail = (en, arText) => { alert(ar ? arText : en); input.value = ''; };
+  const mb = (file.size / (1024 * 1024)).toFixed(1);
+  try {
+    if (kind === 'image') {
+      if (file.size > 60 * 1024 * 1024) return fail('This photo is too big (' + mb + ' MB). Please choose a smaller one.', 'هذه الصورة كبيرة جدًا (' + mb + ' MB). اختر صورة أصغر.');
+      const p = await _preparePhoto(file);
+      stageAttachment(p.dataUrl, p.mime, kind, p.name);
       input.value = '';
-    };
-    img.onerror = async () => {
-      URL.revokeObjectURL(objectUrl);
-      // Browser couldn't decode it for canvas (e.g. HEIC without native
-      // decode support) — fall back to sending the original as-is.
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        stageAttachment(reader.result, file.type || 'image/jpeg', kind, file.name);
-        input.value = '';
-      };
-      reader.readAsDataURL(file);
-    };
-    img.src = objectUrl;
-    return;
-  }
+      return;
+    }
 
-  const reader = new FileReader();
-  reader.onloadend = async () => {
-    stageAttachment(reader.result, file.type || 'application/octet-stream', kind, file.name);
+    if (kind === 'video') {
+      const name = file.name || '';
+      let vmime = (file.type || '').toLowerCase();
+      if (/\.(mov|m4v)$/i.test(name) || vmime === 'video/quicktime' || vmime === 'video/x-m4v') vmime = 'video/mp4';
+      else if (/\.3gp$/i.test(name) || vmime === 'video/3gpp') vmime = 'video/3gpp';
+      else if (/\.mp4$/i.test(name)) vmime = 'video/mp4';
+      if (vmime !== 'video/mp4' && vmime !== 'video/3gpp') {
+        return fail('WhatsApp only accepts MP4 or 3GP videos. This file is "' + (file.type || name) + '". Please convert it to MP4 first.',
+          'واتساب يقبل فقط فيديو MP4 أو 3GP. هذا الملف "' + (file.type || name) + '". حوّله إلى MP4 أولًا.');
+      }
+      if (file.size > ATTACH_MAX_BYTES) {
+        return fail('This video is ' + mb + ' MB. WhatsApp allows up to 16 MB, and this app can send up to 12 MB for now. Please send a shorter clip.',
+          'هذا الفيديو ' + mb + ' MB. واتساب يسمح حتى 16 MB، وهذا التطبيق يرسل حتى 12 MB حاليًا. أرسل مقطعًا أقصر.');
+      }
+      stageAttachment(await _fileToDataUrl(file), vmime, kind, name || 'video.mp4');
+      input.value = '';
+      return;
+    }
+
+    // Files: any type.
+    if (file.size > ATTACH_MAX_BYTES) {
+      return fail('This file is ' + mb + ' MB. This app can send files up to 12 MB for now (WhatsApp itself allows 100 MB).',
+        'هذا الملف ' + mb + ' MB. هذا التطبيق يرسل ملفات حتى 12 MB حاليًا (واتساب نفسه يسمح 100 MB).');
+    }
+    stageAttachment(await _fileToDataUrl(file), file.type || 'application/octet-stream', kind, file.name);
     input.value = '';
-  };
-  reader.readAsDataURL(file);
+  } catch (e) {
+    const reason = (e && e.message) || '';
+    if (reason === 'too_big') return fail('Could not shrink this photo enough for WhatsApp (5 MB limit). Please choose another one.', 'تعذر تصغير الصورة بما يكفي لواتساب (الحد 5 MB). اختر صورة أخرى.');
+    if (reason === 'script') return fail('Could not open this HEIC photo (no internet for the converter). Try again, or choose it as JPEG.', 'تعذر فتح صورة HEIC (لا يوجد اتصال للمحول). حاول مرة أخرى أو اختر JPEG.');
+    return fail('Could not open this photo. Try another photo or take a screenshot of it.', 'تعذر فتح هذه الصورة. جرّب صورة أخرى أو التقط لقطة شاشة لها.');
+  }
 };
 
 // Stages a picked photo/video/file for preview above the composer —
@@ -5670,7 +5745,7 @@ window.cancelStagedAttachment = function() {
 async function sendAttachment(dataUrl, mimeType, kind, fileName, caption) {
   if (!activePhone) return false;
   try {
-    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+    const res = await fetch(SELLER_SEND_MEDIA_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
