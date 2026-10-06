@@ -5585,9 +5585,9 @@ function attachOutsideClick(e) {
 }
 
 // ---- Preparing photos / videos / files so WhatsApp accepts them ----
-// WhatsApp accepts only: photos as JPEG or PNG (max 5 MB); videos as MP4 or 3GP with
-// H.264 video + AAC audio (max 16 MB); files of any type (max 100 MB). Everything is
-// checked and converted HERE, before sending, so the seller never gets a vague failure.
+// WhatsApp accepts only: photos as JPEG or PNG (max 5 MB); videos as real MP4 with H.264
+// video + AAC audio (max 16 MB); files of any type (max 100 MB). Photos are converted HERE;
+// videos are converted by the server (its video converter) so the seller never gets a vague failure.
 // Our current connection to the server carries about 12 MB per send, so videos and
 // files are limited to 12 MB for now.
 const ATTACH_MAX_BYTES = 12 * 1024 * 1024;     // videos and files
@@ -5675,18 +5675,19 @@ window.handleAttachFile = async function(input, kind) {
     }
 
     if (kind === 'video') {
+      // Any phone video is fine: the server converts it into the MP4 format WhatsApp needs
+      // (iPhone videos are QuickTime inside, which WhatsApp refuses). We only send the TRUE type.
       const name = file.name || '';
+      const byExt = { mov: 'video/quicktime', m4v: 'video/x-m4v', mp4: 'video/mp4', '3gp': 'video/3gpp', webm: 'video/webm', avi: 'video/x-msvideo', mkv: 'video/x-matroska', mpg: 'video/mpeg', mpeg: 'video/mpeg' };
+      const ext = (name.split('.').pop() || '').toLowerCase();
       let vmime = (file.type || '').toLowerCase();
-      if (/\.(mov|m4v)$/i.test(name) || vmime === 'video/quicktime' || vmime === 'video/x-m4v') vmime = 'video/mp4';
-      else if (/\.3gp$/i.test(name) || vmime === 'video/3gpp') vmime = 'video/3gpp';
-      else if (/\.mp4$/i.test(name)) vmime = 'video/mp4';
-      if (vmime !== 'video/mp4' && vmime !== 'video/3gpp') {
-        return fail('WhatsApp only accepts MP4 or 3GP videos. This file is "' + (file.type || name) + '". Please convert it to MP4 first.',
-          'واتساب يقبل فقط فيديو MP4 أو 3GP. هذا الملف "' + (file.type || name) + '". حوّله إلى MP4 أولًا.');
+      if (!vmime.startsWith('video/')) vmime = byExt[ext] || '';
+      if (!vmime) {
+        return fail('This does not look like a video file. Please choose a video.', 'هذا الملف لا يبدو فيديو. اختر فيديو.');
       }
       if (file.size > ATTACH_MAX_BYTES) {
-        return fail('This video is ' + mb + ' MB. WhatsApp allows up to 16 MB, and this app can send up to 12 MB for now. Please send a shorter clip.',
-          'هذا الفيديو ' + mb + ' MB. واتساب يسمح حتى 16 MB، وهذا التطبيق يرسل حتى 12 MB حاليًا. أرسل مقطعًا أقصر.');
+        return fail('This video is ' + mb + ' MB. This app can send up to 12 MB for now (WhatsApp allows 16 MB). Please send a shorter clip.',
+          'هذا الفيديو ' + mb + ' MB. هذا التطبيق يرسل حتى 12 MB حاليًا (واتساب يسمح 16 MB). أرسل مقطعًا أقصر.');
       }
       stageAttachment(await _fileToDataUrl(file), vmime, kind, name || 'video.mp4');
       input.value = '';
