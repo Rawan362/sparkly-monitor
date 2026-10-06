@@ -5025,8 +5025,21 @@ async function getFreshAuthToken() {
   } catch (e) { return null; }
 }
 
+// Uses the saved login token while it is still good for a couple of minutes, and only
+// asks for a new one when it is about to expire (fewer refresh calls, fewer failures).
+async function getValidAuthToken() {
+  try {
+    const t = localStorage.getItem('sparkly_auth_token');
+    if (t && t.split('.').length === 3) {
+      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (payload && payload.exp && payload.exp * 1000 - Date.now() > 120000) return t;
+    }
+  } catch (e) {}
+  return await getFreshAuthToken(); // null for older sessions that have no refresh key yet
+}
+
 async function callSellerCalling(action, enabled) {
-  const token = await getFreshAuthToken();
+  const token = await getValidAuthToken();
   if (!token) return { ok: false, error: 'relogin' };
   try {
     const r = await fetch(SELLER_CALLING_URL, {
@@ -5745,12 +5758,14 @@ window.cancelStagedAttachment = function() {
 async function sendAttachment(dataUrl, mimeType, kind, fileName, caption) {
   if (!activePhone) return false;
   try {
+    const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_MEDIA_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         phone: activePhone,
         sellerChatId: SELLER_CHAT_ID,
+        token: authToken,
         message: caption || '',
         attachmentBase64: dataUrl,
         attachmentMimeType: mimeType,
@@ -6115,10 +6130,11 @@ window.closeForwardPicker = function() {
 window.forwardMessageTo = async function(phone) {
   closeForwardPicker();
   try {
+    const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID })
+      body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID, token: authToken })
     });
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
@@ -7424,10 +7440,11 @@ window.sendReply = async function(phone) {
   textarea.focus();
 
   try {
+    const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID })
+      body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID, token: authToken })
     });
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
