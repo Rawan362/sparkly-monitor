@@ -4929,6 +4929,9 @@ window.addEventListener('load', () => { debugLog('=== PAGE LOADED ==='); });
 const SUPABASE_URL = 'https://qfmmoobwzuhiimmjixes.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbW1vb2J3enVoaWltbWppeGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTMzNDcsImV4cCI6MjA5NDI2OTM0N30.ZC81X_-Fe3tjPDhL7s6oemlTJDuIWRnguDIq3ZklxeA';
 const MANUAL_SEND_WEBHOOK = 'https://sparklly.site/webhook/monitor-manual-send';
+// Plain typed text goes through its own small workflow that reports the REAL WhatsApp result.
+// (Photos, files, voice notes and locations still use the older workflow above.)
+const SELLER_SEND_TEXT_WEBHOOK = 'https://sparklly.site/webhook/seller-send-text';
 const WHATSAPP_SIGNUP_CALLBACK_URL = 'https://sparklly.site/webhook/whatsapp-signup-callback';
 const START_NEW_CONVERSATION_URL = 'https://sparklly.site/webhook/start-new-conversation';
 const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
@@ -6037,7 +6040,7 @@ window.closeForwardPicker = function() {
 window.forwardMessageTo = async function(phone) {
   closeForwardPicker();
   try {
-    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+    const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID })
@@ -7346,7 +7349,7 @@ window.sendReply = async function(phone) {
   textarea.focus();
 
   try {
-    const res = await fetch(MANUAL_SEND_WEBHOOK, {
+    const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID })
