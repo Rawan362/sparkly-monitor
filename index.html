@@ -5128,11 +5128,31 @@ async function loadConversations() {
   const nameMap = {};
   custs.forEach(c => { if (c.name) nameMap[c.phone] = c.name; });
 
+  // Latest call items, so a call can show as "Call 3:49" in the list preview.
+  let recentCalls = [];
+  try {
+    recentCalls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ended_at,duration_seconds&order=ended_at.desc&limit=200') || [];
+  } catch (e) { recentCalls = []; }
+  const _ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
+  const previewFor = (c) => {
+    if (c.channel === 'voice') {
+      const ts = new Date(c.timestamp).getTime();
+      const rec = recentCalls.find(r => r.phone_number === c.phone_number &&
+        new Date(r.ended_at).getTime() >= ts - 60000 && new Date(r.ended_at).getTime() <= ts + 300000);
+      const dur = rec ? formatCallDuration(rec.duration_seconds) : '';
+      return '\uD83D\uDCDE ' + (_ar ? 'مكالمة' : 'Call') + (dur ? ' ' + dur : '');
+    }
+    const m = String(c.message || '');
+    if (m === '[Voice note sent]' || /^\uD83C\uDFA4 Voice: /.test(m)) return '\uD83C\uDFA4 ' + (_ar ? 'رسالة صوتية' : 'Voice message');
+    return null; // normal text: show the text as before
+  };
+
   conversations = Object.values(byPhone)
     .map(c => {
       const st = statusMap[c.phone_number] || {};
       return {
         ...c,
+        previewText: previewFor(c),
         channel: c.channel || 'whatsapp',
         aiActive: st.ai_active !== false,
         pinned: !!st.pinned,
@@ -5228,7 +5248,7 @@ function renderConvoList() {
             <span class="convo-time">${timeAgo(c.timestamp)}</span>
           </div>
           <div class="convo-preview-row">
-            <span class="convo-preview" dir="auto">${c.role === 'user' ? '' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;opacity:0.6;"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>'}${escapeHtml(c.message).slice(0, 46)}</span>
+            <span class="convo-preview" dir="auto">${c.role === 'user' ? '' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;opacity:0.6;"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>'}${escapeHtml(c.previewText != null ? c.previewText : c.message).slice(0, 46)}</span>
             <span style="display:flex;align-items:center;gap:6px;">
               ${isUnread ? '<span class="unread-badge"></span>' : ''}
               <span class="status-dot ${c.aiActive ? 'live' : 'paused'}"></span>
