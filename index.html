@@ -5182,6 +5182,26 @@ document.addEventListener('play', function(e) {
   document.querySelectorAll('audio, video').forEach(function(m) { if (m !== t && !m.paused) m.pause(); });
 }, true);
 
+// Sends go out ONE AT A TIME per customer, in the order you pressed send (like WhatsApp), without making you wait:
+// every message appears in the chat instantly, the composer and the microphone are free again at once, and the
+// messages reach WhatsApp one after another in the background.
+const _sendChains = {};
+const _sendPending = {};
+const _needsReload = {};
+function enqueueSend(phone, job) {
+  _sendPending[phone] = (_sendPending[phone] || 0) + 1;
+  const prev = _sendChains[phone] || Promise.resolve();
+  const run = prev.then(() => job()).catch(() => {}).then(async () => {
+    _sendPending[phone]--;
+    if (_sendPending[phone] === 0 && _needsReload[phone]) {   // everything queued has been sent: refresh once so voice notes get their real player
+      _needsReload[phone] = false;
+      try { await loadConversations(); if (activePhone === phone) await loadThread(phone); } catch (e) {}
+    }
+  });
+  _sendChains[phone] = run;
+  return run;
+}
+
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
   if (diff < 60) return 'now';
@@ -5843,15 +5863,16 @@ window.cancelStagedAttachment = function() {
   if (textarea) toggleComposerButtons(textarea);
 };
 
-async function sendAttachment(dataUrl, mimeType, kind, fileName, caption) {
-  if (!activePhone) return false;
+async function sendAttachment(dataUrl, mimeType, kind, fileName, caption, phoneOverride) {
+  const targetPhone = phoneOverride || activePhone;
+  if (!targetPhone) return false;
   try {
     const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_MEDIA_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        phone: activePhone,
+        phone: targetPhone,
         sellerChatId: SELLER_CHAT_ID,
         token: authToken,
         message: caption || '',
@@ -5873,12 +5894,12 @@ async function sendAttachment(dataUrl, mimeType, kind, fileName, caption) {
       return true;
     } else {
       const reason = data && data.reason ? data.reason : 'unknown error';
-      logSystemError('sendAttachment', reason, { phone: activePhone });
+      logSystemError('sendAttachment', reason, { phone: targetPhone });
       alert('Failed to send: ' + reason);
       return false;
     }
   } catch (e) {
-    logSystemError('sendAttachment', e.message, { phone: activePhone });
+    logSystemError('sendAttachment', e.message, { phone: targetPhone });
     alert('Failed to send: ' + e.message);
     return false;
   }
@@ -7377,6 +7398,13 @@ window.toggleRecording = async function(phone) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
+    // Technical note for troubleshooting voice notes: what this device's microphone really records.
+    try {
+      const ts = stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings ? stream.getAudioTracks()[0].getSettings() : {};
+      fetch(SUPABASE_URL + '/rest/v1/debug_log', { method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ source: 'mic-settings', data: { channelCount: ts.channelCount, sampleRate: ts.sampleRate, echoCancellation: ts.echoCancellation, noiseSuppression: ts.noiseSuppression, ua: (navigator.userAgent || '').slice(0, 140) } }) }).catch(() => {});
+    } catch (e) {}
 
     const candidates = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg'];
     let lastError = null;
@@ -7449,35 +7477,35 @@ window.toggleRecording = async function(phone) {
 };
 
 async function sendVoiceNote(phone, dataUrl) {
-  const micBtn = document.getElementById('mic-btn');
-  micBtn.disabled = true;
-  // Show the voice note in the chat right away (like typed messages), instead of an empty gap while it is prepared and sent.
+  // The recording's format is captured NOW, so a newer recording can never change it while this one waits its turn.
+  const mime = window._recordedMimeType || 'audio/webm';
+  // Show the voice note in the chat right away and leave the microphone free: it is sent in order, in the background.
   const voiceTempId = appendOptimisticBubble('<span>\uD83C\uDFA4 ' + (_attAr() ? 'رسالة صوتية - جاري الإرسال...' : 'Voice note - sending...') + '</span>', 'out');
-  try {
-    const authToken = await getValidAuthToken();
-    const res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: window._recordedMimeType || 'audio/webm', sellerChatId: SELLER_CHAT_ID, token: authToken })
-    });
-    const rawData = await res.json();
-    const data = Array.isArray(rawData) ? rawData[0] : rawData;
-    if (data && data.success) {
-      await loadConversations();
-      await loadThread(phone);
-    } else {
-      const reason = data && data.reason ? data.reason : 'unknown error';
-      logSystemError('sendVoiceNote', reason, { phone });
+  enqueueSend(phone, async () => {
+    try {
+      const authToken = await getValidAuthToken();
+      const res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: mime, sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+      const rawData = await res.json();
+      const data = Array.isArray(rawData) ? rawData[0] : rawData;
+      if (data && data.success) {
+        if (voiceTempId) markOptimisticSent(voiceTempId);
+        _needsReload[phone] = true;
+      } else {
+        const reason = data && data.reason ? data.reason : 'unknown error';
+        logSystemError('sendVoiceNote', reason, { phone });
+        if (voiceTempId) markOptimisticFailed(voiceTempId);
+        alert('Failed to send voice note: ' + reason);
+      }
+    } catch (e) {
+      logSystemError('sendVoiceNote', e.message, { phone });
       if (voiceTempId) markOptimisticFailed(voiceTempId);
-      alert('Failed to send voice note: ' + reason);
+      alert('Failed to send voice note: ' + e.message);
     }
-  } catch (e) {
-    logSystemError('sendVoiceNote', e.message, { phone });
-    if (voiceTempId) markOptimisticFailed(voiceTempId);
-    alert('Failed to send voice note: ' + e.message);
-  }
-  const freshMicBtn = document.getElementById('mic-btn');
-  if (freshMicBtn) freshMicBtn.disabled = false;
+  });
 }
 
 window.sendReply = async function(phone) {
@@ -7515,9 +7543,11 @@ window.sendReply = async function(phone) {
     textarea.focus();
     window._isSending = false;
 
-    const ok = await sendAttachment(staged.dataUrl, staged.mimeType, staged.kind, staged.fileName, message);
-    if (ok) markOptimisticSent(tempId);
-    else markOptimisticFailed(tempId);
+    enqueueSend(phone, async () => {
+      const ok = await sendAttachment(staged.dataUrl, staged.mimeType, staged.kind, staged.fileName, message, phone);
+      if (ok) markOptimisticSent(tempId);
+      else markOptimisticFailed(tempId);
+    });
     return;
   }
 
@@ -7534,32 +7564,34 @@ window.sendReply = async function(phone) {
   cancelReplyMode();
   textarea.focus();
 
-  try {
-    const authToken = await getValidAuthToken();
-    const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID, token: authToken })
-    });
-    const rawData = await res.json();
-    const data = Array.isArray(rawData) ? rawData[0] : rawData;
-    if (!data || !data.success) {
-      const reason = data && data.reason ? data.reason : 'unknown error';
-      logSystemError('sendReply', reason, { phone });
+  enqueueSend(phone, async () => {
+    try {
+      const authToken = await getValidAuthToken();
+      const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+      const rawData = await res.json();
+      const data = Array.isArray(rawData) ? rawData[0] : rawData;
+      if (!data || !data.success) {
+        const reason = data && data.reason ? data.reason : 'unknown error';
+        logSystemError('sendReply', reason, { phone });
+        markOptimisticFailed(tempId);
+        alert(t('send_failed') + reason);
+      } else {
+        // Not calling loadConversations() here on purpose — it would
+        // immediately detect the new message and force a full rebuild,
+        // causing a jarring scroll jump right after the message appears. The
+        // natural background poll picks it up quietly a little later instead.
+        markOptimisticSent(tempId);
+      }
+    } catch (e) {
+      logSystemError('sendReply', e.message, { phone });
       markOptimisticFailed(tempId);
-      alert(t('send_failed') + reason);
-    } else {
-      // Not calling loadConversations() here on purpose — it would
-      // immediately detect the new message and force a full rebuild,
-      // causing a jarring scroll jump right after the message appears. The
-      // natural background poll picks it up quietly a little later instead.
-      markOptimisticSent(tempId);
+      alert(t('send_failed') + e.message);
     }
-  } catch (e) {
-    logSystemError('sendReply', e.message, { phone });
-    markOptimisticFailed(tempId);
-    alert(t('send_failed') + e.message);
-  }
+  });
 };
 
 document.addEventListener('keydown', (e) => {
