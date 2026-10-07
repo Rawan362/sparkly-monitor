@@ -7444,6 +7444,8 @@ window.toggleRecording = async function(phone) {
 async function sendVoiceNote(phone, dataUrl) {
   const micBtn = document.getElementById('mic-btn');
   micBtn.disabled = true;
+  // Show the voice note in the chat right away (like typed messages), instead of an empty gap while it is prepared and sent.
+  const voiceTempId = appendOptimisticBubble('<span>\uD83C\uDFA4 ' + (_attAr() ? 'رسالة صوتية - جاري الإرسال...' : 'Voice note - sending...') + '</span>', 'out');
   try {
     const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
@@ -7459,10 +7461,12 @@ async function sendVoiceNote(phone, dataUrl) {
     } else {
       const reason = data && data.reason ? data.reason : 'unknown error';
       logSystemError('sendVoiceNote', reason, { phone });
+      if (voiceTempId) markOptimisticFailed(voiceTempId);
       alert('Failed to send voice note: ' + reason);
     }
   } catch (e) {
     logSystemError('sendVoiceNote', e.message, { phone });
+    if (voiceTempId) markOptimisticFailed(voiceTempId);
     alert('Failed to send voice note: ' + e.message);
   }
   const freshMicBtn = document.getElementById('mic-btn');
