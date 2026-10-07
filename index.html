@@ -999,6 +999,9 @@
   .ts .ticks { display: inline-flex; }
   .ts .ticks svg { display: block; }
   .ts .ticks.read { color: #4FB3F6; }
+  .ts .ticks.failed { color: #e5534b; }
+  .audio-row .vn-mic { display: inline-flex; flex: 0 0 auto; color: #8696a0; }
+  .audio-row .vn-mic.played { color: #4FB3F6; }
   .optimistic-pending { display: inline-flex; opacity: 0.7; }
   .optimistic-pending svg { display: block; }
 
@@ -5202,6 +5205,92 @@ function enqueueSend(phone, job) {
   return run;
 }
 
+// ---- WhatsApp-style delivery ticks ----
+// one grey check = sent, two grey = delivered to the customer's phone, two blue = the customer read it,
+// red = WhatsApp could not deliver it. On a voice note you sent, the small mic turns blue when the customer plays it.
+const TICK_SINGLE = '<svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/></svg>';
+const TICK_DOUBLE = '<svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg>';
+const TICK_FAILED = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>';
+const MIC_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H8a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2h-3v-3.08A7 7 0 0 0 19 11z"/></svg>';
+
+function tickHtml(state, err) {
+  if (state === 'failed') return '<span class="ticks failed" data-dstate="failed" title="' + escapeHtml(String(err || 'Not delivered')) + '">' + TICK_FAILED + '</span>';
+  if (state === 'sent') return '<span class="ticks" data-dstate="sent" title="Sent">' + TICK_SINGLE + '</span>';
+  if (state === 'read') return '<span class="ticks read" data-dstate="read" title="Read">' + TICK_DOUBLE + '</span>';
+  return '<span class="ticks" data-dstate="delivered" title="Delivered">' + TICK_DOUBLE + '</span>';
+}
+
+// What WhatsApp reported for this chat. Reports are kept per message id.
+async function fetchDeliveryContext(phone) {
+  if (!window._sellerPnid) {
+    try { const r = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=phone_number_id&limit=1'); window._sellerPnid = (r && r[0] && r[0].phone_number_id) || ''; } catch (e) {}
+  }
+  if (!window._sellerPnid) return null;
+  const rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
+    '&select=wa_message_id,status,sent_at,delivered_at,read_at,played_at,error_code,error_text&order=updated_at.desc&limit=400');
+  const ctx = { byId: {}, lastRead: 0, lastDelivered: 0, firstAt: 0, sig: '' };
+  (rows || []).forEach(function(s) {
+    ctx.byId[s.wa_message_id] = s;
+    const r = s.read_at ? new Date(s.read_at).getTime() : 0, d = s.delivered_at ? new Date(s.delivered_at).getTime() : 0, sn = s.sent_at ? new Date(s.sent_at).getTime() : 0;
+    if (r > ctx.lastRead) ctx.lastRead = r;
+    if (Math.max(d, r) > ctx.lastDelivered) ctx.lastDelivered = Math.max(d, r);
+    const first = sn || d || r;
+    if (first && (!ctx.firstAt || first < ctx.firstAt)) ctx.firstAt = first;
+  });
+  ctx.sig = (rows || []).map(function(s) { return s.wa_message_id + ':' + s.status; }).join('|');
+  return ctx;
+}
+
+function computeDeliveryState(row, ctx) {
+  const t = new Date(row.timestamp).getTime();
+  const s = ctx && row.wa_message_id && ctx.byId[row.wa_message_id];
+  if (s) {
+    if (s.status === 'failed') return { state: 'failed', error: s.error_text || s.error_code || 'Not delivered', played: false };
+    const rank = { sent: 1, delivered: 2, read: 3, played: 4 }[s.status] || 1;
+    return { state: rank >= 3 ? 'read' : rank === 2 ? 'delivered' : 'sent', played: rank >= 4 || !!s.played_at };
+  }
+  // No id on this message (older ones): use what the customer's phone reported about LATER messages (reading a chat reads everything before it).
+  if (ctx) {
+    if (ctx.lastRead && t <= ctx.lastRead) return { state: 'read', played: false };
+    if (ctx.lastDelivered && t <= ctx.lastDelivered) return { state: 'delivered', played: false };
+    if (!ctx.firstAt || t < ctx.firstAt) return { state: 'delivered', played: false };   // older than any report we have: keep the old neutral look
+  }
+  return { state: 'sent', played: false };
+}
+
+// Updates ticks and mics IN PLACE (no rebuild), so playing audio/video and scrolling are never interrupted.
+function applyDeliveryToDom(phone, ctx) {
+  const box = document.getElementById('messages');
+  if (!box || !ctx) return;
+  box.querySelectorAll('.msg-row.out[data-ts]').forEach(function(row) {
+    const d = computeDeliveryState({ timestamp: row.dataset.ts, wa_message_id: row.dataset.waId || '' }, ctx);
+    const holder = row.querySelector('.ts');
+    const old = row.querySelector('.ticks');
+    if (holder && (!old || old.dataset.dstate !== d.state)) {
+      const tmp = document.createElement('span'); tmp.innerHTML = tickHtml(d.state, d.error);
+      if (old) old.replaceWith(tmp.firstChild); else holder.appendChild(tmp.firstChild);
+    }
+    row.querySelectorAll('.audio-row').forEach(function(ar) {
+      let mic = ar.querySelector('.vn-mic');
+      if (!mic) { mic = document.createElement('span'); mic.className = 'vn-mic'; mic.title = 'Voice note'; mic.innerHTML = MIC_SVG; ar.insertBefore(mic, ar.firstChild); }
+      const played = !!d.played;
+      mic.classList.toggle('played', played);
+      mic.title = played ? 'Played by the customer' : 'Not played yet';
+    });
+  });
+}
+
+window.refreshTicks = async function(phone) {
+  if (!phone || !document.getElementById('messages')) return;
+  try {
+    const ctx = await fetchDeliveryContext(phone);
+    if (!ctx) return;
+    window._tickSig = window._tickSig || {};
+    applyDeliveryToDom(phone, ctx);
+    window._tickSig[phone] = ctx.sig;
+  } catch (e) {}
+};
+
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
   if (diff < 60) return 'now';
@@ -6775,9 +6864,12 @@ async function loadThread(phone, silent) {
     // total messages would silently stop showing new messages forever,
     // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,timestamp,starred,pinned,channel&order=timestamp.desc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id&order=timestamp.desc&limit=200'
   );
   rows.reverse();
+  let deliveryCtx = null;
+  try { deliveryCtx = await fetchDeliveryContext(phone); } catch (e) {}
+  rows.forEach(function(r) { if (r.role === 'assistant') { const d = computeDeliveryState(r, deliveryCtx); r.deliveryState = d.state; r.deliveryError = d.error; } });
   // Call recordings for the same window as the loaded messages (everything, unless
   // there are older messages still to load).
   const callCards = await fetchCallRecordingCards(phone, rows.length >= 200 ? rows[0].timestamp : null, null);
@@ -6879,6 +6971,7 @@ async function loadThread(phone, silent) {
   if (!silent) playScreenTransition();
   const box = document.getElementById('messages');
   restorePendingBubbles(phone, box);
+  applyDeliveryToDom(phone, deliveryCtx);
   const shouldStickToBottom = !silent || wasNearBottom;
 
   if (!silent && shouldStickToBottom) {
@@ -7098,7 +7191,7 @@ function renderBubble(m) {
   const isOut = m.role === 'assistant';
   const isNote = (m.message || '').startsWith('📩 Customer:');
   const time = new Date(m.timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const ticks = isOut ? `<span class="ticks${m.read ? ' read' : ''}"><svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg></span>` : '';
+  const ticks = isOut ? tickHtml(m.deliveryState || 'delivered', m.deliveryError) : '';
   const badges = [
     m.pinned ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>' : '',
     m.starred ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : ''
@@ -7109,7 +7202,7 @@ function renderBubble(m) {
   const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>`;
-  return `<div class="msg-row ${isOut ? 'out' : 'in'}" data-msg-id="${m.id || ''}" data-table="${m.table || ''}" data-role="${m.role}">
+  return `<div class="msg-row ${isOut ? 'out' : 'in'}" data-msg-id="${m.id || ''}" data-table="${m.table || ''}" data-role="${m.role}" data-ts="${m.timestamp || ''}" data-wa-id="${m.wa_message_id || ''}">
     <div class="bubble ${isNote ? 'private-note' : ''}">${replyQuoteHtml}${badges ? '<span class="msg-badges">' + badges + '</span>' : ''}${bodyHtml}<span class="ts">${time}${ticks}${arrowBtn}</span></div>
   </div>`;
 }
@@ -13244,6 +13337,7 @@ function startApp() {
   checkNotificationsDot();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadConversations, 8000);
+  setInterval(function() { if (activePhone && !document.hidden && document.getElementById('messages')) window.refreshTicks(activePhone); }, 5000);
   if (inboxPollTimer) clearInterval(inboxPollTimer);
   inboxPollTimer = setInterval(checkInboxDot, 15000);
   if (notificationsPollTimer) clearInterval(notificationsPollTimer);
