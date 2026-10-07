@@ -5175,6 +5175,13 @@ window.refreshDeviceMediaInfo = async function() {
   } catch (e) { el.textContent = 'Not available in this browser.'; }
 };
 
+// Only one voice note / audio / video plays at a time (like WhatsApp): starting one pauses any other that is playing.
+document.addEventListener('play', function(e) {
+  const t = e.target;
+  if (!t || (t.tagName !== 'AUDIO' && t.tagName !== 'VIDEO')) return;
+  document.querySelectorAll('audio, video').forEach(function(m) { if (m !== t && !m.paused) m.pause(); });
+}, true);
+
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
   if (diff < 60) return 'now';
