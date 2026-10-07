@@ -5198,7 +5198,7 @@ function enqueueSend(phone, job) {
     _sendPending[phone]--;
     if (_sendPending[phone] === 0 && _needsReload[phone]) {   // everything queued has been sent: refresh once so voice notes get their real player
       _needsReload[phone] = false;
-      try { await loadConversations(); if (activePhone === phone) await loadThread(phone); } catch (e) {}
+      try { await loadConversations(); if (activePhone === phone) await loadThread(phone, true); } catch (e) {}
     }
   });
   _sendChains[phone] = run;
@@ -6848,6 +6848,64 @@ window.loadOlderThreadMessages = async function(phone) {
   }
 };
 
+// ---- Quiet refresh of the open chat ----
+// A refresh must never rebuild the whole screen (header, messages, typing box): that makes the page flash, drops the keyboard and
+// restarts playing media. This adds ONLY what is new (new messages, sends that just finished, typing dots) and returns true.
+// If anything OLDER changed (a message removed, starred or pinned, a call card inserted in the middle) it returns false and the
+// caller does the full rebuild as before.
+window._threadFlags = window._threadFlags || {};
+function threadFlagsMap(rows) { const m = {}; rows.forEach(function(r) { m[String(r.id)] = (r.starred ? 1 : 0) + (r.pinned ? 2 : 0); }); return m; }
+function tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliveryCtx) {
+  if (activePhone !== phone) return false;
+  const box = document.getElementById('messages');
+  if (!box || rows.length >= 200) return false;
+  const known = window._threadFlags[phone];
+  if (!known) return false;
+  const nowFlags = threadFlagsMap(rows);
+  for (const id in known) { if (id in nowFlags && nowFlags[id] !== known[id]) return false; }   // a message already on screen was starred/pinned: full rebuild
+  const hidden = getLocallyDeletedIds();
+  const visible = mergeCallCards(rows, callCards).filter(function(m) { return !hidden.has(String(m.id)); });
+  const domRows = Array.prototype.slice.call(box.querySelectorAll('.msg-row[data-msg-id]'));
+  const domIds = domRows.map(function(el) { return el.getAttribute('data-msg-id'); });
+  const newIds = visible.map(function(m) { return String(m.id); });
+  for (let i = 0; i < domIds.length; i++) { if (domIds[i] !== newIds[i]) return false; }
+  const fresh = visible.slice(domIds.length);
+  const typingBubble = box.querySelector('.typing-bubble');
+  const typingRow = typingBubble ? typingBubble.closest('.msg-row') : null;
+  if (fresh.length === 0 && !!typingRow === !!isTypingNow) { applyDeliveryToDom(phone, deliveryCtx); return true; }
+
+  let lastDate = null;
+  for (let i = domRows.length - 1; i >= 0; i--) { const ts = domRows[i].getAttribute('data-ts'); if (ts) { lastDate = new Date(ts).toDateString(); break; } }
+  if (domRows.length > 0 && lastDate === null) return false;      // only call cards on screen: cannot tell the day, rebuild
+  const wasNearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 120;
+  const reg = window._pendingOptimistic || {};
+  // new messages go before anything still sending/failed (keeps the order), otherwise at the end (before the typing dots)
+  const stillPending = Array.prototype.find.call(box.querySelectorAll('[data-optimistic-id]'), function(el) {
+    const rec = reg[el.getAttribute('data-optimistic-id')]; return !rec || rec.status !== 'sent';
+  });
+  const anchor = stillPending || typingRow || null;
+  fresh.forEach(function(m) {
+    const dateStr = new Date(m.timestamp).toDateString();
+    let html = '';
+    if (dateStr !== lastDate) { html += '<div class="date-divider">' + formatDateDivider(m.timestamp) + '</div>'; lastDate = dateStr; }
+    html += renderBubble(Object.assign({}, m, { table: 'conversations' }));
+    if (anchor) anchor.insertAdjacentHTML('beforebegin', html); else box.insertAdjacentHTML('beforeend', html);
+  });
+  if (fresh.length) {   // the real copies are in the list now: drop the temporary "sent" ones
+    box.querySelectorAll('[data-optimistic-id]').forEach(function(el) {
+      const id = el.getAttribute('data-optimistic-id'); const rec = reg[id];
+      if (rec && rec.status === 'sent' && rec.phone === phone) { el.remove(); delete reg[id]; }
+    });
+  }
+  if (isTypingNow && !typingRow) box.insertAdjacentHTML('beforeend', '<div class="msg-row in"><div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>');
+  else if (!isTypingNow && typingRow) typingRow.remove();
+  if (wasNearBottom) box.scrollTop = box.scrollHeight;
+  if (typeof updateScrollBtn === 'function') updateScrollBtn();
+  window._threadFlags[phone] = nowFlags;
+  applyDeliveryToDom(phone, deliveryCtx);
+  return true;
+}
+
 async function loadThread(phone, silent) {
   if (threadRefreshBlockedByRecording(phone, silent)) return;
   const oldBox = document.getElementById('messages');
@@ -6895,7 +6953,9 @@ async function loadThread(phone, silent) {
     return; // nothing actually changed — leave the DOM exactly as it is
   }
   if (!window._lastThreadFingerprint) window._lastThreadFingerprint = {};
+  if (silent && tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliveryCtx)) { window._lastThreadFingerprint[phone] = fingerprint; return; }
   window._lastThreadFingerprint[phone] = fingerprint;
+  window._threadFlags[phone] = threadFlagsMap(rows);
 
   const convo = conversations.find(c => c.phone_number === phone);
   const isActive = convo ? convo.aiActive : true;
