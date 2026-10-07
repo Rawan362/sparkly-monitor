@@ -6760,6 +6760,7 @@ window.loadOlderThreadMessages = async function(phone) {
 };
 
 async function loadThread(phone, silent) {
+  if (threadRefreshBlockedByRecording(phone, silent)) return;
   const oldBox = document.getElementById('messages');
   let oldScrollTop = 0;
   let wasNearBottom = true;
@@ -6797,6 +6798,7 @@ async function loadThread(phone, silent) {
   // otherwise it does nothing, leaving playing videos and rendered media
   // completely untouched.
   const fingerprint = JSON.stringify({ n: rows.length, last: rows[rows.length - 1], typing: isTypingNow, starred: rows.map(r => r.starred), pinned: rows.map(r => r.pinned), calls: callCards.map(c => c.id) });
+  if (threadRefreshBlockedByRecording(phone, silent)) return;   // a recording may have started while the messages were loading
   if (silent && window._lastThreadFingerprint && window._lastThreadFingerprint[phone] === fingerprint) {
     return; // nothing actually changed — leave the DOM exactly as it is
   }
@@ -6876,6 +6878,7 @@ async function loadThread(phone, silent) {
   `;
   if (!silent) playScreenTransition();
   const box = document.getElementById('messages');
+  restorePendingBubbles(phone, box);
   const shouldStickToBottom = !silent || wasNearBottom;
 
   if (!silent && shouldStickToBottom) {
@@ -7053,10 +7056,27 @@ function appendOptimisticBubble(bodyHtml, side) {
   </div>`;
   box.insertAdjacentHTML('beforeend', html);
   box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+  window._pendingOptimistic = window._pendingOptimistic || {};
+  window._pendingOptimistic[tempId] = { phone: activePhone, html: html, status: 'sending' };
   return tempId;
 }
 
+// Messages that are still "sending..." (or failed) must survive a chat refresh, so a message you just wrote never
+// disappears from the screen while it waits its turn in the send queue.
+function restorePendingBubbles(phone, box) {
+  const reg = window._pendingOptimistic || {};
+  Object.keys(reg).forEach(function(id) {
+    const rec = reg[id];
+    if (rec.phone !== phone) return;
+    if (rec.status === 'sent') { delete reg[id]; return; }          // the real message is in the list now
+    if (box.querySelector('[data-optimistic-id="' + id + '"]')) return;
+    box.insertAdjacentHTML('beforeend', rec.html.replace(' entering', ''));
+    if (rec.status === 'failed') { const b = box.querySelector('[data-optimistic-id="' + id + '"] .bubble'); if (b) b.style.opacity = '0.5'; }
+  });
+}
+
 function markOptimisticFailed(tempId) {
+  if (window._pendingOptimistic && window._pendingOptimistic[tempId]) window._pendingOptimistic[tempId].status = 'failed';
   const el = document.querySelector(`[data-optimistic-id="${tempId}"]`);
   if (el) el.querySelector('.bubble').style.opacity = '0.5';
 }
@@ -7066,6 +7086,7 @@ function markOptimisticFailed(tempId) {
 // background poll will quietly reconcile with the confirmed server copy
 // later, once the user isn't actively watching this exact moment.
 function markOptimisticSent(tempId) {
+  if (window._pendingOptimistic && window._pendingOptimistic[tempId]) window._pendingOptimistic[tempId].status = 'sent';
   const el = document.querySelector(`[data-optimistic-id="${tempId}"] .optimistic-pending`);
   if (!el) return;
   el.innerHTML = `<svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5 4.5 10 11 2"/><path d="M6.5 6.5 10 10 16.5 2"/></svg>`;
@@ -7383,6 +7404,18 @@ window.pauseAI = async function(phone) {
 };
 
 let mediaRecorder = null;
+// While a voice note is being recorded, the chat screen must NOT be rebuilt (the recording bar, timer and stop button live inside it).
+// Returns true when a refresh of this chat should be skipped right now.
+function threadRefreshBlockedByRecording(phone, silent) {
+  const recording = !!(mediaRecorder && mediaRecorder.state === 'recording');
+  if (!recording) return false;
+  if (window._recordingPhone === phone) { window._threadRefreshAfterRecording = true; return true; }   // same chat: keep the screen as it is
+  if (!silent) {                          // the seller opened a DIFFERENT chat while recording: stop the recording (discard) so the microphone is never left on unseen
+    window._recordingCancelled = true;
+    try { mediaRecorder.stop(); } catch (e) {}
+  }
+  return false;
+}
 let recordedChunks = [];
 let recordingTimer = null;
 let recordingSeconds = 0;
@@ -7429,6 +7462,7 @@ window.toggleRecording = async function(phone) {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       clearInterval(recordingTimer);
+      window._recordingPhone = null;
       const bar = document.getElementById('recording-bar');
       if (bar) bar.remove();
       const textarea = document.getElementById('reply-text');
@@ -7447,6 +7481,7 @@ window.toggleRecording = async function(phone) {
       reader.readAsDataURL(blob);
     };
     mediaRecorder.start();
+    window._recordingPhone = phone;
     micBtn.classList.add('recording');
     micBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
     recordingSeconds = 0;
