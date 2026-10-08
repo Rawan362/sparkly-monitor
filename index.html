@@ -368,12 +368,16 @@
   .audio-row .vn-speed:active { transform: scale(.96); }
   /* Sized to the chat bubble: the wave stops at the bubble edge, and the time,
      speed and download controls sit on a line below, like the message time. */
-  .vn-player { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; max-width: 240px; min-width: 0; box-sizing: border-box; }
-  .vn-player .vn-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .vn-player { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; max-width: 240px; min-width: 0; box-sizing: border-box; overflow: visible; }
+  .vn-player .vn-top { display: flex; align-items: center; gap: 8px; min-width: 0; width: 100%; box-sizing: border-box; }
+  .vn-player .vn-wave { overflow: hidden; }
   .vn-player .vn-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; opacity: .8; min-width: 0; }
-  .vn-player .vn-tools { display: inline-flex; align-items: center; gap: 4px; }
+  .vn-player .vn-tools { display: inline-flex; align-items: center; gap: 2px; }
   .vn-player .vn-foot .vn-speed { height: 22px; min-width: 34px; padding: 0 6px; font-size: 11px; }
-  .vn-player .vn-foot .media-dl { width: 22px; height: 22px; }
+  .vn-player .vn-more { width: 26px; height: 22px; border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
+  .vn-player .vn-menu { position: absolute; right: 0; bottom: 100%; margin-bottom: 4px; z-index: 5; background: #fff; color: #111; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.2); padding: 4px; }
+  .vn-player .vn-menu[hidden] { display: none; }
+  .vn-player .vn-menu-item { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 8px 12px; font-size: 13px; color: inherit; cursor: pointer; white-space: nowrap; }
   .vn-player audio { display: none; }
   .vn-player .vn-play { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(134,150,160,.18); color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
   .vn-player .vn-play:active { transform: scale(.94); }
@@ -5362,12 +5366,27 @@ function renderVoiceRow(url, dlLabel) {
     +   '<span class="vn-time">0:00</span>'
     +   '<span class="vn-tools">'
     +     '<button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">' + speedLabel(getVoiceSpeed()) + '</button>'
-    +     '<button type="button" class="media-dl" title="' + dlLabel + '" aria-label="' + dlLabel + '" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">' + DL_ICON + '</button>'
+    +     '<button type="button" class="vn-more" aria-label="More" onclick="event.stopPropagation(); vnMenu(this)">&#8942;</button>'
     +   '</span>'
     + '</div>'
+    + '<div class="vn-menu" hidden><button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnCloseMenus(); downloadVoiceNoteFromRow(this)">' + DL_ICON + '<span>' + dlLabel + '</span></button></div>'
     + '<audio src="' + url + '" preload="auto" style="display:none" onloadeddata="ensureMediaCached(\'' + url + '\')" onerror="checkAudioMissing(this)"></audio>'
     + '</div>';
 }
+window.vnMenu = function(btn) {
+  const row = vnRowOf(btn);
+  const m = row && row.querySelector('.vn-menu');
+  if (!m) return;
+  const open = m.hidden;
+  vnCloseMenus();
+  m.hidden = !open;
+};
+window.vnCloseMenus = function() {
+  document.querySelectorAll('.vn-menu').forEach(function(x) { x.hidden = true; });
+};
+document.addEventListener('click', function(e) {
+  if (!e.target.closest || !e.target.closest('.vn-more, .vn-menu')) window.vnCloseMenus();
+}, true);
 function vnRowOf(el) { return el && el.closest ? el.closest('.vn-player') : null; }
 function vnSetIcon(row, playing) {
   if (!row) return;
@@ -5469,7 +5488,7 @@ document.addEventListener('loadedmetadata', function(e) {
 // with no text bubble in between (same rule as WhatsApp).
 function voiceRowIsVoiceOnly(r) {
   const c = r.cloneNode(true);
-  c.querySelectorAll('.ts, .ticks, .vn-speed, .vn-play, .vn-wave, .vn-time, .media-dl, .vn-mic, audio, svg').forEach(function(x) { x.remove(); });
+  c.querySelectorAll('.ts, .ticks, .vn-speed, .vn-more, .vn-menu, .vn-tools, .vn-foot, .vn-top, .vn-play, .vn-wave, .vn-time, .media-dl, .vn-mic, audio, svg').forEach(function(x) { x.remove(); });
   if (c.textContent.trim() !== '') return false;
   return r.classList.contains('msg-row') ? r.querySelectorAll('.audio-row').length > 0 : true;
 }
