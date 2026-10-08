@@ -6483,7 +6483,11 @@ function handleMsgMenuAction(action) {
   if (action === 'copy') copyTextToClipboard(ctx.text);
   else if (action === 'reply') startReplyMode(ctx.id, ctx.text);
   else if (action === 'transcript') showVoiceTranscript(ctx);
-  else if (action === 'forward') openForwardPicker(ctx.text);
+  else if (action === 'forward') {
+    // A voice note has no text, so forward its audio instead of an empty message.
+    window._forwardAudio = (!ctx.text && ctx.audioUrls && ctx.audioUrls[0]) || null;
+    openForwardPicker(ctx.text);
+  }
   else if (action === 'star') toggleStarMessage(ctx.id, ctx.table);
   else if (action === 'pin') togglePinMessage(ctx.id, ctx.table);
   else if (action === 'info') showMessageInfo(ctx.role, ctx.timestamp);
@@ -6655,13 +6659,32 @@ window.closeForwardPicker = function() {
 
 window.forwardMessageTo = async function(phone) {
   closeForwardPicker();
+  const audioUrl = window._forwardAudio;
+  window._forwardAudio = null;
   try {
     const authToken = await getValidAuthToken();
-    const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID, token: authToken })
-    });
+    let res;
+    if (audioUrl) {
+      // Forward the voice note itself: download it, then send it through the same voice path as a new recording.
+      const blob = await (await fetch(audioUrl)).blob();
+      const dataUrl = await new Promise(function(resolve, reject) {
+        const fr = new FileReader();
+        fr.onload = function() { resolve(fr.result); };
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+      res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: blob.type || 'audio/ogg', sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+    } else {
+      res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+    }
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
     if (!data || !data.success) alert('Failed to forward: ' + (data && data.reason ? data.reason : 'unknown error'));
