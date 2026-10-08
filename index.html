@@ -4682,6 +4682,12 @@
         <div class="biz-field"><label>WhatsApp profile: Website 1 (https://)</label><input type="url" id="wa-website-1" data-key="wa_website_1" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>WhatsApp profile: Website 2 (https://)</label><input type="url" id="wa-website-2" data-key="wa_website_2" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>WhatsApp profile: Category (e.g. RETAIL, AUTO)</label><input type="text" id="wa-vertical" data-key="wa_vertical" data-table="seller_sales_config" maxlength="64" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile photo (JPEG or PNG, max 5 MB)</label>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <img id="wa-photo-preview" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:#eee;display:none;">
+            <input type="file" id="wa-photo-input" accept="image/jpeg,image/png" onchange="previewWaPhoto(this)">
+          </div>
+        </div>
         <div class="biz-field"><button type="button" id="wa-profile-sync" onclick="syncWaProfile(this)">Update my WhatsApp profile</button> <span id="wa-profile-status" style="font-size:12px;"></span></div>
         <div class="biz-field">
           <label>Invoice layout</label>
@@ -12881,6 +12887,7 @@ async function loadBizSettings() {
     if (currencyData.default_language != null) document.getElementById('biz-default-language').value = currencyData.default_language;
 
     bizSettingsLoaded = true;
+    loadWaProfilePhoto();
     window.refreshCallingStatus();
     window.refreshDeviceMediaInfo();
   } catch (e) {
@@ -12961,7 +12968,59 @@ window.toggleReferralActive = async function(btn) {
   }
 };
 
-// Pushes the WhatsApp business profile text (about, address, ...) to the WhatsApp account of this seller.
+// Photo chosen in Business settings, waiting to be sent with the next profile update.
+let waPendingPhoto = null;
+
+window.previewWaPhoto = function(input) {
+  const status = document.getElementById('wa-profile-status');
+  const img = document.getElementById('wa-photo-preview');
+  const f = input && input.files && input.files[0];
+  waPendingPhoto = null;
+  if (!f) { if (img && !img.dataset.current) img.style.display = 'none'; return; }
+  if (f.type !== 'image/jpeg' && f.type !== 'image/png') {
+    alert(currentLang === 'ar' ? 'الصورة يجب أن تكون JPEG أو PNG.' : 'The photo must be a JPEG or PNG.');
+    input.value = '';
+    return;
+  }
+  if (f.size > 5 * 1024 * 1024) {
+    alert(currentLang === 'ar' ? 'حجم الصورة أكبر من 5 ميغابايت.' : 'The photo is bigger than 5 MB.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    waPendingPhoto = { dataUrl: reader.result, mime: f.type };
+    if (img) { img.src = reader.result; img.style.display = 'block'; }
+    if (status) { status.textContent = 'Photo ready. Press "Update my WhatsApp profile" to send it.'; status.style.color = '#2e7d32'; }
+  };
+  reader.readAsDataURL(f);
+};
+
+// Shows the photo currently on the WhatsApp Business profile, if Meta has one.
+window.loadWaProfilePhoto = async function() {
+  const img = document.getElementById('wa-photo-preview');
+  if (!img) return;
+  try {
+    const authToken = await getValidAuthToken();
+    const res = await fetch(SELLER_UPDATE_PROFILE_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken, action: 'get' })
+    });
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    const url = data && data.success && data.profile && data.profile.profile_picture_url;
+    if (url && !waPendingPhoto) {
+      img.dataset.current = '1';
+      img.src = url;
+      img.style.display = 'block';
+    }
+  } catch (e) {
+    debugLog('loadWaProfilePhoto failed: ' + (e && e.message));
+  }
+};
+
+// Pushes the WhatsApp business profile text (about, address, ...) and the chosen photo to the WhatsApp account of this seller.
 window.syncWaProfile = async function(btn) {
   const status = document.getElementById('wa-profile-status');
   const val = (id) => (document.getElementById(id) || {}).value || '';
@@ -12970,18 +13029,30 @@ window.syncWaProfile = async function(btn) {
   set('Updating...', true);
   try {
     const authToken = await getValidAuthToken();
+    const payload = {
+      token: authToken,
+      about: val('wa-about'), address: val('wa-address'), description: val('wa-description'),
+      email: val('wa-email'), website1: val('wa-website-1'), website2: val('wa-website-2'), vertical: val('wa-vertical')
+    };
+    if (waPendingPhoto) { payload.photoBase64 = waPendingPhoto.dataUrl; payload.photoMimeType = waPendingPhoto.mime; }
     const res = await fetch(SELLER_UPDATE_PROFILE_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: authToken,
-        about: val('wa-about'), address: val('wa-address'), description: val('wa-description'),
-        email: val('wa-email'), website1: val('wa-website-1'), website2: val('wa-website-2'), vertical: val('wa-vertical')
-      })
+      body: JSON.stringify(payload)
     });
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
-    if (data && data.success) set('Saved to WhatsApp.', true);
+    if (data && data.success) {
+      if (waPendingPhoto) {
+        waPendingPhoto = null;
+        const input = document.getElementById('wa-photo-input');
+        if (input) input.value = '';
+        const img = document.getElementById('wa-photo-preview');
+        if (img) img.dataset.current = '';
+        loadWaProfilePhoto();
+      }
+      set('Saved to WhatsApp.', true);
+    }
     else set('Not updated: ' + ((data && data.reason) || 'unknown error'), false);
   } catch (e) {
     set('Not updated: ' + e.message, false);
