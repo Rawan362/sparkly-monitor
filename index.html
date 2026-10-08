@@ -340,6 +340,7 @@
 
   .msg-row.quote-flash .bubble { box-shadow: 0 0 0 2px var(--accent, #4FB3F6); transition: box-shadow .2s; }
   .msg-reply-quote { cursor: pointer; }
+  .msg-forwarded { font-size: 11.5px; font-style: italic; opacity: .7; margin-bottom: 3px; }
   #vn-transcript-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
   #vn-transcript-card { width: min(100%, 380px); max-height: 85vh; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
   #vn-transcript-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 15px; margin-bottom: 10px; }
@@ -6718,6 +6719,17 @@ window.forwardMessageTo = async function(phone) {
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
     if (!data || !data.success) alert('Failed to forward: ' + (data && data.reason ? data.reason : 'unknown error'));
+    if (data && data.success && data.waMessageId) {
+      // The send saved the row; mark it as forwarded so it shows the "Forwarded" label in the chat.
+      try {
+        await fetch(SUPABASE_URL + '/rest/v1/conversations?wa_message_id=eq.' + encodeURIComponent(data.waMessageId), {
+          method: 'PATCH',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ is_forwarded: true })
+        });
+      } catch (e) {}
+      if (phone === activePhone) { try { await loadThread(phone, true); } catch (e) {} }
+    }
     await loadConversations();
   } catch (e) {
     alert('Failed to forward: ' + e.message);
@@ -7301,7 +7313,7 @@ async function loadThread(phone, silent) {
     // total messages would silently stop showing new messages forever,
     // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id,reply_to_wa_id,reply_to_text&order=timestamp.desc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id,reply_to_wa_id,reply_to_text,is_forwarded&order=timestamp.desc&limit=200'
   );
   rows.reverse();
   let deliveryCtx = null;
@@ -7643,7 +7655,7 @@ function renderBubble(m) {
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>`;
   return `<div class="msg-row ${isOut ? 'out' : 'in'}" data-msg-id="${m.id || ''}" data-table="${m.table || ''}" data-role="${m.role}" data-ts="${m.timestamp || ''}" data-wa-id="${m.wa_message_id || ''}">
-    <div class="bubble ${isNote ? 'private-note' : ''}">${replyQuoteHtml}${badges ? '<span class="msg-badges">' + badges + '</span>' : ''}${bodyHtml}<span class="ts">${time}${ticks}${arrowBtn}</span></div>
+    <div class="bubble ${isNote ? 'private-note' : ''}">${m.is_forwarded ? '<div class="msg-forwarded">&#8618; Forwarded</div>' : ''}${replyQuoteHtml}${badges ? '<span class="msg-badges">' + badges + '</span>' : ''}${bodyHtml}<span class="ts">${time}${ticks}${arrowBtn}</span></div>
   </div>`;
 }
 
