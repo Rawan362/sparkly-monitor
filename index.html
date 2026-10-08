@@ -1916,8 +1916,8 @@
   .settings-row svg { flex-shrink: 0; opacity: 0.75; }
 
   /* ═══ BUSINESS SETTINGS ═══ */
-  #business-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
-  #business-back-row {
+  #business-tab-content, #profile-tab-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #business-back-row, #profile-back-row {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1925,8 +1925,8 @@
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
-  #business-back-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
-  #business-back-row span { font-weight: 600; font-size: 15px; }
+  #business-back-row button, #profile-back-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #business-back-row span, #profile-back-row span { font-weight: 600; font-size: 15px; }
   .biz-row {
     display: flex;
     align-items: center;
@@ -4438,6 +4438,10 @@
       </div>
     </div>
     <div id="settings-tab-content" style="display:none;">
+      <div class="settings-row" onclick="openProfilePanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
+        <span>Profile</span>
+      </div>
       <div class="settings-section-label" style="padding-top:16px;" id="settings-label-general">General</div>
       <div class="settings-row" onclick="openAppearancePicker()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -4675,20 +4679,6 @@
       <div class="settings-section-label">Invoice</div>
       <div class="biz-fields">
         <div class="biz-field"><label>Business name (shown on invoices)</label><input type="text" id="biz-invoice-business-name" data-key="invoice_business_name" data-table="seller_sales_config" placeholder="e.g. Target Brake Pads" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: About (short, max 139)</label><input type="text" id="wa-about" data-key="wa_about" data-table="seller_sales_config" maxlength="139" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: Address</label><input type="text" id="wa-address" data-key="wa_address" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: Description</label><input type="text" id="wa-description" data-key="wa_description" data-table="seller_sales_config" maxlength="512" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: Email</label><input type="email" id="wa-email" data-key="wa_email" data-table="seller_sales_config" maxlength="128" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: Website 1 (https://)</label><input type="url" id="wa-website-1" data-key="wa_website_1" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: Website 2 (https://)</label><input type="url" id="wa-website-2" data-key="wa_website_2" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile: Category (e.g. RETAIL, AUTO)</label><input type="text" id="wa-vertical" data-key="wa_vertical" data-table="seller_sales_config" maxlength="64" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>WhatsApp profile photo (JPEG or PNG, max 5 MB)</label>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <img id="wa-photo-preview" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:#eee;display:none;">
-            <input type="file" id="wa-photo-input" accept="image/jpeg,image/png" onchange="previewWaPhoto(this)">
-          </div>
-        </div>
-        <div class="biz-field"><button type="button" id="wa-profile-sync" onclick="syncWaProfile(this)">Update my WhatsApp profile</button> <span id="wa-profile-status" style="font-size:12px;"></span></div>
         <div class="biz-field">
           <label>Invoice layout</label>
           <select id="biz-invoice-layout" data-key="invoice_layout" data-table="seller_sales_config" onchange="saveBizField(this)">
@@ -4718,6 +4708,33 @@
         <div class="biz-field"><label>Meta Ad Account ID</label><input type="text" id="biz-ad-account-id" data-key="ad_account_id" data-table="seller_ad_config" placeholder="e.g. 123456789 (without act_)" onchange="saveBizField(this)"></div>
       </div>
       <div id="biz-save-hint" class="biz-save-hint">Saved</div>
+    </div>
+    <div id="profile-tab-content" style="display:none;">
+      <div id="profile-back-row">
+        <button onclick="closeProfilePanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span>Profile</span>
+      </div>
+      <div class="settings-section-label" style="padding-top:16px;">Photo</div>
+      <div class="biz-fields">
+        <div class="biz-field" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <img id="wa-photo-preview" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;background:#eee;display:none;">
+          <input type="file" id="wa-photo-input" accept="image/jpeg,image/png" onchange="previewWaPhoto(this)">
+        </div>
+      </div>
+      <div class="settings-section-label">WhatsApp business profile</div>
+      <div class="biz-fields">
+        <div class="biz-field"><label>About (short, max 139)</label><input type="text" id="wa-about" data-key="wa_about" data-table="seller_sales_config" maxlength="139" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Address</label><input type="text" id="wa-address" data-key="wa_address" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Description</label><textarea id="wa-description" data-key="wa_description" data-table="seller_sales_config" maxlength="512" rows="3" onchange="saveBizField(this)" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea></div>
+        <div class="biz-field"><label>Email</label><input type="email" id="wa-email" data-key="wa_email" data-table="seller_sales_config" maxlength="128" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Website 1 (https://)</label><input type="url" id="wa-website-1" data-key="wa_website_1" data-table="seller_sales_config" maxlength="256" placeholder="https://" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Website 2 (https://)</label><input type="url" id="wa-website-2" data-key="wa_website_2" data-table="seller_sales_config" maxlength="256" placeholder="https://" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Category (e.g. RETAIL, AUTO)</label><input type="text" id="wa-vertical" data-key="wa_vertical" data-table="seller_sales_config" maxlength="64" onchange="saveBizField(this)"></div>
+      </div>
+      <div class="biz-fields">
+        <div class="biz-field"><button type="button" id="wa-profile-sync" onclick="syncWaProfile(this)">Save to WhatsApp</button> <span id="wa-profile-status" style="font-size:12px;"></span></div>
+        <div class="biz-field" style="font-size:12px;color:var(--text-muted);">Photo and text are sent to your WhatsApp Business profile when you press Save to WhatsApp.</div>
+      </div>
     </div>
     <div id="media-backup-tab-content" style="display:none;">
       <div id="media-backup-header-row">
@@ -8685,7 +8702,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'products-tab-content', 'orders-tab-content', 'orders-box-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'profile-tab-content', 'products-tab-content', 'orders-tab-content', 'orders-box-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -12887,7 +12904,6 @@ async function loadBizSettings() {
     if (currencyData.default_language != null) document.getElementById('biz-default-language').value = currencyData.default_language;
 
     bizSettingsLoaded = true;
-    loadWaProfilePhoto();
     window.refreshCallingStatus();
     window.refreshDeviceMediaInfo();
   } catch (e) {
@@ -12996,10 +13012,10 @@ window.previewWaPhoto = function(input) {
   reader.readAsDataURL(f);
 };
 
-// Shows the photo currently on the WhatsApp Business profile, if Meta has one.
-window.loadWaProfilePhoto = async function() {
+// Reads the live WhatsApp Business profile and fills the Profile panel with it (text + current photo).
+window.loadWaProfile = async function() {
   const img = document.getElementById('wa-photo-preview');
-  if (!img) return;
+  const status = document.getElementById('wa-profile-status');
   try {
     const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_UPDATE_PROFILE_WEBHOOK, {
@@ -13009,15 +13025,44 @@ window.loadWaProfilePhoto = async function() {
     });
     const rawData = await res.json();
     const data = Array.isArray(rawData) ? rawData[0] : rawData;
-    const url = data && data.success && data.profile && data.profile.profile_picture_url;
-    if (url && !waPendingPhoto) {
+    if (!data || !data.success) {
+      if (status) { status.textContent = 'Could not read WhatsApp profile: ' + ((data && data.reason) || 'unknown error'); status.style.color = '#c62828'; }
+      return;
+    }
+    const p = data.profile || {};
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+    setVal('wa-about', p.about);
+    setVal('wa-address', p.address);
+    setVal('wa-description', p.description);
+    setVal('wa-email', p.email);
+    setVal('wa-vertical', p.vertical);
+    const sites = Array.isArray(p.websites) ? p.websites : [];
+    setVal('wa-website-1', sites[0] || '');
+    setVal('wa-website-2', sites[1] || '');
+    if (img && p.profile_picture_url && !waPendingPhoto) {
       img.dataset.current = '1';
-      img.src = url;
+      img.src = p.profile_picture_url;
       img.style.display = 'block';
     }
   } catch (e) {
-    debugLog('loadWaProfilePhoto failed: ' + (e && e.message));
+    debugLog('loadWaProfile failed: ' + (e && e.message));
   }
+};
+
+window.openProfilePanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('profile-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  await loadBizSettings();
+  await loadWaProfile();
+};
+
+window.closeProfilePanel = function() {
+  document.getElementById('profile-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
 };
 
 // Pushes the WhatsApp business profile text (about, address, ...) and the chosen photo to the WhatsApp account of this seller.
@@ -13049,7 +13094,7 @@ window.syncWaProfile = async function(btn) {
         if (input) input.value = '';
         const img = document.getElementById('wa-photo-preview');
         if (img) img.dataset.current = '';
-        loadWaProfilePhoto();
+        loadWaProfile();
       }
       set('Saved to WhatsApp.', true);
     }
