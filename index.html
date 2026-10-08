@@ -364,6 +364,8 @@
 
   .audio-row { display: flex; align-items: center; gap: 6px; }
   .audio-row audio { flex: 1 1 auto; min-width: 0; }
+  .audio-row .vn-speed { flex: 0 0 auto; min-width: 38px; height: 26px; padding: 0 8px; border-radius: 13px; border: 1px solid rgba(134,150,160,.45); background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .audio-row .vn-speed:active { transform: scale(.96); }
   .media-dl { flex-shrink: 0; width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
   .media-dl:hover { background: var(--panel-2); }
   .audio-gone { padding: 6px 0; font-size: 12.5px; font-style: italic; color: var(--text-muted); }
@@ -5280,6 +5282,21 @@ function applyDeliveryToDom(phone, ctx) {
   });
 }
 
+// WhatsApp-style voice speed: 1x → 1.5x → 2x → 1x. Pitch is kept (no chipmunk voice).
+window.cycleVoiceSpeed = function(btn) {
+  try {
+    const row = btn && btn.closest('.audio-row');
+    const a = row && row.querySelector('audio');
+    if (!a) return;
+    const steps = [1, 1.5, 2];
+    const cur = steps.findIndex(s => Math.abs(s - a.playbackRate) < 0.01);
+    const next = steps[(cur + 1) % steps.length];
+    a.preservesPitch = true;
+    a.playbackRate = next;
+    btn.textContent = (next === 1 ? '1' : String(next)) + 'x';
+  } catch (e) {}
+};
+
 window.refreshTicks = async function(phone) {
   if (!phone || !document.getElementById('messages')) return;
   try {
@@ -7148,7 +7165,7 @@ function renderAttachmentContent(message) {
   if (voiceUrlMatch) {
     const urls = voiceUrlMatch[1].split(',');
     const dlLabel = (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تحميل' : 'Download';
-    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')" onerror="checkAudioMissing(this)"></audio><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
+    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')" onerror="checkAudioMissing(this)"></audio><button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">1x</button><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
   }
   // Real photo with a viewable URL: "🖼️ Photo: URL | optional caption"
   const photoUrlMatch = message.match(/^🖼️ Photo: (\S+)(?:\s\|\s(.*))?$/);
