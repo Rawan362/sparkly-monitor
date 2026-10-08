@@ -338,6 +338,8 @@
   .ob-count.ob-pulse { animation: obPulse 0.9s ease 2; }
   @keyframes obPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
+  .msg-row.quote-flash .bubble { box-shadow: 0 0 0 2px var(--accent, #4FB3F6); transition: box-shadow .2s; }
+  .msg-reply-quote { cursor: pointer; }
   #vn-transcript-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
   #vn-transcript-card { width: min(100%, 380px); max-height: 85vh; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
   #vn-transcript-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 15px; margin-bottom: 10px; }
@@ -6425,7 +6427,8 @@ function openMessageActionMenu(row, x, y) {
     role: row.dataset.role,
     text: textEl ? textEl.textContent : '',
     timestamp: tsEl ? tsEl.textContent : '',
-    audioUrls: Array.from(row.querySelectorAll('audio')).map(a => a.getAttribute('src')).filter(Boolean)
+    audioUrls: Array.from(row.querySelectorAll('audio')).map(a => a.getAttribute('src')).filter(Boolean),
+    waId: row.dataset.waId || ''
   };
 
   const showForward = msgMenuContext.table === 'conversations';
@@ -6481,7 +6484,7 @@ function handleMsgMenuAction(action) {
   if (!ctx) return;
   closeMessageActionMenu();
   if (action === 'copy') copyTextToClipboard(ctx.text);
-  else if (action === 'reply') startReplyMode(ctx.id, ctx.text);
+  else if (action === 'reply') startReplyMode(ctx.id, ctx.text, ctx.waId);
   else if (action === 'transcript') showVoiceTranscript(ctx);
   else if (action === 'forward') {
     // A voice note has no text, so forward its audio instead of an empty message.
@@ -6533,15 +6536,27 @@ function msgMenuOutsideClick(e) {
   if (menu && !menu.contains(e.target)) closeMessageActionMenu();
 }
 
-window.startReplyMode = function(id, text) {
+window.startReplyMode = function(id, text, waId) {
   closeMessageActionMenu();
-  replyingTo = { id, text };
+  replyingTo = { id, text, waId: waId || '' };
   const bar = document.getElementById('reply-preview-bar');
   const snippet = document.getElementById('reply-preview-snippet');
   if (snippet) snippet.textContent = (text || '').slice(0, 70);
   if (bar) bar.classList.add('show');
   const textarea = document.getElementById('reply-text');
   if (textarea) textarea.focus();
+};
+
+// Tapping a quote scrolls to the message it replies to and flashes it, like WhatsApp.
+window.jumpToQuoted = function(waId) {
+  if (!waId) return;
+  const box = document.getElementById('messages');
+  if (!box) return;
+  const target = Array.from(box.querySelectorAll('.msg-row')).find(function(r) { return r.dataset.waId === waId; });
+  if (!target) return; // the original is older than what is loaded on screen
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.classList.add('quote-flash');
+  setTimeout(function() { target.classList.remove('quote-flash'); }, 1600);
 };
 
 window.cancelReplyMode = function() {
@@ -7271,7 +7286,7 @@ async function loadThread(phone, silent) {
     // total messages would silently stop showing new messages forever,
     // no matter how many times the page refreshes.
     'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
-    '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id&order=timestamp.desc&limit=200'
+    '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id,reply_to_wa_id,reply_to_text&order=timestamp.desc&limit=200'
   );
   rows.reverse();
   let deliveryCtx = null;
@@ -7605,7 +7620,8 @@ function renderBubble(m) {
     m.pinned ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>' : '',
     m.starred ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : ''
   ].filter(Boolean).join('');
-  const replyQuoteHtml = m.replyToText ? `<div class="msg-reply-quote">${escapeHtml(m.replyToText.slice(0, 80))}</div>` : '';
+  const quoteSrc = m.reply_to_text || m.replyToText || '';
+  const replyQuoteHtml = quoteSrc ? `<div class="msg-reply-quote" onclick="event.stopPropagation(); jumpToQuoted('${escapeHtml(m.reply_to_wa_id || '')}')">${escapeHtml(quoteSrc.slice(0, 80))}</div>` : '';
   const attachmentHtml = renderAttachmentContent(m.message || '');
   const bodyHtml = attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`;
   const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
@@ -7813,9 +7829,6 @@ window.sendAhmadMessage = async function() {
   const textarea = document.getElementById('reply-text');
   let message = textarea.value.trim();
   if (!message) return;
-  if (replyingTo) {
-    message = '↪️ "' + replyingTo.text.slice(0, 60) + '"\n' + message;
-  }
   window._isSending = true;
 
   // Show it instantly, matching the customer chat — no waiting for the
@@ -8089,9 +8102,9 @@ window.sendReply = async function(phone) {
   }
 
   if (!message) return;
-  if (replyingTo) {
-    message = '↪️ "' + replyingTo.text.slice(0, 60) + '"\n' + message;
-  }
+  // A reply is sent as a real WhatsApp quote (replyToWaId), not as text typed into the message.
+  const quoteWaId = replyingTo ? (replyingTo.waId || '') : '';
+  const quoteText = replyingTo ? (replyingTo.text || '') : '';
 
   // Same instant-display approach for plain text
   const tempId = appendOptimisticBubble(`<span class="msg-text" dir="auto">${escapeHtml(message)}</span>`);
@@ -8107,7 +8120,7 @@ window.sendReply = async function(phone) {
       const res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID, token: authToken })
+        body: JSON.stringify({ phone, message, sellerChatId: SELLER_CHAT_ID, token: authToken, replyToWaId: quoteWaId, replyToText: quoteText })
       });
       const rawData = await res.json();
       const data = Array.isArray(rawData) ? rawData[0] : rawData;
