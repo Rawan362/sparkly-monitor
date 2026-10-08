@@ -5496,12 +5496,26 @@ window.vnToggle = function(btn) {
     document.querySelectorAll('.vn-player audio').forEach(function(o) { if (o !== a && !o.paused) o.pause(); });
     a.preservesPitch = true;
     a.playbackRate = getVoiceSpeed();
-    const p = a.play();
-    if (p && p.catch) p.catch(function() { vnSetIcon(row, false); });
+    vnStartPlayback(row, a);
   } else {
     a.pause();
   }
 };
+// Starts the note on the first tap. If the file is still loading and the browser refuses the
+// first attempt, it starts as soon as it is ready, so the user never has to tap twice.
+function vnStartPlayback(row, a) {
+  vnSetIcon(row, true);
+  const p = a.play();
+  if (p && p.catch) p.catch(function() {
+    if (a.readyState < 3) {
+      a.addEventListener('canplay', function() {
+        if (a.paused) a.play().catch(function() { vnSetIcon(row, false); });
+      }, { once: true });
+    } else {
+      vnSetIcon(row, false);
+    }
+  });
+}
 window.vnSeek = function(ev, wave) {
   const row = vnRowOf(wave);
   const a = row && row.querySelector('audio');
@@ -5556,7 +5570,8 @@ let vnPressTimer = null, vnPressX = 0, vnPressY = 0, vnLongFired = false;
 document.addEventListener('pointerdown', function(e) {
   vnLongFired = false; // every new press starts clean, so a stale flag can never eat a later tap
   const row = e.target.closest && e.target.closest('.vn-player');
-  if (!row) { clearTimeout(vnPressTimer); return; }
+  // Pressing the play button is always a plain tap; it never opens the long-press menu.
+  if (!row || (e.target.closest && e.target.closest('.vn-play'))) { clearTimeout(vnPressTimer); return; }
   vnPressX = e.clientX; vnPressY = e.clientY;
   clearTimeout(vnPressTimer);
   vnPressTimer = setTimeout(function() {
