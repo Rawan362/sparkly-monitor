@@ -377,6 +377,7 @@
   .vn-player .vn-more { width: 26px; height: 22px; border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
   .vn-player .vn-menu { position: absolute; right: 0; bottom: 100%; margin-bottom: 4px; z-index: 5; background: #fff; color: #111; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.2); padding: 4px; }
   .vn-player .vn-menu[hidden] { display: none; }
+  .vn-player { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .vn-player .vn-menu-item { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 8px 12px; font-size: 13px; color: inherit; cursor: pointer; white-space: nowrap; }
   .vn-player audio { display: none; }
   .vn-player .vn-play { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(134,150,160,.18); color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
@@ -5369,7 +5370,11 @@ function renderVoiceRow(url, dlLabel) {
     +     '<button type="button" class="vn-more" aria-label="More" onclick="event.stopPropagation(); vnMenu(this)">&#8942;</button>'
     +   '</span>'
     + '</div>'
-    + '<div class="vn-menu" hidden><button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnCloseMenus(); downloadVoiceNoteFromRow(this)">' + DL_ICON + '<span>' + dlLabel + '</span></button></div>'
+    + '<div class="vn-menu" hidden>'
+    +   '<button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnAction(this, \'replay\')">' + vnL('replay') + '</button>'
+    +   '<button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnAction(this, \'copy\')">' + vnL('copy') + '</button>'
+    +   '<button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnAction(this, \'download\')">' + DL_ICON + '<span>' + dlLabel + '</span></button>'
+    + '</div>'
     + '<audio src="' + url + '" preload="auto" style="display:none" onloadeddata="ensureMediaCached(\'' + url + '\')" onerror="checkAudioMissing(this)"></audio>'
     + '</div>';
 }
@@ -5385,6 +5390,7 @@ window.vnCloseMenus = function() {
   document.querySelectorAll('.vn-menu').forEach(function(x) { x.hidden = true; });
 };
 document.addEventListener('click', function(e) {
+  if (vnLongFired) return; // the tap that ends a long press must keep the menu open
   if (!e.target.closest || !e.target.closest('.vn-more, .vn-menu')) window.vnCloseMenus();
 }, true);
 function vnRowOf(el) { return el && el.closest ? el.closest('.vn-player') : null; }
@@ -5459,6 +5465,66 @@ window.vnSeek = function(ev, wave) {
   a.currentTime = frac * a.duration;
   vnPaint(row, a);
 };
+// Menu labels follow the app language.
+function vnL(key) {
+  const ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
+  const t = {
+    replay: ar ? 'إعادة التشغيل' : 'Replay',
+    copy: ar ? 'نسخ الرابط' : 'Copy link',
+    copied: ar ? 'تم النسخ' : 'Copied'
+  };
+  return t[key] || key;
+}
+window.vnAction = function(btn, what) {
+  const row = vnRowOf(btn);
+  const a = row && row.querySelector('audio');
+  vnCloseMenus();
+  if (!row || !a) return;
+  if (what === 'replay') {
+    a.currentTime = 0;
+    a.preservesPitch = true;
+    a.playbackRate = getVoiceSpeed();
+    const p = a.play();
+    if (p && p.catch) p.catch(function() { vnSetIcon(row, false); });
+  } else if (what === 'copy') {
+    const url = row.dataset.src || a.getAttribute('src') || '';
+    try { navigator.clipboard.writeText(url); } catch (e) {}
+    const b = row.querySelector('.vn-more');
+    if (b) { b.textContent = '✓'; setTimeout(function() { b.innerHTML = '&#8942;'; }, 1200); }
+  } else if (what === 'download') {
+    window.downloadVoiceNoteFromRow(btn);
+  }
+};
+// Press and hold a voice note to open its menu (replay, copy, download).
+let vnPressTimer = null, vnPressX = 0, vnPressY = 0, vnLongFired = false;
+document.addEventListener('pointerdown', function(e) {
+  vnLongFired = false; // every new press starts clean, so a stale flag can never eat a later tap
+  const row = e.target.closest && e.target.closest('.vn-player');
+  if (!row) { clearTimeout(vnPressTimer); return; }
+  vnPressX = e.clientX; vnPressY = e.clientY;
+  clearTimeout(vnPressTimer);
+  vnPressTimer = setTimeout(function() {
+    vnLongFired = true;
+    window.vnCloseMenus();
+    const m = row.querySelector('.vn-menu');
+    if (m) m.hidden = false;
+    if (navigator.vibrate) navigator.vibrate(15);
+  }, 450);
+}, true);
+document.addEventListener('pointermove', function(e) {
+  if (Math.abs(e.clientX - vnPressX) > 10 || Math.abs(e.clientY - vnPressY) > 10) clearTimeout(vnPressTimer);
+}, true);
+document.addEventListener('pointerup', function() { clearTimeout(vnPressTimer); }, true);
+document.addEventListener('pointercancel', function() { clearTimeout(vnPressTimer); }, true);
+// After a long press, the tap that ends it must not also play or pause the note.
+document.addEventListener('click', function(e) {
+  if (vnLongFired) { vnLongFired = false; e.stopPropagation(); e.preventDefault(); }
+}, true);
+// Stop the phone's own long-press menu (copy/select) on voice notes.
+document.addEventListener('contextmenu', function(e) {
+  if (e.target.closest && e.target.closest('.vn-player')) e.preventDefault();
+}, true);
+
 // Media events do not bubble, so listen in the capture phase on the document.
 document.addEventListener('play', function(e) {
   const row = vnRowOf(e.target); if (!row) return;
