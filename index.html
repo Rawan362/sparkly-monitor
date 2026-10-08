@@ -4674,6 +4674,14 @@
       <div class="settings-section-label">Invoice</div>
       <div class="biz-fields">
         <div class="biz-field"><label>Business name (shown on invoices)</label><input type="text" id="biz-invoice-business-name" data-key="invoice_business_name" data-table="seller_sales_config" placeholder="e.g. Target Brake Pads" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: About (short, max 139)</label><input type="text" id="wa-about" data-key="wa_about" data-table="seller_sales_config" maxlength="139" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: Address</label><input type="text" id="wa-address" data-key="wa_address" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: Description</label><input type="text" id="wa-description" data-key="wa_description" data-table="seller_sales_config" maxlength="512" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: Email</label><input type="email" id="wa-email" data-key="wa_email" data-table="seller_sales_config" maxlength="128" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: Website 1 (https://)</label><input type="url" id="wa-website-1" data-key="wa_website_1" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: Website 2 (https://)</label><input type="url" id="wa-website-2" data-key="wa_website_2" data-table="seller_sales_config" maxlength="256" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>WhatsApp profile: Category (e.g. RETAIL, AUTO)</label><input type="text" id="wa-vertical" data-key="wa_vertical" data-table="seller_sales_config" maxlength="64" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><button type="button" id="wa-profile-sync" onclick="syncWaProfile(this)">Update my WhatsApp profile</button> <span id="wa-profile-status" style="font-size:12px;"></span></div>
         <div class="biz-field">
           <label>Invoice layout</label>
           <select id="biz-invoice-layout" data-key="invoice_layout" data-table="seller_sales_config" onchange="saveBizField(this)">
@@ -4969,6 +4977,7 @@ const SELLER_SEND_TEXT_WEBHOOK = 'https://sparklly.site/webhook/seller-send-text
 const SELLER_SEND_MEDIA_WEBHOOK = 'https://sparklly.site/webhook/seller-send-media'; // photos, videos, files (with or without a caption)
 const SELLER_SEND_VOICE_WEBHOOK = 'https://sparklly.site/webhook/seller-send-voice';
 const SELLER_SEND_LOCATION_WEBHOOK = 'https://sparklly.site/webhook/seller-send-location';
+const SELLER_UPDATE_PROFILE_WEBHOOK = 'https://sparklly.site/webhook/seller-update-profile';
 const WHATSAPP_SIGNUP_CALLBACK_URL = 'https://sparklly.site/webhook/whatsapp-signup-callback';
 const START_NEW_CONVERSATION_URL = 'https://sparklly.site/webhook/start-new-conversation';
 const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
@@ -12776,7 +12785,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,voice_reply_mode,voice_tone_instructions,default_language', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -12851,6 +12860,10 @@ async function loadBizSettings() {
     if (currencyData.selling_type) document.getElementById('biz-selling-type').value = currencyData.selling_type;
     if (currencyData.invoice_layout) document.getElementById('biz-invoice-layout').value = currencyData.invoice_layout;
     if (currencyData.invoice_business_name != null) document.getElementById('biz-invoice-business-name').value = currencyData.invoice_business_name;
+    [['wa_about','wa-about'],['wa_address','wa-address'],['wa_description','wa-description'],['wa_email','wa-email'],['wa_website_1','wa-website-1'],['wa_website_2','wa-website-2'],['wa_vertical','wa-vertical']].forEach(function(p) {
+      const el = document.getElementById(p[1]);
+      if (el && currencyData[p[0]] != null) el.value = currencyData[p[0]];
+    });
     if (currencyData.voice_reply_mode) document.getElementById('biz-voice-reply-mode').value = currencyData.voice_reply_mode;
     if (currencyData.voice_tone_instructions) document.getElementById('biz-voice-tone').value = currencyData.voice_tone_instructions;
     if (currencyData.default_language != null) document.getElementById('biz-default-language').value = currencyData.default_language;
@@ -12933,6 +12946,35 @@ window.toggleReferralActive = async function(btn) {
     alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
   } finally {
     btn.disabled = false;
+  }
+};
+
+// Pushes the WhatsApp business profile text (about, address, ...) to the WhatsApp account of this seller.
+window.syncWaProfile = async function(btn) {
+  const status = document.getElementById('wa-profile-status');
+  const val = (id) => (document.getElementById(id) || {}).value || '';
+  const set = (msg, ok) => { if (status) { status.textContent = msg; status.style.color = ok ? '#2e7d32' : '#c62828'; } };
+  if (btn) btn.disabled = true;
+  set('Updating...', true);
+  try {
+    const authToken = await getValidAuthToken();
+    const res = await fetch(SELLER_UPDATE_PROFILE_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: authToken,
+        about: val('wa-about'), address: val('wa-address'), description: val('wa-description'),
+        email: val('wa-email'), website1: val('wa-website-1'), website2: val('wa-website-2'), vertical: val('wa-vertical')
+      })
+    });
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (data && data.success) set('Saved to WhatsApp.', true);
+    else set('Not updated: ' + ((data && data.reason) || 'unknown error'), false);
+  } catch (e) {
+    set('Not updated: ' + e.message, false);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 };
 
