@@ -366,7 +366,14 @@
   .audio-row audio { flex: 1 1 auto; min-width: 0; }
   .audio-row .vn-speed { flex: 0 0 auto; min-width: 38px; height: 26px; padding: 0 8px; border-radius: 13px; border: 1px solid rgba(134,150,160,.45); background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   .audio-row .vn-speed:active { transform: scale(.96); }
-  .vn-player { display: flex; align-items: center; gap: 8px; min-width: 210px; max-width: 270px; }
+  /* Sized to the chat bubble: the wave stops at the bubble edge, and the time,
+     speed and download controls sit on a line below, like the message time. */
+  .vn-player { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; max-width: 240px; min-width: 0; box-sizing: border-box; }
+  .vn-player .vn-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .vn-player .vn-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; opacity: .8; min-width: 0; }
+  .vn-player .vn-tools { display: inline-flex; align-items: center; gap: 4px; }
+  .vn-player .vn-foot .vn-speed { height: 22px; min-width: 34px; padding: 0 6px; font-size: 11px; }
+  .vn-player .vn-foot .media-dl { width: 22px; height: 22px; }
   .vn-player audio { display: none; }
   .vn-player .vn-play { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(134,150,160,.18); color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
   .vn-player .vn-play:active { transform: scale(.94); }
@@ -5282,7 +5289,7 @@ function applyDeliveryToDom(phone, ctx) {
     }
     row.querySelectorAll('.audio-row').forEach(function(ar) {
       let mic = ar.querySelector('.vn-mic');
-      if (!mic) { mic = document.createElement('span'); mic.className = 'vn-mic'; mic.title = 'Voice note'; mic.innerHTML = MIC_SVG; ar.insertBefore(mic, ar.firstChild); }
+      if (!mic) { mic = document.createElement('span'); mic.className = 'vn-mic'; mic.title = 'Voice note'; mic.innerHTML = MIC_SVG; const foot = ar.querySelector('.vn-foot'); if (foot) foot.insertBefore(mic, foot.firstChild); else ar.insertBefore(mic, ar.firstChild); }
       const played = !!d.played;
       mic.classList.toggle('played', played);
       mic.title = played ? 'Played by the customer' : 'Not played yet';
@@ -5347,11 +5354,17 @@ function vnFmt(s) {
 function renderVoiceRow(url, dlLabel) {
   const bars = vnPseudoWave(url).map(function(v) { return '<i style="height:' + Math.round(v * 100) + '%"></i>'; }).join('');
   return '<div class="audio-row vn-player" data-src="' + url + '">'
-    + '<button type="button" class="vn-play" aria-label="Play" onclick="event.stopPropagation(); vnToggle(this)"><svg viewBox="0 0 24 24" width="16" height="16"><path class="vn-ico" d="' + VN_PLAY_PATH + '" fill="currentColor"/></svg></button>'
-    + '<div class="vn-wave" onclick="event.stopPropagation(); vnSeek(event, this)">' + bars + '</div>'
-    + '<span class="vn-time">0:00</span>'
-    + '<button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">' + speedLabel(getVoiceSpeed()) + '</button>'
-    + '<button type="button" class="media-dl" title="' + dlLabel + '" aria-label="' + dlLabel + '" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">' + DL_ICON + '</button>'
+    + '<div class="vn-top">'
+    +   '<button type="button" class="vn-play" aria-label="Play" onclick="event.stopPropagation(); vnToggle(this)"><svg viewBox="0 0 24 24" width="16" height="16"><path class="vn-ico" d="' + VN_PLAY_PATH + '" fill="currentColor"/></svg></button>'
+    +   '<div class="vn-wave" onclick="event.stopPropagation(); vnSeek(event, this)">' + bars + '</div>'
+    + '</div>'
+    + '<div class="vn-foot">'
+    +   '<span class="vn-time">0:00</span>'
+    +   '<span class="vn-tools">'
+    +     '<button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">' + speedLabel(getVoiceSpeed()) + '</button>'
+    +     '<button type="button" class="media-dl" title="' + dlLabel + '" aria-label="' + dlLabel + '" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">' + DL_ICON + '</button>'
+    +   '</span>'
+    + '</div>'
     + '<audio src="' + url + '" preload="auto" style="display:none" onloadeddata="ensureMediaCached(\'' + url + '\')" onerror="checkAudioMissing(this)"></audio>'
     + '</div>';
 }
