@@ -5006,6 +5006,7 @@ const SELLER_SEND_MEDIA_WEBHOOK = 'https://sparklly.site/webhook/seller-send-med
 const SELLER_SEND_VOICE_WEBHOOK = 'https://sparklly.site/webhook/seller-send-voice';
 const SELLER_SEND_LOCATION_WEBHOOK = 'https://sparklly.site/webhook/seller-send-location';
 const SELLER_UPDATE_PROFILE_WEBHOOK = 'https://sparklly.site/webhook/seller-update-profile';
+const SELLER_UPDATE_PROFILE_PHOTO_WEBHOOK = 'https://sparklly.site/webhook/seller-update-profile-photo';
 const WHATSAPP_SIGNUP_CALLBACK_URL = 'https://sparklly.site/webhook/whatsapp-signup-callback';
 const START_NEW_CONVERSATION_URL = 'https://sparklly.site/webhook/start-new-conversation';
 const AHMAD_CHAT_WEBHOOK = 'https://sparklly.site/webhook/business-chat'; // wired up in the next step
@@ -13143,20 +13144,13 @@ window.syncWaProfile = async function(btn) {
       about: val('wa-about'), address: val('wa-address'), description: val('wa-description'),
       email: val('wa-email'), website1: val('wa-website-1'), website2: val('wa-website-2'), vertical: val('wa-vertical')
     };
+    // With a photo, the JPEG travels with the text to the photo endpoint, which sends the bytes to WhatsApp.
+    let endpoint = SELLER_UPDATE_PROFILE_WEBHOOK;
     if (waPendingPhoto) {
-      // Store the JPEG at a public address first; WhatsApp then fetches it from there.
-      const blob = await (await fetch(waPendingPhoto.dataUrl)).blob();
-      const path = 'profile/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
-      const up = await fetch(SUPABASE_URL + '/storage/v1/object/chat-media/' + path, {
-        method: 'POST',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'image/jpeg' },
-        body: blob
-      });
-      if (!up.ok) throw new Error('Photo upload failed (' + up.status + ')');
-      payload.photoUrl = SUPABASE_URL + '/storage/v1/object/public/chat-media/' + path;
-      payload.photoLength = blob.size;
+      payload.photoBase64 = waPendingPhoto.dataUrl;
+      endpoint = SELLER_UPDATE_PROFILE_PHOTO_WEBHOOK;
     }
-    const res = await fetch(SELLER_UPDATE_PROFILE_WEBHOOK, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
