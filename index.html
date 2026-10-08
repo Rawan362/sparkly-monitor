@@ -4718,10 +4718,11 @@
         <span>Profile</span>
       </div>
       <div class="settings-section-label" style="padding-top:16px;">Photo</div>
+      <div style="padding:0 20px 8px;font-size:12px;color:var(--text-muted);">Any photo works, including iPhone and PNG. It is converted to JPEG, the format WhatsApp requires.</div>
       <div class="biz-fields">
         <div class="biz-field" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
           <img id="wa-photo-preview" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;background:#eee;display:none;">
-          <input type="file" id="wa-photo-input" accept="image/jpeg,image/png" onchange="previewWaPhoto(this)">
+          <input type="file" id="wa-photo-input" accept="image/*" onchange="previewWaPhoto(this)">
         </div>
       </div>
       <div class="settings-section-label">WhatsApp business profile</div>
@@ -13011,29 +13012,50 @@ window.toggleReferralActive = async function(btn) {
 // Photo chosen in Business settings, waiting to be sent with the next profile update.
 let waPendingPhoto = null;
 
+// WhatsApp only accepts JPEG profile photos. Any picked image (PNG, iPhone photo, etc.)
+// is redrawn here as a JPEG, scaled down to a sensible size.
 window.previewWaPhoto = function(input) {
   const status = document.getElementById('wa-profile-status');
   const img = document.getElementById('wa-photo-preview');
   const f = input && input.files && input.files[0];
   waPendingPhoto = null;
   if (!f) { if (img && !img.dataset.current) img.style.display = 'none'; return; }
-  if (f.type !== 'image/jpeg' && f.type !== 'image/png') {
-    alert(currentLang === 'ar' ? 'الصورة يجب أن تكون JPEG أو PNG.' : 'The photo must be a JPEG or PNG.');
+  const fail = (msg) => {
+    alert(msg);
     input.value = '';
-    return;
-  }
-  if (f.size > 5 * 1024 * 1024) {
-    alert(currentLang === 'ar' ? 'حجم الصورة أكبر من 5 ميغابايت.' : 'The photo is bigger than 5 MB.');
-    input.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    waPendingPhoto = { dataUrl: reader.result, mime: f.type };
-    if (img) { img.src = reader.result; img.style.display = 'block'; }
-    if (status) { status.textContent = 'Photo ready. Press "Update my WhatsApp profile" to send it.'; status.style.color = '#2e7d32'; }
+    if (status) { status.textContent = ''; }
   };
-  reader.readAsDataURL(f);
+  if (!f.type.startsWith('image/')) {
+    fail(currentLang === 'ar' ? 'اختر ملف صورة.' : 'Please choose a photo file.');
+    return;
+  }
+  const url = URL.createObjectURL(f);
+  const source = new Image();
+  source.onload = () => {
+    try {
+      const max = 1000;
+      const scale = Math.min(1, max / Math.max(source.naturalWidth, source.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(source.naturalWidth * scale);
+      canvas.height = Math.round(source.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      URL.revokeObjectURL(url);
+      waPendingPhoto = { dataUrl, mime: 'image/jpeg' };
+      if (img) { img.src = dataUrl; img.style.display = 'block'; }
+      if (status) { status.textContent = 'Photo ready. Press "Save to WhatsApp" to send it.'; status.style.color = '#2e7d32'; }
+    } catch (e) {
+      fail(currentLang === 'ar' ? 'تعذر تجهيز الصورة.' : 'Could not prepare this photo. Please try another one.');
+    }
+  };
+  source.onerror = () => {
+    URL.revokeObjectURL(url);
+    fail(currentLang === 'ar' ? 'هذا النوع من الصور غير مدعوم على هذا الجهاز. اختر صورة JPG أو PNG.' : "This photo can't be read on this device. Please choose a JPG or PNG photo.");
+  };
+  source.src = url;
 };
 
 // Reads the live WhatsApp Business profile and fills the Profile panel with it (text + current photo).
