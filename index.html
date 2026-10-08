@@ -366,6 +366,14 @@
   .audio-row audio { flex: 1 1 auto; min-width: 0; }
   .audio-row .vn-speed { flex: 0 0 auto; min-width: 38px; height: 26px; padding: 0 8px; border-radius: 13px; border: 1px solid rgba(134,150,160,.45); background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   .audio-row .vn-speed:active { transform: scale(.96); }
+  .vn-player { display: flex; align-items: center; gap: 8px; min-width: 210px; max-width: 270px; }
+  .vn-player audio { display: none; }
+  .vn-player .vn-play { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(134,150,160,.18); color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+  .vn-player .vn-play:active { transform: scale(.94); }
+  .vn-player .vn-wave { flex: 1 1 auto; min-width: 0; height: 30px; display: flex; align-items: center; gap: 2px; cursor: pointer; }
+  .vn-player .vn-wave i { flex: 1 1 0; min-width: 2px; max-width: 3px; height: 40%; border-radius: 2px; background: rgba(134,150,160,.55); display: block; transition: background .15s; }
+  .vn-player .vn-wave i.on { background: #4FB3F6; }
+  .vn-player .vn-time { flex: 0 0 auto; min-width: 30px; text-align: right; font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
   .media-dl { flex-shrink: 0; width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
   .media-dl:hover { background: var(--panel-2); }
   .audio-gone { padding: 6px 0; font-size: 12.5px; font-style: italic; color: var(--text-muted); }
@@ -5314,11 +5322,141 @@ document.addEventListener('play', function(e) {
   }
 }, true);
 
+// ═══ Custom voice player: play/pause, waveform, time, speed ═══
+// Replaces the native <audio controls>, so the icon always matches the real state
+// and the waveform can fill as the note plays (like WhatsApp and other chat apps).
+const VN_PLAY_PATH = 'M8 5v14l11-7z';
+const VN_PAUSE_PATH = 'M6 5h4v14H6zM14 5h4v14h-4z';
+const VN_BARS = 40;
+const vnWaveCache = new Map();
+function vnPseudoWave(seed) {
+  let h = 7;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  const out = [];
+  for (let i = 0; i < VN_BARS; i++) {
+    h = (h * 1103515245 + 12345) & 0x7fffffff;
+    out.push(0.25 + ((h % 1000) / 1000) * 0.75);
+  }
+  return out;
+}
+function vnFmt(s) {
+  if (!isFinite(s) || s < 0) return '0:00';
+  s = Math.floor(s);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+function renderVoiceRow(url, dlLabel) {
+  const bars = vnPseudoWave(url).map(function(v) { return '<i style="height:' + Math.round(v * 100) + '%"></i>'; }).join('');
+  return '<div class="audio-row vn-player" data-src="' + url + '">'
+    + '<button type="button" class="vn-play" aria-label="Play" onclick="event.stopPropagation(); vnToggle(this)"><svg viewBox="0 0 24 24" width="16" height="16"><path class="vn-ico" d="' + VN_PLAY_PATH + '" fill="currentColor"/></svg></button>'
+    + '<div class="vn-wave" onclick="event.stopPropagation(); vnSeek(event, this)">' + bars + '</div>'
+    + '<span class="vn-time">0:00</span>'
+    + '<button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">' + speedLabel(getVoiceSpeed()) + '</button>'
+    + '<button type="button" class="media-dl" title="' + dlLabel + '" aria-label="' + dlLabel + '" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">' + DL_ICON + '</button>'
+    + '<audio src="' + url + '" preload="auto" style="display:none" onloadeddata="ensureMediaCached(\'' + url + '\')" onerror="checkAudioMissing(this)"></audio>'
+    + '</div>';
+}
+function vnRowOf(el) { return el && el.closest ? el.closest('.vn-player') : null; }
+function vnSetIcon(row, playing) {
+  if (!row) return;
+  row.classList.toggle('playing', playing);
+  const p = row.querySelector('.vn-ico');
+  if (p) p.setAttribute('d', playing ? VN_PAUSE_PATH : VN_PLAY_PATH);
+  const b = row.querySelector('.vn-play');
+  if (b) b.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}
+function vnPaint(row, a) {
+  const bars = row.querySelectorAll('.vn-wave i');
+  const frac = a.duration && isFinite(a.duration) ? a.currentTime / a.duration : 0;
+  const n = Math.round(frac * bars.length);
+  bars.forEach(function(b, i) { b.classList.toggle('on', i < n); });
+  const t = row.querySelector('.vn-time');
+  if (t) t.textContent = vnFmt(a.currentTime > 0 ? a.currentTime : a.duration);
+}
+function vnApplyWave(row, heights) {
+  const bars = row.querySelectorAll('.vn-wave i');
+  bars.forEach(function(b, i) { if (heights[i] != null) b.style.height = Math.round(heights[i] * 100) + '%'; });
+}
+// Real waveform from the audio itself (cached per URL). Falls back to the placeholder shape.
+async function vnLoadRealWave(row) {
+  const url = row.dataset.src;
+  if (!url || row.dataset.waveDone) return;
+  row.dataset.waveDone = '1';
+  try {
+    if (!vnWaveCache.has(url)) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      const res = await fetch(url);
+      const buf = await res.arrayBuffer();
+      const ctx = new AC();
+      const audio = await ctx.decodeAudioData(buf);
+      const data = audio.getChannelData(0);
+      const step = Math.floor(data.length / VN_BARS) || 1;
+      const peaks = [];
+      for (let i = 0; i < VN_BARS; i++) {
+        let max = 0;
+        for (let j = i * step; j < Math.min((i + 1) * step, data.length); j++) { const v = Math.abs(data[j]); if (v > max) max = v; }
+        peaks.push(max);
+      }
+      const top = Math.max.apply(null, peaks) || 1;
+      vnWaveCache.set(url, peaks.map(function(p) { return 0.2 + (p / top) * 0.8; }));
+      try { ctx.close(); } catch (e) {}
+    }
+    vnApplyWave(row, vnWaveCache.get(url));
+  } catch (e) { /* keep the placeholder shape */ }
+}
+window.vnToggle = function(btn) {
+  const row = vnRowOf(btn);
+  const a = row && row.querySelector('audio');
+  if (!a) return;
+  if (a.paused) {
+    document.querySelectorAll('.vn-player audio').forEach(function(o) { if (o !== a && !o.paused) o.pause(); });
+    a.preservesPitch = true;
+    a.playbackRate = getVoiceSpeed();
+    const p = a.play();
+    if (p && p.catch) p.catch(function() { vnSetIcon(row, false); });
+  } else {
+    a.pause();
+  }
+};
+window.vnSeek = function(ev, wave) {
+  const row = vnRowOf(wave);
+  const a = row && row.querySelector('audio');
+  if (!a || !a.duration || !isFinite(a.duration)) return;
+  const r = wave.getBoundingClientRect();
+  const frac = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+  a.currentTime = frac * a.duration;
+  vnPaint(row, a);
+};
+// Media events do not bubble, so listen in the capture phase on the document.
+document.addEventListener('play', function(e) {
+  const row = vnRowOf(e.target); if (!row) return;
+  vnSetIcon(row, true);
+  vnLoadRealWave(row);
+}, true);
+document.addEventListener('pause', function(e) {
+  const row = vnRowOf(e.target); if (!row) return;
+  vnSetIcon(row, false);
+}, true);
+document.addEventListener('ended', function(e) {
+  const row = vnRowOf(e.target); if (!row) return;
+  vnSetIcon(row, false);
+  vnPaint(row, e.target);
+}, true);
+document.addEventListener('timeupdate', function(e) {
+  const row = vnRowOf(e.target); if (!row) return;
+  vnPaint(row, e.target);
+}, true);
+document.addEventListener('loadedmetadata', function(e) {
+  const row = vnRowOf(e.target); if (!row) return;
+  vnPaint(row, e.target);
+  vnLoadRealWave(row);
+}, true);
+
 // Auto-next: when a voice note ends, play the next one if it comes straight after,
 // with no text bubble in between (same rule as WhatsApp).
 function voiceRowIsVoiceOnly(r) {
   const c = r.cloneNode(true);
-  c.querySelectorAll('.ts, .ticks, .vn-speed, .media-dl, .vn-mic, audio, svg').forEach(function(x) { x.remove(); });
+  c.querySelectorAll('.ts, .ticks, .vn-speed, .vn-play, .vn-wave, .vn-time, .media-dl, .vn-mic, audio, svg').forEach(function(x) { x.remove(); });
   if (c.textContent.trim() !== '') return false;
   return r.classList.contains('msg-row') ? r.querySelectorAll('.audio-row').length > 0 : true;
 }
@@ -7216,7 +7354,7 @@ function renderAttachmentContent(message) {
   if (voiceUrlMatch) {
     const urls = voiceUrlMatch[1].split(',');
     const dlLabel = (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تحميل' : 'Download';
-    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')" onerror="checkAudioMissing(this)"></audio><button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">${speedLabel(getVoiceSpeed())}</button><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
+    return urls.map(url => renderVoiceRow(url, dlLabel)).join('<div style="height:6px;"></div>');
   }
   // Real photo with a viewable URL: "🖼️ Photo: URL | optional caption"
   const photoUrlMatch = message.match(/^🖼️ Photo: (\S+)(?:\s\|\s(.*))?$/);
