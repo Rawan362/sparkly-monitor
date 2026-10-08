@@ -5505,7 +5505,9 @@ window.vnToggle = function(btn) {
 // first attempt, it starts as soon as it is ready, so the user never has to tap twice.
 function vnStartPlayback(row, a) {
   vnSetIcon(row, true);
+  debugLog('voice tap: readyState=' + a.readyState + ' paused=' + a.paused + ' src=' + String(a.currentSrc || a.src).slice(-40));
   const p = a.play();
+  if (p && p.then) p.then(function() { debugLog('voice play started'); }, function(err) { debugLog('voice play refused: ' + (err && err.name) + ' ' + (err && err.message)); });
   if (p && p.catch) p.catch(function() {
     if (a.readyState < 3) {
       a.addEventListener('canplay', function() {
