@@ -378,6 +378,10 @@
   .vn-player .vn-menu { position: absolute; right: 0; bottom: 100%; margin-bottom: 4px; z-index: 5; background: #fff; color: #111; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.2); padding: 4px; }
   .vn-player .vn-menu[hidden] { display: none; }
   .vn-player { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .vn-player .vn-menu-item[hidden] { display: none; }
+  .vn-player .vn-playwrap { position: relative; flex: 0 0 auto; display: inline-flex; }
+  .vn-player .vn-playwrap .vn-mic { position: absolute; right: -4px; bottom: -4px; width: 17px; height: 17px; border-radius: 50%; background: var(--panel, #fff); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1.5px var(--panel, #fff); pointer-events: none; }
+  .vn-player .vn-playwrap .vn-mic svg { width: 10px; height: 10px; }
   .vn-player .vn-menu-item { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 8px 12px; font-size: 13px; color: inherit; cursor: pointer; white-space: nowrap; }
   .vn-player audio { display: none; }
   .vn-player .vn-play { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(134,150,160,.18); color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
@@ -5294,7 +5298,7 @@ function applyDeliveryToDom(phone, ctx) {
     }
     row.querySelectorAll('.audio-row').forEach(function(ar) {
       let mic = ar.querySelector('.vn-mic');
-      if (!mic) { mic = document.createElement('span'); mic.className = 'vn-mic'; mic.title = 'Voice note'; mic.innerHTML = MIC_SVG; const foot = ar.querySelector('.vn-foot'); if (foot) foot.insertBefore(mic, foot.firstChild); else ar.insertBefore(mic, ar.firstChild); }
+      if (!mic) { mic = document.createElement('span'); mic.className = 'vn-mic'; mic.title = 'Voice note'; mic.innerHTML = MIC_SVG; const wrap = ar.querySelector('.vn-playwrap'); if (wrap) wrap.appendChild(mic); else ar.insertBefore(mic, ar.firstChild); }
       const played = !!d.played;
       mic.classList.toggle('played', played);
       mic.title = played ? 'Played by the customer' : 'Not played yet';
@@ -5360,7 +5364,9 @@ function renderVoiceRow(url, dlLabel) {
   const bars = vnPseudoWave(url).map(function(v) { return '<i style="height:' + Math.round(v * 100) + '%"></i>'; }).join('');
   return '<div class="audio-row vn-player" data-src="' + url + '">'
     + '<div class="vn-top">'
-    +   '<button type="button" class="vn-play" aria-label="Play" onclick="event.stopPropagation(); vnToggle(this)"><svg viewBox="0 0 24 24" width="16" height="16"><path class="vn-ico" d="' + VN_PLAY_PATH + '" fill="currentColor"/></svg></button>'
+    +   '<span class="vn-playwrap">'
+    +     '<button type="button" class="vn-play" aria-label="Play" onclick="event.stopPropagation(); vnToggle(this)"><svg viewBox="0 0 24 24" width="16" height="16"><path class="vn-ico" d="' + VN_PLAY_PATH + '" fill="currentColor"/></svg></button>'
+    +   '</span>'
     +   '<div class="vn-wave" onclick="event.stopPropagation(); vnSeek(event, this)">' + bars + '</div>'
     + '</div>'
     + '<div class="vn-foot">'
@@ -5372,6 +5378,7 @@ function renderVoiceRow(url, dlLabel) {
     + '<div class="vn-menu" hidden>'
     +   '<button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnAction(this, \'replay\')">' + vnL('replay') + '</button>'
     +   '<button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnAction(this, \'copy\')">' + vnL('copy') + '</button>'
+    +   '<button type="button" class="vn-menu-item vn-menu-transcript" onclick="event.stopPropagation(); vnAction(this, \'transcript\')">' + vnL('transcript') + '</button>'
     +   '<button type="button" class="vn-menu-item" onclick="event.stopPropagation(); vnAction(this, \'download\')">' + DL_ICON + '<span>' + dlLabel + '</span></button>'
     + '</div>'
     + '<audio src="' + url + '" preload="auto" style="display:none" onloadeddata="ensureMediaCached(\'' + url + '\')" onerror="checkAudioMissing(this)"></audio>'
@@ -5470,6 +5477,7 @@ function vnL(key) {
   const t = {
     replay: ar ? 'إعادة التشغيل' : 'Replay',
     copy: ar ? 'نسخ الرابط' : 'Copy link',
+    transcript: ar ? 'النص المكتوب' : 'Transcript',
     copied: ar ? 'تم النسخ' : 'Copied'
   };
   return t[key] || key;
@@ -5490,6 +5498,15 @@ window.vnAction = function(btn, what) {
     try { navigator.clipboard.writeText(url); } catch (e) {}
     const b = row.querySelector('.vn-more');
     if (b) { b.textContent = '✓'; setTimeout(function() { b.innerHTML = '&#8942;'; }, 1200); }
+  } else if (what === 'transcript') {
+    const msgRow = row.closest('.msg-row');
+    if (!msgRow || !msgRow.dataset.msgId) return;
+    window.showVoiceTranscript({
+      id: msgRow.dataset.msgId,
+      table: msgRow.dataset.table,
+      role: msgRow.dataset.role,
+      audioUrls: [row.dataset.src]
+    });
   } else if (what === 'download') {
     window.downloadVoiceNoteFromRow(btn);
   }
@@ -5506,7 +5523,13 @@ document.addEventListener('pointerdown', function(e) {
     vnLongFired = true;
     window.vnCloseMenus();
     const m = row.querySelector('.vn-menu');
-    if (m) m.hidden = false;
+    if (m) {
+      // Transcript only exists for messages saved in the conversation table (not calls).
+      const msgRow = row.closest('.msg-row');
+      const tBtn = m.querySelector('.vn-menu-transcript');
+      if (tBtn) tBtn.hidden = !(msgRow && msgRow.dataset.table === 'conversations');
+      m.hidden = false;
+    }
     if (navigator.vibrate) navigator.vibrate(15);
   }, 450);
 }, true);
