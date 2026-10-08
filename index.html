@@ -978,16 +978,19 @@
     background: var(--panel);
     border: 1px solid var(--border);
     color: var(--accent);
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 4px 14px rgba(0,0,0,0.12);
     z-index: 5;
-    transition: background 0.15s ease;
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease, background 0.15s ease;
   }
   #scroll-bottom-btn:hover { background: var(--panel-2); }
-  #scroll-bottom-btn.show { display: flex; }
+  #scroll-bottom-btn.show { opacity: 1; transform: none; pointer-events: auto; }
   .msg-row { display: flex; margin: 3px 0; }
   .msg-row.out { justify-content: flex-end; }
   .bubble {
@@ -7182,13 +7185,34 @@ window.selectConvo = function(phone) {
   loadThread(phone);
 };
 
+// Keeps the jump-to-latest arrow just above whatever sits under the messages
+// (reply bar, attachment preview, paused banner, composer), so it never overlaps the input.
+function positionScrollBtn() {
+  const box = document.getElementById('messages');
+  const btn = document.getElementById('scroll-bottom-btn');
+  if (!box || !btn || !btn.parentElement) return;
+  const paneBottom = btn.parentElement.getBoundingClientRect().bottom;
+  const msgsBottom = box.getBoundingClientRect().bottom;
+  const under = Math.max(0, paneBottom - msgsBottom);
+  btn.style.bottom = (under + 12) + 'px';
+}
 function updateScrollBtn() {
   const box = document.getElementById('messages');
   const btn = document.getElementById('scroll-bottom-btn');
   if (!box || !btn) return;
   const nearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 120;
   btn.classList.toggle('show', !nearBottom);
+  positionScrollBtn();
+  if (window.ResizeObserver) {
+    if (!window._scrollBtnRO) window._scrollBtnRO = new ResizeObserver(() => positionScrollBtn());
+    window._scrollBtnRO.disconnect();
+    ['messages', 'composer', 'reply-preview-bar', 'attachment-preview-bar', 'ai-paused-banner'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) window._scrollBtnRO.observe(el);
+    });
+  }
 }
+window.addEventListener('resize', () => { if (document.getElementById('scroll-bottom-btn')) positionScrollBtn(); });
 window.scrollMessagesToBottom = function() {
   const box = document.getElementById('messages');
   if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
@@ -13085,8 +13109,10 @@ window.syncWaProfile = async function(btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const rawData = await res.json();
-    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    const text = await res.text();
+    let data = null;
+    try { const raw = JSON.parse(text); data = Array.isArray(raw) ? raw[0] : raw; } catch (e) {}
+    if (!data) throw new Error('Server answered ' + res.status + (text ? ': ' + text.slice(0, 160) : ''));
     if (data && data.success) {
       if (waPendingPhoto) {
         waPendingPhoto = null;
