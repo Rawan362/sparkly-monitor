@@ -13143,7 +13143,19 @@ window.syncWaProfile = async function(btn) {
       about: val('wa-about'), address: val('wa-address'), description: val('wa-description'),
       email: val('wa-email'), website1: val('wa-website-1'), website2: val('wa-website-2'), vertical: val('wa-vertical')
     };
-    if (waPendingPhoto) { payload.photoBase64 = waPendingPhoto.dataUrl; payload.photoMimeType = waPendingPhoto.mime; }
+    if (waPendingPhoto) {
+      // Store the JPEG at a public address first; WhatsApp then fetches it from there.
+      const blob = await (await fetch(waPendingPhoto.dataUrl)).blob();
+      const path = 'profile/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      const up = await fetch(SUPABASE_URL + '/storage/v1/object/chat-media/' + path, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'image/jpeg' },
+        body: blob
+      });
+      if (!up.ok) throw new Error('Photo upload failed (' + up.status + ')');
+      payload.photoUrl = SUPABASE_URL + '/storage/v1/object/public/chat-media/' + path;
+      payload.photoLength = blob.size;
+    }
     const res = await fetch(SELLER_UPDATE_PROFILE_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
