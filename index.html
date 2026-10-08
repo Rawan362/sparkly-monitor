@@ -5282,20 +5282,71 @@ function applyDeliveryToDom(phone, ctx) {
   });
 }
 
-// WhatsApp-style voice speed: 1x → 1.5x → 2x → 1x. Pitch is kept (no chipmunk voice).
-window.cycleVoiceSpeed = function(btn) {
+// ═══ WhatsApp-style voice notes: speed + auto-next ═══
+// Speed (1x / 1.5x / 2x) is one setting for the whole app. It is remembered on this
+// device, so it stays until the user changes it again, even after a reload.
+const VOICE_SPEEDS = [1, 1.5, 2];
+function getVoiceSpeed() {
+  if (window._voiceSpeed) return window._voiceSpeed;
   try {
-    const row = btn && btn.closest('.audio-row');
-    const a = row && row.querySelector('audio');
-    if (!a) return;
-    const steps = [1, 1.5, 2];
-    const cur = steps.findIndex(s => Math.abs(s - a.playbackRate) < 0.01);
-    const next = steps[(cur + 1) % steps.length];
-    a.preservesPitch = true;
-    a.playbackRate = next;
-    btn.textContent = (next === 1 ? '1' : String(next)) + 'x';
+    const v = parseFloat(localStorage.getItem('sparkly_voice_speed'));
+    if (VOICE_SPEEDS.includes(v)) window._voiceSpeed = v;
   } catch (e) {}
+  return window._voiceSpeed || 1;
+}
+function speedLabel(s) { return (s === 1 ? '1' : String(s)) + 'x'; }
+function setVoiceSpeed(s) {
+  window._voiceSpeed = s;
+  try { localStorage.setItem('sparkly_voice_speed', String(s)); } catch (e) {}
+  document.querySelectorAll('.audio-row audio').forEach(function(a) { a.preservesPitch = true; a.playbackRate = s; });
+  document.querySelectorAll('.vn-speed').forEach(function(b) { b.textContent = speedLabel(s); });
+}
+window.cycleVoiceSpeed = function() {
+  const i = VOICE_SPEEDS.indexOf(getVoiceSpeed());
+  setVoiceSpeed(VOICE_SPEEDS[(i + 1) % VOICE_SPEEDS.length]);
 };
+// Every voice note starts at the saved speed, whether it is played by tap or auto-next.
+document.addEventListener('play', function(e) {
+  const a = e.target;
+  if (a && a.tagName === 'AUDIO' && a.closest && a.closest('.audio-row')) {
+    a.preservesPitch = true;
+    a.playbackRate = getVoiceSpeed();
+  }
+}, true);
+
+// Auto-next: when a voice note ends, play the next one if it comes straight after,
+// with no text bubble in between (same rule as WhatsApp).
+function voiceRowIsVoiceOnly(r) {
+  const c = r.cloneNode(true);
+  c.querySelectorAll('.ts, .ticks, .vn-speed, .media-dl, .vn-mic, audio, svg').forEach(function(x) { x.remove(); });
+  if (c.textContent.trim() !== '') return false;
+  return r.classList.contains('msg-row') ? r.querySelectorAll('.audio-row').length > 0 : true;
+}
+function nextVoiceAfter(a) {
+  const all = Array.from(document.querySelectorAll('#messages .audio-row audio'));
+  const i = all.indexOf(a);
+  if (i < 0 || i + 1 >= all.length) return null;
+  const next = all[i + 1];
+  const aMsg = a.closest('.msg-row'), nMsg = next.closest('.msg-row');
+  if (aMsg && aMsg === nMsg) return next;
+  let r = aMsg ? aMsg.nextElementSibling : null;
+  while (r) {
+    if (!voiceRowIsVoiceOnly(r)) return null;
+    if (r === nMsg) return next;
+    r = r.nextElementSibling;
+  }
+  return null;
+}
+document.addEventListener('ended', function(e) {
+  const a = e.target;
+  if (!(a && a.tagName === 'AUDIO' && a.closest && a.closest('.audio-row'))) return;
+  const next = nextVoiceAfter(a);
+  if (next) {
+    next.preservesPitch = true;
+    next.playbackRate = getVoiceSpeed();
+    next.play().catch(function() {});
+  }
+}, true);
 
 window.refreshTicks = async function(phone) {
   if (!phone || !document.getElementById('messages')) return;
@@ -7165,7 +7216,7 @@ function renderAttachmentContent(message) {
   if (voiceUrlMatch) {
     const urls = voiceUrlMatch[1].split(',');
     const dlLabel = (typeof currentLang !== 'undefined' && currentLang === 'ar') ? 'تحميل' : 'Download';
-    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')" onerror="checkAudioMissing(this)"></audio><button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">1x</button><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
+    return urls.map(url => `<div class="audio-row"><audio src="${url}" controls preload="auto" style="max-width:220px;display:block;" onloadeddata="ensureMediaCached('${url}')" onerror="checkAudioMissing(this)"></audio><button type="button" class="vn-speed" title="Playback speed" aria-label="Playback speed" onclick="event.stopPropagation(); cycleVoiceSpeed(this)">${speedLabel(getVoiceSpeed())}</button><button type="button" class="media-dl" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation(); downloadVoiceNoteFromRow(this)">${DL_ICON}</button></div>`).join('<div style="height:6px;"></div>');
   }
   // Real photo with a viewable URL: "🖼️ Photo: URL | optional caption"
   const photoUrlMatch = message.match(/^🖼️ Photo: (\S+)(?:\s\|\s(.*))?$/);
