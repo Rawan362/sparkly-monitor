@@ -6283,6 +6283,10 @@ window.cancelStagedAttachment = function() {
 async function sendAttachment(dataUrl, mimeType, kind, fileName, caption, phoneOverride) {
   const targetPhone = phoneOverride || activePhone;
   if (!targetPhone) return false;
+  // Capture the quoted message now (before the reply bar is cleared), then send it as a real WhatsApp quote.
+  const quoteWaId = replyingTo ? (replyingTo.waId || '') : '';
+  const quoteText = replyingTo ? (replyingTo.text || '') : '';
+  if (replyingTo) cancelReplyMode();
   try {
     const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_MEDIA_WEBHOOK, {
@@ -6296,7 +6300,9 @@ async function sendAttachment(dataUrl, mimeType, kind, fileName, caption, phoneO
         attachmentBase64: dataUrl,
         attachmentMimeType: mimeType,
         attachmentKind: kind,
-        attachmentFileName: fileName || ''
+        attachmentFileName: fileName || '',
+        replyToWaId: quoteWaId,
+        replyToText: quoteText
       })
     });
     const rawData = await res.json();
@@ -8029,6 +8035,10 @@ window.toggleRecording = async function(phone) {
 async function sendVoiceNote(phone, dataUrl) {
   // The recording's format is captured NOW, so a newer recording can never change it while this one waits its turn.
   const mime = window._recordedMimeType || 'audio/webm';
+  // Capture the quoted message now (before the reply bar is cleared), then send it as a real WhatsApp quote.
+  const quoteWaId = replyingTo ? (replyingTo.waId || '') : '';
+  const quoteText = replyingTo ? (replyingTo.text || '') : '';
+  if (replyingTo) cancelReplyMode();
   // Show the voice note in the chat right away and leave the microphone free: it is sent in order, in the background.
   const voiceTempId = appendOptimisticBubble('<span>\uD83C\uDFA4 ' + (_attAr() ? 'رسالة صوتية - جاري الإرسال...' : 'Voice note - sending...') + '</span>', 'out');
   enqueueSend(phone, async () => {
@@ -8037,7 +8047,7 @@ async function sendVoiceNote(phone, dataUrl) {
       const res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: mime, sellerChatId: SELLER_CHAT_ID, token: authToken })
+        body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: mime, sellerChatId: SELLER_CHAT_ID, token: authToken, replyToWaId: quoteWaId, replyToText: quoteText })
       });
       const rawData = await res.json();
       const data = Array.isArray(rawData) ? rawData[0] : rawData;
