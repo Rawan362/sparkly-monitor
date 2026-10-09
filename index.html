@@ -4540,6 +4540,11 @@
         <input type="text" id="biz-default-language" data-key="default_language" data-table="seller_sales_config" placeholder="e.g. Arabic, English, Kurdish" onchange="saveBizField(this)">
         <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">What the AI starts a call in when it doesn't yet know that customer's language. It still switches to whatever the customer actually speaks.</span>
       </div>
+      <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
+        <label>Call greeting</label>
+        <textarea id="biz-call-greeting" data-key="call_greeting" data-table="seller_sales_config" rows="2" placeholder="e.g. Welcome to my shop, this is Ahmad. How can I help you?" onchange="saveBizField(this)" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea>
+        <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">The first thing the AI says when it answers a call. Write it in any language; calls always speak it in your default language above. Leave empty to use a standard greeting with your assistant name and business name.</span>
+      </div>
       <div class="biz-row">
         <div class="biz-row-label"><span class="biz-title">Customer calls on WhatsApp</span><span class="biz-sub" id="biz-calls-sub">Shows a call button in your customers' chat. Each call uses AI credits.</span></div>
         <button class="biz-toggle" id="biz-toggle-calls" onclick="toggleCalling(this)" disabled></button>
@@ -12863,7 +12868,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -12945,6 +12950,7 @@ async function loadBizSettings() {
     if (currencyData.voice_reply_mode) document.getElementById('biz-voice-reply-mode').value = currencyData.voice_reply_mode;
     if (currencyData.voice_tone_instructions) document.getElementById('biz-voice-tone').value = currencyData.voice_tone_instructions;
     if (currencyData.default_language != null) document.getElementById('biz-default-language').value = currencyData.default_language;
+    if (currencyData.call_greeting != null) document.getElementById('biz-call-greeting').value = currencyData.call_greeting;
 
     bizSettingsLoaded = true;
     window.refreshCallingStatus();
