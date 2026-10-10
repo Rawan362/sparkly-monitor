@@ -4517,7 +4517,8 @@
         <button onclick="closeBusinessPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <span>Business settings</span>
       </div>
-      <div class="settings-section-label" style="padding-top:16px;">AI Assistant</div>
+      <div id="biz-account-label" style="padding:10px 20px 0;font-size:12px;color:var(--text-muted);"></div>
+      <div class="settings-section-label" style="padding-top:8px;">AI Assistant</div>
       <div class="biz-field" style="padding:4px 20px 14px;border-bottom:1px solid var(--border);">
         <label>Assistant name</label>
         <input type="text" id="biz-ai-name" data-key="ai_name" data-table="seller_sales_config" placeholder="e.g. Ahmad" onchange="saveBizField(this)">
@@ -12861,9 +12862,17 @@ window.closeBusinessPanel = function() {
   document.getElementById('settings-tab-content').style.display = 'block';
 };
 
+let bizLoadedFor = null; // which seller the Business form currently shows
 async function loadBizSettings() {
   if (!SELLER_CHAT_ID) return;
+  const loadingFor = SELLER_CHAT_ID;
   try {
+    fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name&limit=1', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    }).then(r => r.json()).then(rows => {
+      const lbl = document.getElementById('biz-account-label');
+      if (lbl && rows && rows[0] && loadingFor === SELLER_CHAT_ID) lbl.textContent = 'These settings are for: ' + (rows[0].business_name || 'your account');
+    }).catch(() => {});
     const [settingsRes, configRes, posRes, adConfigRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
@@ -12953,6 +12962,7 @@ async function loadBizSettings() {
     if (currencyData.call_greeting != null) document.getElementById('biz-call-greeting').value = currencyData.call_greeting;
 
     bizSettingsLoaded = true;
+    bizLoadedFor = loadingFor;
     window.refreshCallingStatus();
     window.refreshDeviceMediaInfo();
   } catch (e) {
@@ -13204,6 +13214,11 @@ window.syncWaProfile = async function(btn) {
 window.saveBizField = async function(el) {
   const key = el.dataset.key;
   const value = el.value;
+  // Never write a setting for a seller other than the one this form was loaded for.
+  if (!SELLER_CHAT_ID || (bizLoadedFor && bizLoadedFor !== SELLER_CHAT_ID)) {
+    alert('Account changed - please reload the app before saving settings.');
+    return;
+  }
   try {
     const table = el.dataset.table;
     if (table) {

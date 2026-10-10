@@ -2,7 +2,7 @@
 // Caches the app shell so it opens instantly even on a flaky connection;
 // live data (conversations, messages) always comes fresh from Supabase,
 // this only caches the static shell itself.
-const CACHE_NAME = 'sparkly-shell-v11';
+const CACHE_NAME = 'sparkly-shell-v12';
 // The phone's own copy of photos, videos, voice notes and call audio (WhatsApp style). Never cleared by app updates.
 const MEDIA_CACHE = 'sparkly-media-v1';
 const MEDIA_MARK = '/storage/v1/object/public/chat-media/';
