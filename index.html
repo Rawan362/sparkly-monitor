@@ -4689,6 +4689,19 @@
       <div class="biz-fields">
         <div class="biz-field"><label>Business name (shown on invoices)</label><input type="text" id="biz-invoice-business-name" data-key="invoice_business_name" data-table="seller_sales_config" placeholder="e.g. Target Brake Pads" onchange="saveBizField(this)"></div>
         <div class="biz-field">
+          <label>Logo (shown at the top of invoices, with the business name under it)</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <img id="biz-invoice-logo-preview" alt="" style="display:none;width:56px;height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;">
+            <input type="file" id="biz-invoice-logo-file" accept="image/png,image/jpeg" style="display:none;" onchange="uploadInvoiceLogo(this)">
+            <button type="button" id="biz-invoice-logo-upload" onclick="document.getElementById('biz-invoice-logo-file').click()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);cursor:pointer;">Upload logo</button>
+            <button type="button" id="biz-invoice-logo-remove" onclick="removeInvoiceLogo()" style="display:none;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer;">Remove</button>
+            <span id="biz-invoice-logo-status" style="font-size:12px;color:var(--text-muted);"></span>
+          </div>
+        </div>
+        <div class="biz-field"><label>Phone (shown on invoices)</label><input type="text" id="biz-invoice-phone" data-key="invoice_phone" data-table="seller_sales_config" placeholder="e.g. +964 750 000 0000" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Email (shown on invoices)</label><input type="text" id="biz-invoice-email" data-key="invoice_email" data-table="seller_sales_config" placeholder="e.g. sales@yourcompany.com" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Address (shown on invoices)</label><input type="text" id="biz-invoice-address" data-key="invoice_address" data-table="seller_sales_config" placeholder="e.g. Baghdad, Karrada" onchange="saveBizField(this)"></div>
+        <div class="biz-field">
           <label>Invoice layout</label>
           <select id="biz-invoice-layout" data-key="invoice_layout" data-table="seller_sales_config" onchange="saveBizField(this)">
             <option value="a4">A4 (full page)</option>
@@ -12877,7 +12890,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -12952,6 +12965,11 @@ async function loadBizSettings() {
     if (currencyData.selling_type) document.getElementById('biz-selling-type').value = currencyData.selling_type;
     if (currencyData.invoice_layout) document.getElementById('biz-invoice-layout').value = currencyData.invoice_layout;
     if (currencyData.invoice_business_name != null) document.getElementById('biz-invoice-business-name').value = currencyData.invoice_business_name;
+    [['invoice_phone','biz-invoice-phone'],['invoice_email','biz-invoice-email'],['invoice_address','biz-invoice-address']].forEach(function(p) {
+      const el = document.getElementById(p[1]);
+      if (el) el.value = currencyData[p[0]] != null ? currencyData[p[0]] : '';
+    });
+    setInvoiceLogoPreview(currencyData.invoice_logo_url || '');
     [['wa_about','wa-about'],['wa_address','wa-address'],['wa_description','wa-description'],['wa_email','wa-email'],['wa_website_1','wa-website-1'],['wa_website_2','wa-website-2'],['wa_vertical','wa-vertical']].forEach(function(p) {
       const el = document.getElementById(p[1]);
       if (el && currencyData[p[0]] != null) el.value = currencyData[p[0]];
@@ -13242,6 +13260,66 @@ window.saveBizField = async function(el) {
   } catch (e) {
     debugLog('saveBizField failed: ' + (e && e.message));
     alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  }
+};
+
+function setInvoiceLogoPreview(url) {
+  const img = document.getElementById('biz-invoice-logo-preview');
+  const rm = document.getElementById('biz-invoice-logo-remove');
+  const up = document.getElementById('biz-invoice-logo-upload');
+  if (!img) return;
+  if (url) { img.src = url; img.style.display = 'block'; if (rm) rm.style.display = 'inline-block'; if (up) up.textContent = 'Change logo'; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; if (rm) rm.style.display = 'none'; if (up) up.textContent = 'Upload logo'; }
+}
+
+async function saveInvoiceLogoUrl(url) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ chat_id: SELLER_CHAT_ID, invoice_logo_url: url })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+
+window.uploadInvoiceLogo = async function(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  const status = document.getElementById('biz-invoice-logo-status');
+  if (!file) return;
+  if (!SELLER_CHAT_ID || (bizLoadedFor && bizLoadedFor !== SELLER_CHAT_ID)) {
+    alert('Account changed - please reload the app before saving settings.');
+    return;
+  }
+  if (file.type !== 'image/png' && file.type !== 'image/jpeg') { status.textContent = 'Please choose a PNG or JPG image.'; return; }
+  if (file.size > 2 * 1024 * 1024) { status.textContent = 'The image is too big (max 2 MB).'; return; }
+  status.textContent = 'Uploading...';
+  try {
+    const ext = file.type === 'image/png' ? 'png' : 'jpg';
+    const path = SELLER_CHAT_ID + '/invoice-logo/' + Date.now() + '.' + ext;
+    const up = await fetch(SUPABASE_URL + '/storage/v1/object/chat-media/' + path, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': file.type },
+      body: file
+    });
+    if (!up.ok) throw new Error('Upload failed with status ' + up.status);
+    const url = SUPABASE_URL + '/storage/v1/object/public/chat-media/' + path;
+    await saveInvoiceLogoUrl(url);
+    setInvoiceLogoPreview(url);
+    status.textContent = '';
+    showBizSaveHint();
+  } catch (e) {
+    status.textContent = 'Could not save the logo: ' + (e && e.message ? e.message : 'unknown error');
+  }
+};
+
+window.removeInvoiceLogo = async function() {
+  const status = document.getElementById('biz-invoice-logo-status');
+  try {
+    await saveInvoiceLogoUrl(null);
+    setInvoiceLogoPreview('');
+    showBizSaveHint();
+  } catch (e) {
+    status.textContent = 'Could not remove the logo: ' + (e && e.message ? e.message : 'unknown error');
   }
 };
 
