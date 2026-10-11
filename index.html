@@ -3901,7 +3901,7 @@
     #invoice-view-toolbar { display: none; }
     #invoice-view-scroll { padding: 0; overflow: visible; }
     .invoice-doc { box-shadow: none; margin: 0; }
-    .invoice-seller-only { display: none !important; }
+    body.print-customer .invoice-seller-only { display: none !important; }
   }
 </style>
 </head>
@@ -3912,6 +3912,14 @@
   </button>
   <img id="photo-viewer-img" src="" alt="Photo" onclick="event.stopPropagation();">
 </div>
+<div id="invoice-print-choice" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:16px;" onclick="closeInvoicePrintChoice()">
+  <div style="background:var(--panel,#fff);color:var(--text,#111);border-radius:14px;padding:18px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px;" onclick="event.stopPropagation()">
+    <div style="font-weight:800;font-size:15px;">Print / Save as PDF</div>
+    <button onclick="printInvoiceFor('seller')" style="border:none;background:var(--accent-2,#2a6df4);color:#fff;font-weight:700;padding:12px;border-radius:10px;cursor:pointer;">Print for seller<br><span style="font-weight:400;font-size:11.5px;">with rate, converted total and your notes</span></button>
+    <button onclick="printInvoiceFor('customer')" style="border:none;background:#1a1a1a;color:#fff;font-weight:700;padding:12px;border-radius:10px;cursor:pointer;">Print for customer<br><span style="font-weight:400;font-size:11.5px;">the same invoice the customer received</span></button>
+    <button onclick="closeInvoicePrintChoice()" style="border:1px solid var(--border,#ccc);background:none;color:inherit;padding:9px;border-radius:10px;cursor:pointer;">Cancel</button>
+  </div>
+</div>
 <div id="invoice-view-overlay" style="display:none;">
   <div id="invoice-view-toolbar">
     <button onclick="closeInvoiceView()" title="Close"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -3920,7 +3928,7 @@
       <span id="invoice-queue-position"></span>
       <button id="invoice-queue-next" onclick="goToNextInvoiceInQueue()">Next →</button>
     </div>
-    <button id="invoice-print-btn" onclick="window.print()">Print / Save as PDF</button>
+    <button id="invoice-print-btn" onclick="openInvoicePrintChoice()">Print / Save as PDF</button>
   </div>
   <div id="invoice-view-scroll">
     <div id="invoice-content"></div>
@@ -9304,6 +9312,7 @@ async function attachProductCodes(items) {
 function grandTotal0(o) { return o.order_total || 0; }
 function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
   extra = extra || {};
+  window._invoiceCurrentOrder = o;
   const snap = ensureRateSnapshot(o, extra);
   const altTotal = snap ? invoiceAltConvert(grandTotal0(o), snap.rate, snap.op) : null;
   const shipping = o.shipping_cost || 0;
@@ -9400,6 +9409,23 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
     </div>
   `;
 }
+
+window.openInvoicePrintChoice = function() { document.getElementById('invoice-print-choice').style.display = 'flex'; };
+window.closeInvoicePrintChoice = function() { document.getElementById('invoice-print-choice').style.display = 'none'; };
+window.printInvoiceFor = function(who) {
+  closeInvoicePrintChoice();
+  const o = window._invoiceCurrentOrder || {};
+  if (who === 'customer') {
+    if (o.invoice_url) { window.open(o.invoice_url, '_blank'); return; } // the exact PDF the customer received (their language, layout)
+    document.body.classList.add('print-customer'); // no saved customer file (manual sale): same page without seller-only parts
+    const done = () => { document.body.classList.remove('print-customer'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { window.print(); setTimeout(done, 1500); }, 50);
+    return;
+  }
+  document.body.classList.remove('print-customer');
+  setTimeout(() => window.print(), 50);
+};
 
 function fitInvoiceDoc() {
   try {
