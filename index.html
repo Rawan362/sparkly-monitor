@@ -9245,9 +9245,9 @@ window.openOrderDetail = async function(orderId) {
   html += _hist.map(p => `<div class="order-detail-row"><span class="label">${escapeHtml(p.date ? new Date(p.date).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')}</span><span class="value">${(Number(p.amount) || 0) < 0 ? '−' : '+'}${Math.abs(Number(p.amount) || 0).toLocaleString()}</span></div>`).join('');
   html += `
     <div id="order-amount-received-field">
-      <label id="order-amount-received-label">Update amount received</label>
+      <label id="order-amount-received-label">Update amount received (each Save adds this payment with today's date and time)</label>
       <div style="display:flex;gap:8px;">
-        <input type="text" inputmode="decimal" id="order-amount-received-input" placeholder="e.g. ${o.order_total || 0}" value="${o.amount_received != null ? o.amount_received : ''}" data-mode="set">
+        <input type="text" inputmode="decimal" id="order-amount-received-input" placeholder="Amount received now" value="" data-mode="add">
         <button class="order-action-btn primary" style="width:auto;margin:0;padding:0 18px;" onclick="saveAmountReceived(this)">Save</button>
       </div>
     </div>
@@ -10556,7 +10556,7 @@ window.saveAmountReceived = async function(btn) {
   if (!inp || !currentOrderId) return;
   const num = Number(String(inp.value).trim().replace(/[^\d.-]/g, ''));
   if (inp.value.trim() === '' || isNaN(num)) { alert('Enter the amount first.'); return; }
-  const mode = inp.dataset.mode === 'add' ? 'add' : 'set';
+  const mode = 'add';
   btn.disabled = true; const t = btn.textContent; btn.textContent = '...';
   try {
     await recordOrderPayment(currentOrderId, mode, num);
@@ -10576,8 +10576,7 @@ window.markPaidFully = async function(btn) {
 window.startPartialPayment = function() {
   const inp = document.getElementById('order-amount-received-input'), lab = document.getElementById('order-amount-received-label');
   if (!inp) return;
-  inp.dataset.mode = 'add'; inp.value = ''; inp.placeholder = 'Amount received today';
-  if (lab) lab.textContent = 'Amount received today (added to what was already received)';
+  inp.value = ''; inp.placeholder = 'Amount received now';
   inp.scrollIntoView({ block: 'center' }); inp.focus();
 };
 
@@ -10599,10 +10598,10 @@ window.updateOrderStatus = async function(newStatus) {
     if (newStatus === 'DELIVERED') payload.delivered_at = new Date().toISOString();
 
     const amountInput = document.getElementById('order-amount-received-input');
-    if (amountInput && amountInput.value.trim() !== '' && amountInput.dataset.mode !== 'add') {
+    if (amountInput && amountInput.value.trim() !== '') {
       const cleaned = amountInput.value.trim().replace(/[^\d.-]/g, '');
       const num = Number(cleaned);
-      if (!isNaN(num)) await recordOrderPayment(currentOrderId, 'set', num);
+      if (!isNaN(num) && num !== 0) await recordOrderPayment(currentOrderId, 'add', num);
     }
 
     const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
