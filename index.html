@@ -3900,6 +3900,7 @@
     #invoice-view-toolbar { display: none; }
     #invoice-view-scroll { padding: 0; overflow: visible; }
     .invoice-doc { box-shadow: none; margin: 0; }
+    .invoice-seller-only { display: none !important; }
   }
 </style>
 </head>
@@ -9252,8 +9253,46 @@ window.openOrderDetail = async function(orderId) {
   document.getElementById('order-detail-fields').innerHTML = html;
 };
 
+function invoiceAltConvert(total, rate, op) {
+  if (!rate) return null;
+  const v = op === 'divide' ? total / rate : total * rate;
+  return v;
+}
+function invoiceFmtAlt(v, cur) {
+  const zero = ['IQD','SYP','LBP','IRR','VND','IDR','KRW','JPY','UZS'].indexOf(cur) >= 0;
+  return zero ? Math.round(v).toLocaleString() : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// The exchange rate used for THIS invoice is saved on the order the first time it is shown, with that day's date,
+// so a later rate change never rewrites an old invoice. Seller-only: never printed and never sent to the customer.
+function ensureRateSnapshot(o, cfg) {
+  if (o.rate_snapshot || !cfg || !cfg.altCur || !cfg.altRate || cfg.altCur === cfg.cur) return o.rate_snapshot || null;
+  const snap = { date: new Date().toISOString().slice(0, 10), from: cfg.cur, to: cfg.altCur, rate: cfg.altRate, op: cfg.altOp };
+  o.rate_snapshot = snap;
+  try {
+    fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + o.id, { method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ rate_snapshot: snap }) });
+  } catch (e) {}
+  return snap;
+}
+window.saveInvoiceNote = async function(orderId, btn) {
+  const ta = document.getElementById('invoice-seller-note');
+  if (!ta) return;
+  const old = btn.textContent; btn.textContent = '...';
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ seller_note: ta.value.trim() || null }) });
+    btn.textContent = r.ok ? 'Saved ✓' : 'Failed';
+  } catch (e) { btn.textContent = 'Failed'; }
+  setTimeout(() => { btn.textContent = old; }, 1600);
+};
+
+function grandTotal0(o) { return o.order_total || 0; }
 function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
   extra = extra || {};
+  const snap = ensureRateSnapshot(o, extra);
+  const altTotal = snap ? invoiceAltConvert(grandTotal0(o), snap.rate, snap.op) : null;
   const shipping = o.shipping_cost || 0;
   const productsSubtotal = (o.order_total || 0) - shipping + (o.discount_amount || 0);
   const grandTotal = o.order_total || 0;
@@ -9324,6 +9363,7 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
         ${o.discount_amount ? `<div class="invoice-total-row discount"><span>Discount</span><span>−${symbol}${o.discount_amount.toLocaleString()}</span></div>` : ''}
         <div class="invoice-total-row"><span>Shipping</span><span>${symbol}${shipping.toLocaleString()}</span></div>
         <div class="invoice-total-row grand"><span>Total</span><span>${symbol}${grandTotal.toLocaleString()}</span></div>
+        ${altTotal != null ? `<div class="invoice-total-row"><span>Total in ${escapeHtml(snap.to)}</span><span>${invoiceFmtAlt(altTotal, snap.to)} ${escapeHtml(snap.to)}</span></div>` : ''}
         <div class="invoice-total-row paid"><span>Amount Paid</span><span>${symbol}${received.toLocaleString()}</span></div>
         ${remaining > 0.01 ? `<div class="invoice-total-row remaining"><span>Remaining</span><span>${symbol}${remaining.toLocaleString()}</span></div>` : ''}
       </div>
@@ -9336,6 +9376,12 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
       </div>
 
       <div class="invoice-footer">${escapeHtml(extra.footer || 'Thank you for your business')}</div>
+    </div>
+    <div class="invoice-seller-only" style="max-width:794px;margin:14px auto 0;background:#fffbe6;border:1px solid #f0d78c;border-radius:10px;padding:12px 14px;color:#1a1a1a;font-size:13px;">
+      <div style="font-weight:700;margin-bottom:6px;">Seller notes <span style="font-weight:400;color:#8a6d00;">(only you see this — not printed, not sent to the customer)</span></div>
+      ${snap ? `<div style="margin-bottom:8px;line-height:1.5;">Rate on ${escapeHtml(snap.date)}: ${snap.op === 'divide' ? '1 ' + escapeHtml(snap.to) + ' = ' + Number(snap.rate).toLocaleString() + ' ' + escapeHtml(snap.from) : '1 ' + escapeHtml(snap.from) + ' = ' + Number(snap.rate).toLocaleString() + ' ' + escapeHtml(snap.to)}.<br>Total ${symbol}${grandTotal.toLocaleString()} converted to ${invoiceFmtAlt(altTotal, snap.to)} ${escapeHtml(snap.to)} with this rate.</div>` : ''}
+      <textarea id="invoice-seller-note" rows="3" placeholder="Write a note about this invoice…" style="width:100%;box-sizing:border-box;border:1px solid #e0cf94;border-radius:8px;padding:8px;font:inherit;background:#fff;color:#1a1a1a;">${escapeHtml(o.seller_note || '')}</textarea>
+      <button onclick="saveInvoiceNote('${o.id}', this)" style="margin-top:6px;border:none;background:#1a1a1a;color:#fff;font-weight:700;padding:8px 16px;border-radius:8px;cursor:pointer;">Save note</button>
     </div>
   `;
 }
@@ -9353,13 +9399,16 @@ function fitInvoiceDoc() {
 window.addEventListener('resize', fitInvoiceDoc);
 
 async function fetchInvoiceConfig() {
-  const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer', {
+  const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label,alt_currency_label,alt_currency_rate,alt_currency_operation,show_alt_currency_in_pos,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer', {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
   }).then(r => r.json());
   const config = (configRes && configRes[0]) || {};
   return {
     businessName: config.invoice_business_name || 'Invoice',
     layout: String(config.invoice_layout || 'a4').trim().toLowerCase() === 'slip' ? 'slip' : 'a4',
+    cur: (config.currency_label || '').trim().toUpperCase(),
+    altCur: config.show_alt_currency_in_pos ? (config.alt_currency_label || '').trim().toUpperCase() : '',
+    altRate: Number(config.alt_currency_rate) || 0, altOp: config.alt_currency_operation || 'multiply',
     logo: config.invoice_logo_url || '', phone: config.invoice_phone || '', email: config.invoice_email || '',
     address: config.invoice_address || '', footer: config.invoice_footer || '',
     symbol: config.currency_label ? currencyCodeToSymbol(config.currency_label) : ''
