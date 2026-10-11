@@ -4711,6 +4711,24 @@
         </div>
       </div>
 
+      <div class="settings-section-label">Shipping</div>
+      <div class="biz-fields">
+        <div class="biz-field">
+          <label>How shipping is charged on invoices</label>
+          <select id="biz-shipping-type" data-key="shipping_type" data-table="seller_sales_config" onchange="saveBizField(this)">
+            <option value="ask_seller">Ask me each time (the invoice waits for my price)</option>
+            <option value="free">Always free</option>
+            <option value="flat">Flat price per order</option>
+            <option value="per_unit">Price per number of units</option>
+          </select>
+        </div>
+        <div class="biz-field"><label>Flat shipping price</label><input type="text" id="biz-shipping-flat" data-key="shipping_flat_amount" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 5" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Price per group of units</label><input type="text" id="biz-shipping-per-unit-amount" data-key="shipping_per_unit_amount" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 1" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Units in each group</label><input type="text" id="biz-shipping-per-unit-count" data-key="shipping_per_unit_count" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 10" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Free shipping from this quantity (optional)</label><input type="text" id="biz-shipping-free-qty" data-key="shipping_free_over_qty" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 100 units" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Free shipping from this order total (optional)</label><input type="text" id="biz-shipping-free-amount" data-key="shipping_free_over_amount" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 500" onchange="saveBizField(this)"></div>
+      </div>
+
       <div class="settings-section-label">Currency</div>
       <div class="biz-fields">
         <div class="biz-field"><label>Currency you sell in</label><input type="text" id="biz-currency-label" data-key="currency_label" data-table="seller_sales_config" placeholder="e.g. USD, IQD, EUR" onchange="saveBizField(this)"></div>
@@ -11274,7 +11292,8 @@ const NOTIFICATION_TYPE_LABELS = {
   ad_performance: 'Ad Performance',
   strategy_suggestion: 'Strategy Suggestion',
   storage_alert: 'Storage',
-  system_alert: 'System alert'
+  system_alert: 'System alert',
+  invoice_shipping: 'Shipping price needed'
 };
 
 function formatNotificationTime(iso) {
@@ -11332,6 +11351,12 @@ function renderNotificationItem(n) {
             <span class="notification-item-title">${escapeHtml(n.title)}</span>
           </div>
           <div class="notification-item-message">${escapeHtml(n.message)}</div>
+          ${(n.type === 'invoice_shipping' && n.order_id && !n.is_read) ? `
+          <div class="ship-form" onclick="event.stopPropagation()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 4px;">
+            <input type="number" inputmode="decimal" min="0" step="any" id="ship-input-${n.id}" placeholder="Shipping price" style="flex:1;min-width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);">
+            <button type="button" onclick="event.stopPropagation(); submitShippingPrice(${n.id}, '${escapeHtml(String(n.order_id))}', false)" style="padding:8px 12px;border:0;border-radius:8px;background:var(--accent, #2563eb);color:#fff;cursor:pointer;">Send invoice</button>
+            <button type="button" onclick="event.stopPropagation(); submitShippingPrice(${n.id}, '${escapeHtml(String(n.order_id))}', true)" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer;">Free shipping</button>
+          </div>` : ''}
           <div class="notification-item-bottom">
             <span class="notification-item-time">${formatNotificationTime(n.created_at)}</span>
             <button class="notification-item-toggle-read" onclick="event.stopPropagation(); toggleNotificationRead(${n.id}, ${!n.is_read})">${toggleLabel}</button>
@@ -11341,6 +11366,32 @@ function renderNotificationItem(n) {
       </div>
     </div>`;
 }
+
+window.submitShippingPrice = async function(notifId, orderId, free) {
+  const input = document.getElementById('ship-input-' + notifId);
+  let amount = 0;
+  if (!free) {
+    amount = Number(String((input && input.value) || '').trim());
+    if (!input || input.value.trim() === '' || !isFinite(amount) || amount < 0) { alert('Enter the shipping price first, or tap "Free shipping".'); return; }
+  }
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+    // Only an order that is still waiting can be completed, so a double tap or a stale screen changes nothing.
+    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
+      method: 'PATCH', headers, body: JSON.stringify({ shipping_cost: amount, shipping_confirmed: true })
+    });
+    const rows = r.ok ? await r.json() : null;
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!rows || !rows.length) { alert('This order was already completed.'); }
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + notifId, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ is_read: true }) });
+    await loadNotifications();
+    checkNotificationsDot();
+    showBizSaveHint && showBizSaveHint();
+  } catch (e) {
+    debugLog('submitShippingPrice failed: ' + (e && e.message));
+    alert('Could not save the shipping price: ' + (e && e.message ? e.message : 'unknown error'));
+  }
+};
 
 /** Opens a fresh, dedicated AI conversation seeded with this notification's
  * content, so the seller can immediately ask follow-up questions or give
@@ -12891,7 +12942,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,shipping_type,shipping_flat_amount,shipping_per_unit_amount,shipping_per_unit_count,shipping_free_over_qty,shipping_free_over_amount,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -12971,6 +13022,12 @@ async function loadBizSettings() {
       if (el) el.value = currencyData[p[0]] != null ? currencyData[p[0]] : '';
     });
     setInvoiceLogoPreview(currencyData.invoice_logo_url || '');
+    [['shipping_flat_amount','biz-shipping-flat'],['shipping_per_unit_amount','biz-shipping-per-unit-amount'],['shipping_per_unit_count','biz-shipping-per-unit-count'],['shipping_free_over_qty','biz-shipping-free-qty'],['shipping_free_over_amount','biz-shipping-free-amount']].forEach(function(p) {
+      const el = document.getElementById(p[1]);
+      if (el) el.value = currencyData[p[0]] != null ? currencyData[p[0]] : '';
+    });
+    const shipSel = document.getElementById('biz-shipping-type');
+    if (shipSel) shipSel.value = currencyData.shipping_type || 'ask_seller';
     [['wa_about','wa-about'],['wa_address','wa-address'],['wa_description','wa-description'],['wa_email','wa-email'],['wa_website_1','wa-website-1'],['wa_website_2','wa-website-2'],['wa_vertical','wa-vertical']].forEach(function(p) {
       const el = document.getElementById(p[1]);
       if (el && currencyData[p[0]] != null) el.value = currencyData[p[0]];
