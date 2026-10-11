@@ -2003,6 +2003,17 @@
   .biz-save-hint.show { opacity: 1; }
 
   /* ═══ PRODUCTS ═══ */
+  #customers-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #customers-list-view, #customer-form-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  #customers-header-row, #customer-form-back-row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #customers-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; }
+  #customers-header-row button, #customer-form-back-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; flex-shrink: 0; }
+  #customers-header-row button[title="Add customer"] { background: var(--accent-2); color: #fff; width: 32px; height: 32px; border-radius: 50%; }
+  #customers-search { margin: 10px 18px 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font-size: 14px; }
+  #customers-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13.5px; }
+  #customer-form-fields { padding: 16px 20px 30px; }
+  #customer-form-back-row span { font-weight: 600; font-size: 15px; flex: 1; }
+  #customer-save-btn { width: 100%; margin-top: 14px; padding: 13px; border: none; border-radius: 10px; background: var(--accent-2); color: #fff; font-weight: 700; font-size: 14.5px; cursor: pointer; }
   #products-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
   #products-list-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
   #products-header-row {
@@ -4023,6 +4034,32 @@
       </div>
       <div id="orders-box-list"></div>
     </div>
+    <div id="customers-tab-content" style="display:none;">
+      <div id="customers-list-view">
+        <div id="customers-header-row">
+          <button onclick="closeCustomersPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <span id="customers-title">Customers</span>
+          <button onclick="openCustomerForm(null)" title="Add customer"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
+        <input type="text" id="customers-search" placeholder="Search name, phone or address..." oninput="renderCustomersList()">
+        <div id="customers-list"></div>
+      </div>
+      <div id="customer-form-view" style="display:none;">
+        <div id="customer-form-back-row">
+          <button onclick="closeCustomerForm()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <span id="customer-form-title">Add Customer</span>
+          <button id="customer-delete-btn" onclick="deleteCurrentCustomer()" title="Delete" style="display:none;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+        </div>
+        <div id="customer-form-fields">
+          <div class="biz-field"><label>Customer name *</label><input type="text" id="cf-name"></div>
+          <div class="biz-field"><label>Phone number *</label><input type="text" id="cf-phone" inputmode="tel"></div>
+          <div class="biz-field"><label>Address *</label><input type="text" id="cf-address"></div>
+          <div class="biz-field"><label>City</label><input type="text" id="cf-city"></div>
+          <div class="biz-field"><label>Notes</label><input type="text" id="cf-notes"></div>
+          <button id="customer-save-btn" onclick="saveCustomerForm()">Save Customer</button>
+        </div>
+      </div>
+    </div>
     <div id="products-tab-content" style="display:none;">
       <div id="products-list-view">
         <div id="products-header-row">
@@ -4490,6 +4527,10 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21"/><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1"/></svg>
         <span>Connect WhatsApp Number</span>
         <span id="whatsapp-connect-status" style="margin-left:auto;color:var(--text-muted);font-size:13px;"></span>
+      </div>
+      <div class="settings-row" onclick="openCustomersPanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span id="settings-label-customers-row">Customers</span>
       </div>
       <div class="settings-row" onclick="openProductsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>
@@ -8785,7 +8826,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'profile-tab-content', 'products-tab-content', 'orders-tab-content', 'orders-box-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'profile-tab-content', 'products-tab-content', 'customers-tab-content', 'orders-tab-content', 'orders-box-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -8824,6 +8865,102 @@ let currentEditingProductId = null;
 const PRODUCT_FIELDS = ['product_name', 'product_category', 'product_code', 'sell_unit', 'wholesale_price', 'retail_price', 'cost_price',
   'stock_quantity', 'low_stock_threshold', 'target_customers', 'market_city', 'key_features', 'common_questions',
   'payment_methods', 'delivery_info', 'delivery_timing_preference', 'competitors_difference', 'special_offers', 'escalation_rules'];
+
+// ═══ CUSTOMERS (Business → Customers): add, change and delete customers ═══
+let customersCache = [];
+let currentEditingCustomerId = null;
+const CUST_H = () => ({ apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' });
+
+window.openCustomersPanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('customers-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition'); void panel.offsetWidth; panel.classList.add('screen-transition');
+  document.getElementById('customers-list-view').style.display = 'flex';
+  document.getElementById('customer-form-view').style.display = 'none';
+  await loadCustomersList();
+};
+window.closeCustomersPanel = function() {
+  document.getElementById('customers-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+async function loadCustomersList() {
+  const el = document.getElementById('customers-list');
+  el.innerHTML = '<div id="products-loading"><div class="spinner"></div>Loading customers...</div>';
+  try {
+    const rows = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,phone,name,address,city,notes,total_orders,total_spent&order=name.asc.nullslast&limit=2000', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } }).then(r => r.json());
+    customersCache = Array.isArray(rows) ? rows : [];
+    renderCustomersList();
+  } catch (e) { el.innerHTML = '<div id="customers-empty">Could not load customers. Try again.</div>'; }
+}
+window.renderCustomersList = function() {
+  const el = document.getElementById('customers-list');
+  const q = (document.getElementById('customers-search').value || '').trim().toLowerCase();
+  const list = customersCache.filter(c => !q || [c.name, c.phone, c.address, c.city].some(v => (v || '').toLowerCase().includes(q)));
+  if (!list.length) { el.innerHTML = '<div id="customers-empty">' + (customersCache.length ? 'No match.' : 'No customers yet. Tap + to add the first one.') + '</div>'; return; }
+  el.innerHTML = '';
+  list.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.onclick = () => openCustomerForm(c);
+    const missing = !c.address || !c.name;
+    card.innerHTML = '<div class="product-card-main"><div class="product-card-name">' + escapeHtml(c.name || c.phone) + (missing ? ' <span class="inactive-badge">' + (!c.address ? 'no address' : 'no name') + '</span>' : '') + '</div>'
+      + '<div class="product-card-meta">' + [c.phone, c.address, c.city].filter(Boolean).map(escapeHtml).join(' · ') + '</div></div>'
+      + '<div class="product-card-price">' + (c.total_orders ? c.total_orders + ' orders' : '') + '</div>';
+    el.appendChild(card);
+  });
+};
+window.openCustomerForm = function(c) {
+  currentEditingCustomerId = c ? c.id : null;
+  document.getElementById('customers-list-view').style.display = 'none';
+  document.getElementById('customer-form-view').style.display = 'flex';
+  document.getElementById('customer-form-title').textContent = c ? 'Edit Customer' : 'Add Customer';
+  document.getElementById('customer-delete-btn').style.display = c ? 'flex' : 'none';
+  document.getElementById('cf-name').value = (c && c.name) || '';
+  document.getElementById('cf-phone').value = (c && c.phone) || '';
+  document.getElementById('cf-address').value = (c && c.address) || '';
+  document.getElementById('cf-city').value = (c && c.city) || '';
+  document.getElementById('cf-notes').value = (c && c.notes) || '';
+};
+window.closeCustomerForm = function() {
+  document.getElementById('customer-form-view').style.display = 'none';
+  document.getElementById('customers-list-view').style.display = 'flex';
+  currentEditingCustomerId = null;
+};
+window.saveCustomerForm = async function() {
+  const name = document.getElementById('cf-name').value.trim();
+  const phone = document.getElementById('cf-phone').value.trim();
+  const address = document.getElementById('cf-address').value.trim();
+  if (!name || !phone || !address) { alert('Customer name, phone number and address are all required'); return; }
+  const btn = document.getElementById('customer-save-btn'); btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const body = { name, phone, address, city: document.getElementById('cf-city').value.trim() || null, notes: document.getElementById('cf-notes').value.trim() || null, updated_at: new Date().toISOString() };
+    let res;
+    if (currentEditingCustomerId) {
+      res = await fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'PATCH', headers: CUST_H(), body: JSON.stringify(body) });
+    } else {
+      const dup = customersCache.find(x => (x.phone || '') === phone);
+      if (dup) { alert('A customer with this phone number already exists: ' + (dup.name || dup.phone)); return; }
+      res = await fetch(SUPABASE_URL + '/rest/v1/customers', { method: 'POST', headers: CUST_H(), body: JSON.stringify(Object.assign({ seller_id: SELLER_CHAT_ID, created_at: new Date().toISOString() }, body)) });
+    }
+    if (!res.ok) throw new Error((await res.text().catch(() => '')) || ('HTTP ' + res.status));
+    cachedCustomerCatalog = null; // the sales screen reloads it next time
+    closeCustomerForm();
+    await loadCustomersList();
+  } catch (e) { alert('Could not save: ' + (e && e.message ? e.message : 'unknown error')); }
+  finally { btn.disabled = false; btn.textContent = 'Save Customer'; }
+};
+window.deleteCurrentCustomer = async function() {
+  if (!currentEditingCustomerId) return;
+  if (!confirm('Delete this customer? Their past orders stay, but the customer is removed from your list. This cannot be undone.')) return;
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'DELETE', headers: CUST_H() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cachedCustomerCatalog = null;
+    closeCustomerForm();
+    await loadCustomersList();
+  } catch (e) { alert('Could not delete: ' + (e && e.message ? e.message : 'unknown error')); }
+};
 
 window.openProductsPanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
