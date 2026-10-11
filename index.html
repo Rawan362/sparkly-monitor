@@ -4701,6 +4701,7 @@
         <div class="biz-field"><label>Phone (shown on invoices)</label><input type="text" id="biz-invoice-phone" data-key="invoice_phone" data-table="seller_sales_config" placeholder="e.g. +964 750 000 0000" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>Email (shown on invoices)</label><input type="text" id="biz-invoice-email" data-key="invoice_email" data-table="seller_sales_config" placeholder="e.g. sales@yourcompany.com" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>Address (shown on invoices)</label><input type="text" id="biz-invoice-address" data-key="invoice_address" data-table="seller_sales_config" placeholder="e.g. Baghdad, Karrada" onchange="saveBizField(this)"></div>
+        <div class="biz-field"><label>Footer text (shown at the bottom of invoices)</label><textarea id="biz-invoice-footer" data-key="invoice_footer" data-table="seller_sales_config" rows="2" placeholder="e.g. Thank you for your business. Payment on delivery." onchange="saveBizField(this)" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea></div>
         <div class="biz-field">
           <label>Invoice layout</label>
           <select id="biz-invoice-layout" data-key="invoice_layout" data-table="seller_sales_config" onchange="saveBizField(this)">
@@ -12890,7 +12891,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -12965,7 +12966,7 @@ async function loadBizSettings() {
     if (currencyData.selling_type) document.getElementById('biz-selling-type').value = currencyData.selling_type;
     if (currencyData.invoice_layout) document.getElementById('biz-invoice-layout').value = currencyData.invoice_layout;
     if (currencyData.invoice_business_name != null) document.getElementById('biz-invoice-business-name').value = currencyData.invoice_business_name;
-    [['invoice_phone','biz-invoice-phone'],['invoice_email','biz-invoice-email'],['invoice_address','biz-invoice-address']].forEach(function(p) {
+    [['invoice_phone','biz-invoice-phone'],['invoice_email','biz-invoice-email'],['invoice_address','biz-invoice-address'],['invoice_footer','biz-invoice-footer']].forEach(function(p) {
       const el = document.getElementById(p[1]);
       if (el) el.value = currencyData[p[0]] != null ? currencyData[p[0]] : '';
     });
