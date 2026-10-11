@@ -3032,8 +3032,9 @@
     box-shadow: 0 2px 16px rgba(0,0,0,0.15);
     font-family: 'Inter', -apple-system, sans-serif;
   }
-  .invoice-doc.invoice-a4 { max-width: 780px; padding: 48px 56px; }
-  .invoice-doc.invoice-slip { max-width: 340px; padding: 20px 18px; font-size: 12.5px; }
+  .invoice-doc.invoice-a4 { width: 794px; max-width: none; min-height: 1123px; box-sizing: border-box; padding: 48px 56px; }
+  .invoice-doc.invoice-slip { width: 302px; max-width: none; box-sizing: border-box; padding: 20px 18px; font-size: 12.5px; }
+  @media print { .invoice-doc { zoom: 1 !important; box-shadow: none; } }
 
   .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
   .invoice-doc.invoice-slip .invoice-header { flex-direction: column; gap: 8px; margin-bottom: 16px; text-align: center; }
@@ -9295,7 +9296,7 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
     <div class="invoice-doc invoice-${layout}">
       <div class="invoice-header">
         <div>
-          ${extra.logo ? `<img class="invoice-logo" src="${escapeHtml(extra.logo)}" alt="" crossorigin="anonymous" style="display:block;max-width:${layout === 'slip' ? '150px' : '220px'};max-height:${layout === 'slip' ? '64px' : '90px'};width:auto;height:auto;object-fit:contain;margin:0 ${layout === 'slip' ? 'auto' : '0'} 8px;">` : ''}
+          ${extra.logo ? `<img class="invoice-logo" src="${escapeHtml(extra.logo)}" alt="" style="display:block;max-width:${layout === 'slip' ? '150px' : '220px'};max-height:${layout === 'slip' ? '64px' : '90px'};width:auto;height:auto;object-fit:contain;margin:0 ${layout === 'slip' ? 'auto' : '0'} 8px;">` : ''}
           <div class="invoice-business-name">${escapeHtml(businessName)}</div>
           ${(extra.phone || extra.email || extra.address) ? `<div class="invoice-seller-info" style="font-size:${layout === 'slip' ? '10.5px' : '12px'};color:#666;line-height:1.5;margin-bottom:4px;">${[extra.address, extra.phone, extra.email].filter(Boolean).map(escapeHtml).join('<br>')}</div>` : ''}
           <div class="invoice-title">Invoice</div>
@@ -9339,6 +9340,18 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
   `;
 }
 
+function fitInvoiceDoc() {
+  try {
+    const sc = document.getElementById('invoice-view-scroll');
+    const doc = document.querySelector('#invoice-content .invoice-doc');
+    if (!sc || !doc) return;
+    doc.style.zoom = '1';
+    const avail = sc.clientWidth - 32;
+    if (avail > 0 && doc.offsetWidth > avail) doc.style.zoom = String(avail / doc.offsetWidth);
+  } catch (e) {}
+}
+window.addEventListener('resize', fitInvoiceDoc);
+
 async function fetchInvoiceConfig() {
   const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer', {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
@@ -9374,6 +9387,7 @@ window.openInvoiceView = async function(orderId) {
 
     const html = buildOneInvoiceHtml(o, itemsRes || [], config.layout, config.symbol, config.businessName, config);
     document.getElementById('invoice-content').innerHTML = html;
+    setTimeout(fitInvoiceDoc, 0);
     document.getElementById('invoice-view-overlay').style.display = 'flex';
   } catch (e) {
     debugLog('openInvoiceView failed: ' + (e && e.message));
@@ -9432,6 +9446,7 @@ function renderInvoiceQueueStep() {
   if (!step) return;
   const html = buildOneInvoiceHtml(step.order, step.items, step.config.layout, step.config.symbol, step.config.businessName, step.config);
   document.getElementById('invoice-content').innerHTML = html;
+    setTimeout(fitInvoiceDoc, 0);
 
   const nav = document.getElementById('invoice-queue-nav');
   if (invoiceQueue.length > 1) {
