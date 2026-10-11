@@ -3055,6 +3055,7 @@
   .invoice-items-table td { padding: 10px 0; border-bottom: 1px solid #e5e5e5; font-size: 13.5px; vertical-align: top; }
   .invoice-doc.invoice-slip .invoice-items-table td { padding: 6px 0; font-size: 11.5px; }
   .invoice-items-table th:not(:first-child), .invoice-items-table td:not(:first-child) { text-align: right; }
+  .invoice-items-table.has-code th:nth-child(2), .invoice-items-table.has-code td:nth-child(2) { text-align: left; }
   .invoice-item-name { font-weight: 600; }
   .invoice-item-meta { font-size: 11px; color: #888; margin-top: 2px; }
 
@@ -9288,6 +9289,18 @@ window.saveInvoiceNote = async function(orderId, btn) {
   setTimeout(() => { btn.textContent = old; }, 1600);
 };
 
+async function attachProductCodes(items) {
+  try {
+    const ids = [...new Set((items || []).map(i => i.product_id).filter(Boolean))];
+    if (!ids.length) return items;
+    const rows = await fetch(SUPABASE_URL + '/rest/v1/seller_products?id=in.(' + ids.map(encodeURIComponent).join(',') + ')&select=id,product_code', {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } }).then(r => r.json());
+    const m = {}; (Array.isArray(rows) ? rows : []).forEach(r => { m[r.id] = r.product_code; });
+    items.forEach(i => { if (i.product_id && m[i.product_id]) i.code = m[i.product_id]; });
+  } catch (e) {}
+  return items;
+}
+
 function grandTotal0(o) { return o.order_total || 0; }
 function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
   extra = extra || {};
@@ -9300,13 +9313,15 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
   const remaining = grandTotal - received;
 
   let itemsHtml = '';
+  const hasCode = items.some(it => it.code);
   if (items.length > 0) {
     itemsHtml = items.map(it => {
       const discNote = (it.discount_type && it.discount_amount) ? `<div class="invoice-item-meta">${it.discount_type === 'percent' ? it.discount_value + '% off' : 'Discount −' + symbol + it.discount_amount.toLocaleString()}</div>` : '';
       const net = (it.line_total || 0) - (it.discount_amount || 0);
       return `
         <tr>
-          <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${discNote}</td>
+          ${hasCode && layout !== 'slip' ? `<td>${escapeHtml(it.code || '-')}</td>` : ''}
+          <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${hasCode && layout === 'slip' && it.code ? `<div class="invoice-item-meta">${escapeHtml(it.code)}</div>` : ''}${discNote}</td>
           <td>${it.quantity}</td>
           <td>${symbol}${(it.unit_price || 0).toLocaleString()}</td>
           <td>${symbol}${net.toLocaleString()}</td>
@@ -9353,8 +9368,8 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
         ${o.delivery_address ? `<div>${escapeHtml(o.delivery_address)}</div>` : ''}
       </div>
 
-      <table class="invoice-items-table">
-        <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+      <table class="invoice-items-table${hasCode && layout !== 'slip' ? ' has-code' : ''}">
+        <thead><tr>${hasCode && layout !== 'slip' ? '<th>Code</th>' : ''}<th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
         <tbody>${itemsHtml}</tbody>
       </table>
 
@@ -9434,6 +9449,7 @@ window.openInvoiceView = async function(orderId) {
     invoiceQueueIndex = 0;
     document.getElementById('invoice-queue-nav').style.display = 'none';
 
+    await attachProductCodes(itemsRes);
     const html = buildOneInvoiceHtml(o, itemsRes || [], config.layout, config.symbol, config.businessName, config);
     document.getElementById('invoice-content').innerHTML = html;
     setTimeout(fitInvoiceDoc, 0);
@@ -9480,6 +9496,7 @@ window.openAllInvoicesView = async function(phone) {
     // combining everything into a single multi-page print, this steps
     // through the invoices one at a time: the seller prints/saves each one
     // individually as its own file, then moves to the next with one tap.
+    for (const its of itemsByOrder) await attachProductCodes(its);
     invoiceQueue = debtOrders.map((o, i) => ({ order: o, items: itemsByOrder[i] || [], config }));
     invoiceQueueIndex = 0;
     renderInvoiceQueueStep();
