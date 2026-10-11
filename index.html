@@ -4042,6 +4042,7 @@
           <div class="biz-field"><label>Product name *</label><input type="text" id="pf-product_name"></div>
           <div class="biz-field"><label>Category</label><input type="text" id="pf-product_category"></div>
           <div class="biz-field"><label>Product code / SKU *</label><input type="text" id="pf-product_code"></div>
+          <div class="biz-field"><label>Sold by (unit) *</label><input type="text" id="pf-sell_unit" list="pf-sell-unit-list" placeholder="piece, set, package, carton, kg, litre, metre..." autocomplete="off"><datalist id="pf-sell-unit-list"><option value="piece"><option value="set"><option value="package"><option value="carton"><option value="box"><option value="kilogram"><option value="litre"><option value="metre"><option value="pair"><option value="dozen"></datalist></div>
           <div class="biz-field"><label>Wholesale price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-1"></span><input type="text" id="pf-wholesale_price"></div></div>
           <div class="biz-field"><label>Retail price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-2"></span><input type="text" id="pf-retail_price"></div></div>
           <div class="biz-field"><label>Cost price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-3"></span><input type="text" id="pf-cost_price"></div></div>
@@ -8820,7 +8821,7 @@ let bizSettingsLoaded = false;
 
 // ═══ PRODUCTS (replaces Telegram's SHOW_PRODUCTS / DELETE_PRODUCT / STOCK_VIEW / STOCK_UPDATE intents) ═══
 let currentEditingProductId = null;
-const PRODUCT_FIELDS = ['product_name', 'product_category', 'product_code', 'wholesale_price', 'retail_price', 'cost_price',
+const PRODUCT_FIELDS = ['product_name', 'product_category', 'product_code', 'sell_unit', 'wholesale_price', 'retail_price', 'cost_price',
   'stock_quantity', 'low_stock_threshold', 'target_customers', 'market_city', 'key_features', 'common_questions',
   'payment_methods', 'delivery_info', 'delivery_timing_preference', 'competitors_difference', 'special_offers', 'escalation_rules'];
 
@@ -8947,6 +8948,11 @@ window.saveProductForm = async function() {
   const skuEl = document.getElementById('pf-product_code');
   if (!skuEl.value.trim()) {
     alert(currentLang === 'ar' ? 'رمز المنتج (SKU) مطلوب' : 'Product code (SKU) is required');
+    return;
+  }
+
+  if (!document.getElementById('pf-sell_unit').value.trim()) {
+    alert(currentLang === 'ar' ? 'حدد وحدة البيع (قطعة، طقم، علبة، كيلو، لتر...)' : 'Say what this product is sold by (piece, set, package, kilogram, litre...)');
     return;
   }
 
@@ -9170,10 +9176,11 @@ window.openOrderDetail = async function(orderId) {
 
   let items = [];
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=product_name,unit_price,quantity,line_total,discount_type,discount_value,discount_amount', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/order_items?order_id=eq.' + orderId + '&select=product_id,product_name,unit_price,quantity,line_total,discount_type,discount_value,discount_amount', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     items = await res.json();
+    try { await attachProductCodes(items); } catch (e) {}
   } catch (e) {
     debugLog('openOrderDetail item fetch failed: ' + (e && e.message));
   }
@@ -9222,7 +9229,7 @@ window.openOrderDetail = async function(orderId) {
       <div class="oc-cart-item">
         <div>
           <div class="oc-cart-item-name">${escapeHtml(item.product_name || '—')}</div>
-          <div class="oc-cart-item-meta">${item.quantity} × ${item.unit_price} = ${netTotal.toLocaleString()}${discountNote}</div>
+          <div class="oc-cart-item-meta">${item.quantity}${item.sell_unit ? ' ' + escapeHtml(item.sell_unit) : ''} × ${item.unit_price} = ${netTotal.toLocaleString()}${discountNote}</div>
         </div>
       </div>
     `;
@@ -9317,10 +9324,10 @@ async function attachProductCodes(items) {
   try {
     const ids = [...new Set((items || []).map(i => i.product_id).filter(Boolean))];
     if (!ids.length) return items;
-    const rows = await fetch(SUPABASE_URL + '/rest/v1/seller_products?id=in.(' + ids.map(encodeURIComponent).join(',') + ')&select=id,product_code', {
+    const rows = await fetch(SUPABASE_URL + '/rest/v1/seller_products?id=in.(' + ids.map(encodeURIComponent).join(',') + ')&select=id,product_code,sell_unit', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } }).then(r => r.json());
-    const m = {}; (Array.isArray(rows) ? rows : []).forEach(r => { m[r.id] = r.product_code; });
-    items.forEach(i => { if (i.product_id && m[i.product_id]) i.code = m[i.product_id]; });
+    const m = {}, mu = {}; (Array.isArray(rows) ? rows : []).forEach(r => { m[r.id] = r.product_code; mu[r.id] = r.sell_unit; });
+    items.forEach(i => { if (i.product_id && m[i.product_id]) i.code = m[i.product_id]; if (i.product_id && mu[i.product_id]) i.sell_unit = mu[i.product_id]; });
   } catch (e) {}
   return items;
 }
@@ -9347,7 +9354,7 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
         <tr>
           <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${hasCode && layout === 'slip' && it.code ? `<div class="invoice-item-meta">${escapeHtml(it.code)}</div>` : ''}${discNote}</td>
           ${hasCode && layout !== 'slip' ? `<td>${escapeHtml(it.code || '-')}</td>` : ''}
-          <td>${it.quantity}</td>
+          <td>${it.quantity}${it.sell_unit ? ' ' + escapeHtml(it.sell_unit) : ''}</td>
           <td>${symbol}${(it.unit_price || 0).toLocaleString()}</td>
           <td>${symbol}${net.toLocaleString()}</td>
         </tr>
@@ -9947,9 +9954,9 @@ window.showNewCustomerForm = function(typedValue) {
   const looksLikePhone = /^[\d+\s-]{5,}$/.test(typedValue);
   box.innerHTML = `
     <div id="oc-new-customer-form">
-      <input type="text" id="oc-new-phone" placeholder="Phone number" value="${looksLikePhone ? escapeHtml(typedValue) : ''}">
-      <input type="text" id="oc-new-name" placeholder="Customer name" value="${looksLikePhone ? '' : escapeHtml(typedValue)}">
-      <input type="text" id="oc-new-address" placeholder="Address (optional)">
+      <input type="text" id="oc-new-phone" placeholder="Phone number *" value="${looksLikePhone ? escapeHtml(typedValue) : ''}">
+      <input type="text" id="oc-new-name" placeholder="Customer name *" value="${looksLikePhone ? '' : escapeHtml(typedValue)}">
+      <input type="text" id="oc-new-address" placeholder="Address *">
       <button onclick="event.stopPropagation(); saveNewCustomerFromPOS()">Save Customer</button>
     </div>
   `;
@@ -9960,8 +9967,8 @@ window.saveNewCustomerFromPOS = async function() {
   const phone = document.getElementById('oc-new-phone').value.trim();
   const name = document.getElementById('oc-new-name').value.trim();
   const address = (document.getElementById('oc-new-address') || { value: '' }).value.trim();
-  if (!phone) {
-    alert(currentLang === 'ar' ? 'رقم الهاتف مطلوب' : 'Phone number is required');
+  if (!phone || !name || !address) {
+    alert(currentLang === 'ar' ? 'رقم الهاتف والاسم والعنوان مطلوبة' : 'Phone number, customer name and address are all required');
     return;
   }
   try {
