@@ -9843,7 +9843,7 @@ window.openOrderCreateForm = async function() {
   document.getElementById('pos-top-bar-date').textContent = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   try {
-    const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name&order=name.asc.nullslast', {
+    const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name,address&order=name.asc.nullslast', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     cachedCustomerCatalog = await custRes.json();
@@ -9922,6 +9922,11 @@ window.selectCustomerSuggestion = function(phone, name) {
   document.getElementById('oc-phone').value = name ? (name + ' — ' + phone) : phone;
   document.getElementById('oc-customer-selected-id').value = phone;
   document.getElementById('oc-customer-suggestions').style.display = 'none';
+  try { // a saved address fills the (optional) delivery address
+    const c = (cachedCustomerCatalog || []).find(x => x.phone === phone);
+    const d = document.getElementById('oc-delivery_address');
+    if (c && c.address && d && !d.value.trim()) d.value = c.address;
+  } catch (e) {}
 
   if (sellerSellingType === 'both') {
     document.getElementById('pos-modal-overlay').style.display = 'flex';
@@ -9944,6 +9949,7 @@ window.showNewCustomerForm = function(typedValue) {
     <div id="oc-new-customer-form">
       <input type="text" id="oc-new-phone" placeholder="Phone number" value="${looksLikePhone ? escapeHtml(typedValue) : ''}">
       <input type="text" id="oc-new-name" placeholder="Customer name" value="${looksLikePhone ? '' : escapeHtml(typedValue)}">
+      <input type="text" id="oc-new-address" placeholder="Address (optional)">
       <button onclick="event.stopPropagation(); saveNewCustomerFromPOS()">Save Customer</button>
     </div>
   `;
@@ -9953,6 +9959,7 @@ window.showNewCustomerForm = function(typedValue) {
 window.saveNewCustomerFromPOS = async function() {
   const phone = document.getElementById('oc-new-phone').value.trim();
   const name = document.getElementById('oc-new-name').value.trim();
+  const address = (document.getElementById('oc-new-address') || { value: '' }).value.trim();
   if (!phone) {
     alert(currentLang === 'ar' ? 'رقم الهاتف مطلوب' : 'Phone number is required');
     return;
@@ -9961,11 +9968,12 @@ window.saveNewCustomerFromPOS = async function() {
     await fetch(SUPABASE_URL + '/rest/v1/customers?on_conflict=phone,seller_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ phone, name: name || null, seller_id: SELLER_CHAT_ID, created_at: new Date().toISOString() })
+      body: JSON.stringify(Object.assign({ phone, name: name || null, seller_id: SELLER_CHAT_ID, created_at: new Date().toISOString() }, address ? { address } : {}))
     });
     if (!cachedCustomerCatalog) cachedCustomerCatalog = [];
-    cachedCustomerCatalog.push({ phone, name });
+    cachedCustomerCatalog.push({ phone, name, address });
     selectCustomerSuggestion(phone, name);
+    if (address) { const d = document.getElementById('oc-delivery_address'); if (d && !d.value.trim()) d.value = address; }
   } catch (e) {
     debugLog('saveNewCustomerFromPOS failed: ' + (e && e.message));
     alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
