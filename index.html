@@ -10402,6 +10402,13 @@ window.saveManualOrder = async function() {
 
 window.updateOrderStatus = async function(newStatus) {
   if (!currentOrderId) return;
+  try {
+    const cur = (allLoadedOrders || []).find(x => x.id === currentOrderId);
+    if (cur && cur.order_status === 'AWAITING_SHIPPING' && (newStatus === 'SHIPPED' || newStatus === 'DELIVERED')) {
+      alert('This order is still waiting for its shipping price, so its invoice has not been sent. Enter the shipping price first (Orders box or Notifications).');
+      return;
+    }
+  } catch (e) {}
   const btns = document.querySelectorAll('.order-action-btn');
   btns.forEach(b => b.disabled = true);
 
@@ -10477,7 +10484,7 @@ function setOrdersBoxCount(n, pulse) {
 async function checkOrdersBox() {
   if (!SELLER_CHAT_ID) return;
   try {
-    const rows = await sb('orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.PENDING&select=id&limit=100');
+    const rows = await sb('orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=in.(PENDING,AWAITING_SHIPPING)&select=id&limit=100');
     const n = (rows || []).length;
     const grew = ordersBoxLastCount !== null && n > ordersBoxLastCount;
     ordersBoxLastCount = n;
@@ -10532,7 +10539,7 @@ async function loadOrdersBox() {
     listEl.innerHTML = '<div class="ob-empty">' + escapeHtml(obT('Loading...', 'جارٍ التحميل...')) + '</div>';
   }
   try {
-    const orders = await sb('orders?seller_id=eq.' + seller + '&order_status=eq.PENDING&select=*&order=created_at.desc&limit=100');
+    const orders = await sb('orders?seller_id=eq.' + seller + '&order_status=in.(PENDING,AWAITING_SHIPPING)&select=*&order=created_at.desc&limit=100');
     ordersBoxOrders = orders || [];
     ordersBoxLastCount = ordersBoxOrders.length;
     setOrdersBoxCount(ordersBoxOrders.length, false);
@@ -10615,16 +10622,62 @@ function buildOrderBoxCard(o, ctx) {
   const detailsBtn = obEl('button', 'ob-btn', obT('Details', 'التفاصيل'));
   detailsBtn.onclick = (e) => { e.stopPropagation(); openBoxOrderDetail(o.id); };
   actions.appendChild(detailsBtn);
-  const shipBtn = obEl('button', 'ob-btn primary', obT('Mark shipped', 'تم الشحن'));
-  shipBtn.onclick = (e) => { e.stopPropagation(); markBoxOrderShipped(o.id, shipBtn); };
-  actions.appendChild(shipBtn);
+  if (o.order_status === 'AWAITING_SHIPPING') {
+    // The invoice is not made yet: it needs the shipping price. Entering it here completes the invoice and sends it on WhatsApp.
+    const wait = obEl('div', 'ob-address ob-missing');
+    wait.appendChild(obEl('div', null, obT('Waiting for the shipping price' + (o.invoice_number ? ' — ' + o.invoice_number : '') + '. The customer gets the invoice on WhatsApp as soon as you enter it.',
+      'بانتظار سعر الشحن' + (o.invoice_number ? ' — ' + o.invoice_number : '') + '. يصل الزبون فاتورته على واتساب فور إدخاله.')));
+    const row = obEl('div', null);
+    row.style.cssText = 'display:flex;gap:6px;margin-top:8px;flex-wrap:wrap';
+    const inp = obEl('input');
+    inp.type = 'number'; inp.min = '0'; inp.step = 'any'; inp.inputMode = 'decimal';
+    inp.placeholder = obT('Shipping price', 'سعر الشحن');
+    inp.style.cssText = 'flex:1;min-width:110px;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px';
+    inp.onclick = (e) => e.stopPropagation();
+    const sendBtn = obEl('button', 'ob-btn primary', obT('Send invoice', 'إرسال الفاتورة'));
+    sendBtn.onclick = (e) => { e.stopPropagation(); submitBoxShipping(o.id, inp, false, sendBtn); };
+    const freeBtn = obEl('button', 'ob-btn', obT('Free shipping', 'شحن مجاني'));
+    freeBtn.onclick = (e) => { e.stopPropagation(); submitBoxShipping(o.id, inp, true, freeBtn); };
+    row.appendChild(inp); row.appendChild(sendBtn); row.appendChild(freeBtn);
+    wait.appendChild(row);
+    card.appendChild(wait);
+  } else {
+    const shipBtn = obEl('button', 'ob-btn primary', obT('Mark shipped', 'تم الشحن'));
+    shipBtn.onclick = (e) => { e.stopPropagation(); markBoxOrderShipped(o.id, shipBtn, !o.invoice_number); };
+    actions.appendChild(shipBtn);
+  }
   card.appendChild(actions);
   return card;
 }
 
-window.markBoxOrderShipped = async function(orderId, btn) {
+window.submitBoxShipping = async function(orderId, input, free, btn) {
+  let amount = 0;
+  if (!free) {
+    amount = Number(String(input.value || '').trim());
+    if (String(input.value || '').trim() === '' || !isFinite(amount) || amount < 0) { alert(obT('Enter the shipping price first, or tap "Free shipping".', 'أدخل سعر الشحن أولاً أو اضغط "شحن مجاني".')); return; }
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
+      method: 'PATCH', headers, body: JSON.stringify({ shipping_cost: amount, shipping_confirmed: true })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    if (!rows || !rows.length) alert(obT('This order was already completed.', 'هذا الطلب مكتمل مسبقاً.'));
+    else alert(obT('Saved. The invoice is being made and sent to the customer on WhatsApp (about 10-20 seconds).', 'تم الحفظ. تُجهَّز الفاتورة وتُرسل للزبون على واتساب خلال 10-20 ثانية تقريباً.'));
+    await loadOrdersBox();
+  } catch (e) {
+    debugLog('submitBoxShipping failed: ' + (e && e.message));
+    alert(obT('Could not save the shipping price: ', 'تعذر حفظ سعر الشحن: ') + (e && e.message ? e.message : 'unknown error'));
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.markBoxOrderShipped = async function(orderId, btn, noInvoice) {
   if (!orderId) return;
-  if (!confirm(obT('Mark this order as shipped?', 'هل تريد تحديد هذا الطلب كمشحون؟'))) return;
+  if (noInvoice && !confirm(obT('This order has no invoice, so the customer will not receive one when you mark it shipped. Mark it as shipped anyway?', 'هذا الطلب ليس له فاتورة، لذلك لن يصل الزبون فاتورة عند تحديده كمشحون. هل تريد تحديده كمشحون على أي حال؟'))) return;
+  if (!noInvoice && !confirm(obT('Mark this order as shipped?', 'هل تريد تحديد هذا الطلب كمشحون؟'))) return;
   if (btn) btn.disabled = true;
   try {
     // Filtered by seller as well as order id, so an order that isn't this
