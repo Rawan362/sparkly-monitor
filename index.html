@@ -9251,7 +9251,8 @@ window.openOrderDetail = async function(orderId) {
   document.getElementById('order-detail-fields').innerHTML = html;
 };
 
-function buildOneInvoiceHtml(o, items, layout, symbol, businessName) {
+function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
+  extra = extra || {};
   const shipping = o.shipping_cost || 0;
   const productsSubtotal = (o.order_total || 0) - shipping + (o.discount_amount || 0);
   const grandTotal = o.order_total || 0;
@@ -9294,7 +9295,9 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName) {
     <div class="invoice-doc invoice-${layout}">
       <div class="invoice-header">
         <div>
+          ${extra.logo ? `<img class="invoice-logo" src="${escapeHtml(extra.logo)}" alt="" crossorigin="anonymous" style="display:block;max-width:${layout === 'slip' ? '150px' : '220px'};max-height:${layout === 'slip' ? '64px' : '90px'};width:auto;height:auto;object-fit:contain;margin:0 ${layout === 'slip' ? 'auto' : '0'} 8px;">` : ''}
           <div class="invoice-business-name">${escapeHtml(businessName)}</div>
+          ${(extra.phone || extra.email || extra.address) ? `<div class="invoice-seller-info" style="font-size:${layout === 'slip' ? '10.5px' : '12px'};color:#666;line-height:1.5;margin-bottom:4px;">${[extra.address, extra.phone, extra.email].filter(Boolean).map(escapeHtml).join('<br>')}</div>` : ''}
           <div class="invoice-title">Invoice</div>
         </div>
         <div class="invoice-meta">
@@ -9331,19 +9334,21 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName) {
         ${o.card_brand ? ` (${escapeHtml(o.card_brand)} •••• ${escapeHtml(o.card_last4 || '')})` : ''}
       </div>
 
-      <div class="invoice-footer">Thank you for your business</div>
+      <div class="invoice-footer">${escapeHtml(extra.footer || 'Thank you for your business')}</div>
     </div>
   `;
 }
 
 async function fetchInvoiceConfig() {
-  const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label', {
+  const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer', {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
   }).then(r => r.json());
   const config = (configRes && configRes[0]) || {};
   return {
     businessName: config.invoice_business_name || 'Invoice',
-    layout: config.invoice_layout || 'a4',
+    layout: String(config.invoice_layout || 'a4').trim().toLowerCase() === 'slip' ? 'slip' : 'a4',
+    logo: config.invoice_logo_url || '', phone: config.invoice_phone || '', email: config.invoice_email || '',
+    address: config.invoice_address || '', footer: config.invoice_footer || '',
     symbol: config.currency_label ? currencyCodeToSymbol(config.currency_label) : ''
   };
 }
@@ -9367,7 +9372,7 @@ window.openInvoiceView = async function(orderId) {
     invoiceQueueIndex = 0;
     document.getElementById('invoice-queue-nav').style.display = 'none';
 
-    const html = buildOneInvoiceHtml(o, itemsRes || [], config.layout, config.symbol, config.businessName);
+    const html = buildOneInvoiceHtml(o, itemsRes || [], config.layout, config.symbol, config.businessName, config);
     document.getElementById('invoice-content').innerHTML = html;
     document.getElementById('invoice-view-overlay').style.display = 'flex';
   } catch (e) {
@@ -9425,7 +9430,7 @@ window.openAllInvoicesView = async function(phone) {
 function renderInvoiceQueueStep() {
   const step = invoiceQueue[invoiceQueueIndex];
   if (!step) return;
-  const html = buildOneInvoiceHtml(step.order, step.items, step.config.layout, step.config.symbol, step.config.businessName);
+  const html = buildOneInvoiceHtml(step.order, step.items, step.config.layout, step.config.symbol, step.config.businessName, step.config);
   document.getElementById('invoice-content').innerHTML = html;
 
   const nav = document.getElementById('invoice-queue-nav');
