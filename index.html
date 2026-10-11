@@ -4692,7 +4692,7 @@
           <label>Logo (shown at the top of invoices, with the business name under it)</label>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <img id="biz-invoice-logo-preview" alt="" style="display:none;width:56px;height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;">
-            <input type="file" id="biz-invoice-logo-file" accept="image/png,image/jpeg" style="display:none;" onchange="uploadInvoiceLogo(this)">
+            <input type="file" id="biz-invoice-logo-file" accept="image/*" style="display:none;" onchange="uploadInvoiceLogo(this)">
             <button type="button" id="biz-invoice-logo-upload" onclick="document.getElementById('biz-invoice-logo-file').click()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);cursor:pointer;">Upload logo</button>
             <button type="button" id="biz-invoice-logo-remove" onclick="removeInvoiceLogo()" style="display:none;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer;">Remove</button>
             <span id="biz-invoice-logo-status" style="font-size:12px;color:var(--text-muted);"></span>
@@ -12451,9 +12451,12 @@ window.handleBcAttachFile = function(input, kind) {
     img.onload = async () => {
       URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      canvas.getContext('2d').drawImage(img, 0, 0);
+      const sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * sc));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * sc));
+      const cx = canvas.getContext('2d');
+      cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, canvas.width, canvas.height); // transparent logos stay white, not black
+      cx.drawImage(img, 0, 0, canvas.width, canvas.height);
       const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
       stageBcAttachment(jpegDataUrl, 'image/jpeg', kind, (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg');
       input.value = '';
@@ -13389,16 +13392,31 @@ window.uploadInvoiceLogo = async function(input) {
     alert('Account changed - please reload the app before saving settings.');
     return;
   }
-  if (file.type !== 'image/png' && file.type !== 'image/jpeg') { status.textContent = 'Please choose a PNG or JPG image.'; return; }
-  if (file.size > 2 * 1024 * 1024) { status.textContent = 'The image is too big (max 2 MB).'; return; }
+  if (file.size > 25 * 1024 * 1024) { status.textContent = 'The image is too big (max 25 MB).'; return; }
   status.textContent = 'Uploading...';
   try {
-    const ext = file.type === 'image/png' ? 'png' : 'jpg';
+    // Any image size/shape/format: shrink it to at most 800px and save as PNG (keeps transparency)
+    let blob = null, ctype = 'image/png', ext = 'png';
+    try {
+      const objUrl = URL.createObjectURL(file);
+      const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = objUrl; });
+      URL.revokeObjectURL(objUrl);
+      const sc = Math.min(1, 800 / Math.max(im.naturalWidth, im.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(im.naturalWidth * sc));
+      cv.height = Math.max(1, Math.round(im.naturalHeight * sc));
+      cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+      blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    } catch (_) { blob = null; }
+    if (!blob) {
+      if (file.type === 'image/png' || file.type === 'image/jpeg') { blob = file; ctype = file.type; ext = file.type === 'image/png' ? 'png' : 'jpg'; }
+      else { status.textContent = 'This image format could not be read. Please choose a PNG, JPG or WebP image.'; return; }
+    }
     const path = SELLER_CHAT_ID + '/invoice-logo/' + Date.now() + '.' + ext;
     const up = await fetch(SUPABASE_URL + '/storage/v1/object/chat-media/' + path, {
       method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': file.type },
-      body: file
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': ctype },
+      body: blob
     });
     if (!up.ok) throw new Error('Upload failed with status ' + up.status);
     const url = SUPABASE_URL + '/storage/v1/object/public/chat-media/' + path;
