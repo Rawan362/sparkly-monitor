@@ -4109,6 +4109,7 @@
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <input type="text" id="oc-phone" placeholder="Search name or phone, or type new..." autocomplete="off" oninput="filterCustomerSearch(this.value)" onfocus="filterCustomerSearch(this.value)">
             <input type="hidden" id="oc-customer-selected-id">
+            <button type="button" id="oc-add-customer-btn" title="Add a new customer" onclick="event.stopPropagation(); showNewCustomerForm('')" style="flex-shrink:0;width:30px;height:30px;border-radius:50%;border:none;background:var(--accent-2,#2a6df4);color:#fff;font-size:20px;line-height:1;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;margin-left:6px;">+</button>
             <div id="oc-customer-suggestions" style="display:none;"></div>
           </div>
         </div>
