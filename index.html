@@ -4711,20 +4711,9 @@
         </div>
       </div>
 
-      <div class="settings-section-label">Shipping</div>
+      <div class="settings-section-label">Shipping offers</div>
       <div class="biz-fields">
-        <div class="biz-field">
-          <label>How shipping is charged on invoices</label>
-          <select id="biz-shipping-type" data-key="shipping_type" data-table="seller_sales_config" onchange="saveBizField(this)">
-            <option value="ask_seller">Ask me each time (the invoice waits for my price)</option>
-            <option value="free">Always free</option>
-            <option value="flat">Flat price per order</option>
-            <option value="per_unit">Price per number of units</option>
-          </select>
-        </div>
-        <div class="biz-field"><label>Flat shipping price</label><input type="text" id="biz-shipping-flat" data-key="shipping_flat_amount" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 5" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>Price per group of units</label><input type="text" id="biz-shipping-per-unit-amount" data-key="shipping_per_unit_amount" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 1" onchange="saveBizField(this)"></div>
-        <div class="biz-field"><label>Units in each group</label><input type="text" id="biz-shipping-per-unit-count" data-key="shipping_per_unit_count" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 10" onchange="saveBizField(this)"></div>
+        <div class="biz-field" style="color:var(--text-muted);font-size:13px;line-height:1.5;">Shipping prices are set per product by talking to your AI in the chat (for example "shipping for this product is 5 dollars per carton"). Here you only set free-shipping offers that apply to a whole order.</div>
         <div class="biz-field"><label>Free shipping from this quantity (optional)</label><input type="text" id="biz-shipping-free-qty" data-key="shipping_free_over_qty" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 100 units" onchange="saveBizField(this)"></div>
         <div class="biz-field"><label>Free shipping from this order total (optional)</label><input type="text" id="biz-shipping-free-amount" data-key="shipping_free_over_amount" data-table="seller_sales_config" data-numeric="true" placeholder="e.g. 500" onchange="saveBizField(this)"></div>
       </div>
@@ -12942,7 +12931,7 @@ async function loadBizSettings() {
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,shipping_type,shipping_flat_amount,shipping_per_unit_amount,shipping_per_unit_count,shipping_free_over_qty,shipping_free_over_amount,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
+      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,shipping_free_over_qty,shipping_free_over_amount,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
       fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
@@ -13022,12 +13011,11 @@ async function loadBizSettings() {
       if (el) el.value = currencyData[p[0]] != null ? currencyData[p[0]] : '';
     });
     setInvoiceLogoPreview(currencyData.invoice_logo_url || '');
-    [['shipping_flat_amount','biz-shipping-flat'],['shipping_per_unit_amount','biz-shipping-per-unit-amount'],['shipping_per_unit_count','biz-shipping-per-unit-count'],['shipping_free_over_qty','biz-shipping-free-qty'],['shipping_free_over_amount','biz-shipping-free-amount']].forEach(function(p) {
+    [['shipping_free_over_qty','biz-shipping-free-qty'],['shipping_free_over_amount','biz-shipping-free-amount']].forEach(function(p) {
       const el = document.getElementById(p[1]);
       if (el) el.value = currencyData[p[0]] != null ? currencyData[p[0]] : '';
     });
-    const shipSel = document.getElementById('biz-shipping-type');
-    if (shipSel) shipSel.value = currencyData.shipping_type || 'ask_seller';
+
     [['wa_about','wa-about'],['wa_address','wa-address'],['wa_description','wa-description'],['wa_email','wa-email'],['wa_website_1','wa-website-1'],['wa_website_2','wa-website-2'],['wa_vertical','wa-vertical']].forEach(function(p) {
       const el = document.getElementById(p[1]);
       if (el && currencyData[p[0]] != null) el.value = currencyData[p[0]];
