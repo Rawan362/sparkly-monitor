@@ -4080,6 +4080,7 @@
           <div class="biz-field"><label>Category</label><input type="text" id="pf-product_category"></div>
           <div class="biz-field"><label>Product code / SKU *</label><input type="text" id="pf-product_code"></div>
           <div class="biz-field"><label>Sold by (unit) *</label><input type="text" id="pf-sell_unit" list="pf-sell-unit-list" placeholder="piece, set, package, carton, kg, litre, metre..." autocomplete="off"><datalist id="pf-sell-unit-list"><option value="piece"><option value="set"><option value="package"><option value="carton"><option value="box"><option value="kilogram"><option value="litre"><option value="metre"><option value="pair"><option value="dozen"></datalist></div>
+          <div class="biz-field"><label>Also sold in packs (optional)</label><input type="text" id="pf-pack_units" placeholder="carton = 40, case = 10   (1 carton holds 40 of the sold-by unit)" autocomplete="off"><div style="font-size:11.5px;opacity:.7;margin-top:4px">Prices stay per the sold-by unit. When a customer orders 10 cartons, the invoice shows 400 pieces.</div></div>
           <div class="biz-field"><label>Wholesale price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-1"></span><input type="text" id="pf-wholesale_price"></div></div>
           <div class="biz-field"><label>Retail price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-2"></span><input type="text" id="pf-retail_price"></div></div>
           <div class="biz-field"><label>Cost price</label><div class="price-input-wrap"><span class="price-currency-symbol" id="pf-currency-symbol-3"></span><input type="text" id="pf-cost_price"></div></div>
@@ -9058,6 +9059,7 @@ window.openProductForm = async function(product) {
     const el = document.getElementById('pf-' + f);
     if (el) el.value = product && product[f] != null ? product[f] : '';
   });
+  document.getElementById('pf-pack_units').value = (product && Array.isArray(product.pack_units)) ? product.pack_units.map(k => k.unit + ' = ' + k.size).join(', ') : '';
   document.getElementById('pf-track_stock-toggle').classList.toggle('on', !!(product && product.track_stock));
   document.getElementById('pf-is_active-toggle').classList.toggle('on', !product || product.is_active !== false);
 
@@ -9138,6 +9140,23 @@ window.saveProductForm = async function() {
       return;
     }
 
+    {
+      const rawPacks = document.getElementById('pf-pack_units').value.replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x660)).trim();
+      const packs = [];
+      let bad = false;
+      if (rawPacks) rawPacks.split(/[,;\n،]+/).map(x => x.trim()).filter(Boolean).forEach(part => {
+        const m = part.match(/^(.+?)\s*(?:=|x|×|:)\s*([\d.]+)$/i);
+        const size = m ? Number(m[2]) : NaN;
+        if (!m || !isFinite(size) || size <= 0) bad = true; else packs.push({ unit: m[1].trim(), size: size });
+      });
+      if (bad) {
+        alert(currentLang === 'ar' ? 'اكتب العبوات هكذا: كرتون = 40، صندوق = 10' : 'Write the packs like this: carton = 40, case = 10');
+        btn.disabled = false;
+        btn.textContent = currentLang === 'ar' ? 'حفظ المنتج' : 'Save Product';
+        return;
+      }
+      payload.pack_units = packs.length ? packs : null;
+    }
     payload.track_stock = document.getElementById('pf-track_stock-toggle').classList.contains('on');
     payload.is_active = document.getElementById('pf-is_active-toggle').classList.contains('on');
     payload.updated_at = new Date().toISOString();
@@ -9489,7 +9508,7 @@ function buildOneInvoiceHtml(o, items, layout, symbol, businessName, extra) {
       const net = (it.line_total || 0) - (it.discount_amount || 0);
       return `
         <tr>
-          <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${hasCode && layout === 'slip' && it.code ? `<div class="invoice-item-meta">${escapeHtml(it.code)}</div>` : ''}${discNote}</td>
+          <td><div class="invoice-item-name">${escapeHtml(it.product_name || '—')}</div>${it.pack_note ? `<div class="invoice-item-meta">${escapeHtml(it.pack_note)}</div>` : ''}${hasCode && layout === 'slip' && it.code ? `<div class="invoice-item-meta">${escapeHtml(it.code)}</div>` : ''}${discNote}</td>
           ${hasCode && layout !== 'slip' ? `<td>${escapeHtml(it.code || '-')}</td>` : ''}
           <td>${it.quantity}${it.sell_unit ? ' ' + escapeHtml(it.sell_unit) : ''}</td>
           <td>${symbol}${(it.unit_price || 0).toLocaleString()}</td>
