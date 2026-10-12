@@ -11688,7 +11688,8 @@ const NOTIFICATION_TYPE_LABELS = {
   strategy_suggestion: 'Strategy Suggestion',
   storage_alert: 'Storage',
   system_alert: 'System alert',
-  invoice_shipping: 'Shipping price needed'
+  invoice_shipping: 'Shipping price needed',
+  customer_escalation: 'Customer needs you'
 };
 
 function formatNotificationTime(iso) {
@@ -11740,7 +11741,7 @@ function renderNotificationItem(n) {
     <div class="notification-item${unreadClass}" data-id="${n.id}">
       <div class="notification-item-row">
         <input type="checkbox" class="notification-item-checkbox" data-id="${n.id}" onclick="event.stopPropagation(); onNotificationCheckboxChange()">
-        <div class="notification-item-body" onclick="discussNotification(${n.id})">
+        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : `discussNotification(${n.id})`}">
           <div class="notification-item-top">
             <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
             <span class="notification-item-title">${escapeHtml(n.title)}</span>
@@ -11786,6 +11787,18 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
     debugLog('submitShippingPrice failed: ' + (e && e.message));
     alert('Could not save the shipping price: ' + (e && e.message ? e.message : 'unknown error'));
   }
+};
+
+window.openEscalationChat = async function(id, phone) {
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+  } catch (e) {}
+  try { checkNotificationsDot(); } catch (e) {}
+  closeNotificationsPanel();
+  goToChats();
+  try { if (!conversations.some(c => c.phone_number === phone)) await loadConversations(); } catch (e) {}
+  selectConvo(phone);
 };
 
 /** Opens a fresh, dedicated AI conversation seeded with this notification's
