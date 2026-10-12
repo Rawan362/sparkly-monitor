@@ -12138,6 +12138,17 @@ function renderTmMessage(text, role) {
   wrap.scrollTop = wrap.scrollHeight;
 }
 
+// A grey note under the AI's reply: what would ALSO happen in a real chat (order created, seller asked, AI stops ...)
+function renderTmNote(text) {
+  const wrap = document.getElementById('tm-messages');
+  const div = document.createElement('div');
+  div.className = 'ob-msg assistant';
+  div.style.cssText = 'font-size:12px;opacity:.75;font-style:italic;border:1px dashed currentColor;background:transparent;';
+  div.textContent = 'ℹ️ ' + text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
 function showTmTyping() {
   const wrap = document.getElementById('tm-messages');
   const div = document.createElement('div');
@@ -12170,7 +12181,10 @@ window.sendTestModeMessage = async function() {
     });
     const data = await res.json();
     hideTmTyping();
-    renderTmMessage(data.reply || '...', 'assistant');
+    const tmActs = Array.isArray(data.actions) ? data.actions : [];
+    if (data.reply) renderTmMessage(data.reply, 'assistant');
+    tmActs.forEach(a => renderTmNote(a));
+    if (!data.reply && !tmActs.length) renderTmMessage('...', 'assistant');
     tmHistory = data.chatHistory || [];
   } catch (e) {
     hideTmTyping();
