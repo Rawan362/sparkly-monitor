@@ -12103,7 +12103,6 @@ async function startLessonIfNeeded(phone) {
     if (!q) return;
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
     await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lesson' }) });
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, type: 'customer_question', title: 'How did you solve it?', message: 'You solved the problem of customer ' + phone + ' and turned the AI back on. Tell me if this solution is only for this customer or for everyone, so I can handle it myself next time.', customer_phone: phone, question_id: q.id }) });
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
