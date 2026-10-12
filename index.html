@@ -4435,6 +4435,19 @@
           Back to Inbox
         </button>
         <div id="inbox-detail-question"></div>
+        <div id="inbox-chat-block" style="display:none;">
+          <button id="inbox-open-chat-btn" onclick="inboxOpenChatForCurrent()" style="width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent, #2563eb);color:#fff;font-size:15px;cursor:pointer;margin-bottom:12px;">Open the chat with this customer</button>
+          <div id="inbox-lesson-block" style="display:none;">
+            <div id="inbox-lesson-context" style="white-space:pre-line;font-size:13px;opacity:.8;margin-bottom:12px;"></div>
+            <div class="inbox-scope-label">Does this solution apply to:</div>
+            <div id="inbox-lesson-scopes" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;">
+              <button class="inbox-scope-btn active" data-scope="this_customer" onclick="selectLessonScope(this)">Only this customer</button>
+              <button class="inbox-scope-btn" data-scope="all_customers" onclick="selectLessonScope(this)">All customers (AI handles it next time)</button>
+            </div>
+            <textarea id="inbox-lesson-text" style="display:none;width:100%;min-height:110px;" placeholder="How did you solve it? Explain what the AI should say and do the next time a customer has this problem, so it can handle it without you."></textarea>
+            <button id="inbox-lesson-save-btn" onclick="submitLesson()" style="width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent, #2563eb);color:#fff;font-size:15px;cursor:pointer;margin-top:10px;">Done</button>
+          </div>
+        </div>
         <textarea id="inbox-detail-answer" placeholder="Type your answer..."></textarea>
         <div id="inbox-attach-row">
           <button id="inbox-attach-btn" onclick="document.getElementById('inbox-file-input').click()">
@@ -8063,6 +8076,7 @@ window.resumeAI = async function(phone) {
     if (!res.ok) throw new Error('Supabase error ' + res.status);
     await loadConversations();
     await loadThread(phone);
+    startLessonIfNeeded(phone);
   } catch (e) {
     alert('Failed to resume AI: ' + e.message);
   }
@@ -11663,7 +11677,7 @@ let inboxAttachedFile = null; // { url, name, isImage }
 
 async function checkInboxDot() {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=eq.pending&select=id&limit=1');
+    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=id&limit=1');
     const hasPending = rows && rows.length > 0;
     const dot1 = document.getElementById('bc-inbox-dot');
     const dot2 = document.getElementById('chats-inbox-dot');
@@ -11802,7 +11816,7 @@ window.openQuestionFromNotification = async function(id, qid) {
   await openSellerInboxFromChats();
   try {
     const rows = await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');
-    if (rows && rows[0] && rows[0].status === 'pending') openInboxDetail(rows[0]);
+    if (rows && rows[0] && (rows[0].status === 'pending' || rows[0].status === 'lesson')) openInboxDetail(rows[0]);
     else if (rows && rows[0]) alert('You already answered this one.');
   } catch (e) {}
 };
@@ -11971,7 +11985,7 @@ async function loadInboxList() {
   const listEl = document.getElementById('inbox-list');
   listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=eq.pending&select=*&order=created_at.desc');
+    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="inbox-empty-msg">Nothing waiting — the AI hasn\'t needed to ask you anything.</div>';
       return;
@@ -11983,7 +11997,7 @@ async function loadInboxList() {
       item.onclick = () => openInboxDetail(q);
       const timeAgo = formatRelativeTime(new Date(q.created_at));
       item.innerHTML = `
-        <div class="inbox-item-phone">From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
+        <div class="inbox-item-phone">${q.kind === 'chat_needed' ? (q.status === 'lesson' ? '✅ You solved it — tell the AI how · ' : '💬 Needs you in the chat · ') : ''}From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
         <div class="inbox-item-question"></div>
         <div class="inbox-item-time">${timeAgo}</div>
       `;
@@ -12010,7 +12024,94 @@ window.openInboxDetail = function(question) {
   document.querySelectorAll('.inbox-scope-btn').forEach(b => b.classList.toggle('active', b.dataset.scope === 'this_customer'));
   document.getElementById('inbox-custom-group-input').style.display = 'none';
   document.getElementById('inbox-custom-group-input').value = '';
+  setupInboxKind(question);
 };
+
+const INBOX_NORMAL_IDS = ['inbox-detail-answer', 'inbox-attach-row', 'inbox-scope-row', 'inbox-send-answer-btn'];
+let lessonScope = 'this_customer';
+function setupInboxKind(q) {
+  const chatKind = q.kind === 'chat_needed';
+  INBOX_NORMAL_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = chatKind ? 'none' : ''; });
+  document.getElementById('inbox-chat-block').style.display = chatKind ? 'block' : 'none';
+  if (!chatKind) return;
+  const lesson = q.status === 'lesson';
+  document.getElementById('inbox-open-chat-btn').style.display = lesson ? 'none' : 'block';
+  document.getElementById('inbox-lesson-block').style.display = lesson ? 'block' : 'none';
+  document.getElementById('inbox-detail-question').textContent = lesson
+    ? 'You solved the problem of customer ' + q.phone_number + ' and turned the AI back on.\n\nThe problem was: ' + q.question
+    : 'Customer ' + q.phone_number + ' needs you personally. The AI told them your ' + (q.department || 'manager') + ' will help. It keeps answering until you reply in the chat.\n\n' + q.question;
+  if (lesson) {
+    lessonScope = 'this_customer';
+    document.querySelectorAll('#inbox-lesson-scopes .inbox-scope-btn').forEach(b => b.classList.toggle('active', b.dataset.scope === 'this_customer'));
+    document.getElementById('inbox-lesson-text').style.display = 'none';
+    document.getElementById('inbox-lesson-text').value = '';
+    document.getElementById('inbox-lesson-context').textContent = 'Last messages in this chat:\n…loading';
+    sb('conversations?phone_number=eq.' + encodeURIComponent(q.phone_number) + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=role,message&order=timestamp.desc&limit=8').then(rows => {
+      const lines = (rows || []).reverse().map(r => (r.role === 'user' ? 'Customer: ' : 'You/AI: ') + String(r.message || '').slice(0, 140));
+      document.getElementById('inbox-lesson-context').textContent = 'Last messages in this chat:\n' + lines.join('\n');
+    }).catch(() => { document.getElementById('inbox-lesson-context').textContent = ''; });
+  }
+}
+
+window.inboxOpenChatForCurrent = function() {
+  const q = inboxCurrentQuestion;
+  if (!q) return;
+  closeSellerInbox();
+  goToChats();
+  selectConvo(q.phone_number);
+};
+
+window.selectLessonScope = function(btn) {
+  document.querySelectorAll('#inbox-lesson-scopes .inbox-scope-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  lessonScope = btn.dataset.scope;
+  document.getElementById('inbox-lesson-text').style.display = lessonScope === 'all_customers' ? 'block' : 'none';
+};
+
+window.submitLesson = async function() {
+  const q = inboxCurrentQuestion;
+  if (!q) return;
+  const text = document.getElementById('inbox-lesson-text').value.trim();
+  if (lessonScope === 'all_customers' && !text) { alert('Please explain how you solved it, so the AI can handle it next time.'); return; }
+  const btn = document.getElementById('inbox-lesson-save-btn');
+  btn.disabled = true;
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    if (lessonScope === 'all_customers') {
+      const r1 = await fetch(SUPABASE_URL + '/rest/v1/seller_learned_answers', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, question_summary: q.question, answer: text, scope: 'all_customers', department: q.department || 'manager' }) });
+      if (!r1.ok) throw new Error('Could not save (' + r1.status + ')');
+    }
+    const r2 = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: lessonScope === 'all_customers' ? text : '(solved in the chat)', answer_scope: lessonScope }) });
+    if (!r2.ok) throw new Error('Could not update (' + r2.status + ')');
+    alert(lessonScope === 'all_customers' ? 'Saved. When a customer has a problem like this, the AI will handle it by itself like this:\n\n' + text : 'Okay. This stays only with this customer; the AI will not use it for others.');
+    closeInboxDetail();
+    await loadInboxList();
+    await checkInboxDot();
+  } catch (e) {
+    alert('Something went wrong: ' + (e && e.message ? e.message : 'unknown error'));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// Called when the seller turns the AI back on for a customer: if that customer had an open
+// "needs you in the chat" case, ask the seller how it was solved (this customer only, or for everyone).
+async function startLessonIfNeeded(phone) {
+  try {
+    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');
+    const q = rows && rows[0];
+    if (!q) return;
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lesson' }) });
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, type: 'customer_question', title: 'How did you solve it?', message: 'You solved the problem of customer ' + phone + ' and turned the AI back on. Tell me if this solution is only for this customer or for everyone, so I can handle it myself next time.', customer_phone: phone, question_id: q.id }) });
+    try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
+    if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
+      await openSellerInboxFromChats();
+      const fresh = await sb('pending_questions?id=eq.' + q.id + '&select=*&limit=1');
+      if (fresh && fresh[0]) openInboxDetail(fresh[0]);
+    }
+  } catch (e) {}
+}
 
 window.closeInboxDetail = function() {
   document.getElementById('inbox-detail').style.display = 'none';
