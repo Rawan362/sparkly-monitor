@@ -3773,6 +3773,7 @@
   #inbox-detail-question {
     background: var(--panel-2);
     padding: 14px;
+    white-space: pre-line;
     border-radius: 12px;
     font-size: 14px;
     color: var(--text);
@@ -3991,7 +3992,7 @@
     <div id="onboarding-chat-messages"></div>
     <div id="onboarding-attach-preview" style="display:none;"></div>
     <div id="onboarding-chat-input-row">
-      <input type="text" id="onboarding-chat-input" placeholder="Type your answer..." onkeydown="if(event.key==='Enter') sendOnboardingMessage();">
+      <input type="text" id="onboarding-chat-input" placeholder="Your answer. If it should work for everyone, explain what the AI should do and how you handle this in your business..." onkeydown="if(event.key==='Enter') sendOnboardingMessage();">
       <button id="onboarding-send-btn" onclick="sendOnboardingMessage()">Send</button>
     </div>
   </div>
@@ -4452,8 +4453,8 @@
         <div id="inbox-scope-row">
           <div class="inbox-scope-label">This applies to:</div>
           <div id="inbox-scope-options">
-            <button class="inbox-scope-btn active" data-scope="this_customer" onclick="selectInboxScope(this)">Just this customer</button>
-            <button class="inbox-scope-btn" data-scope="all_customers" onclick="selectInboxScope(this)">All customers</button>
+            <button class="inbox-scope-btn active" data-scope="this_customer" onclick="selectInboxScope(this)">Only this customer</button>
+            <button class="inbox-scope-btn" data-scope="all_customers" onclick="selectInboxScope(this)">All customers (AI handles it next time)</button>
             <button class="inbox-scope-btn" data-scope="custom" onclick="selectInboxScope(this)">A specific group...</button>
           </div>
           <input type="text" id="inbox-custom-group-input" placeholder="e.g. wholesale customers, Area A customers..." style="display:none;">
@@ -11689,7 +11690,8 @@ const NOTIFICATION_TYPE_LABELS = {
   storage_alert: 'Storage',
   system_alert: 'System alert',
   invoice_shipping: 'Shipping price needed',
-  customer_escalation: 'Customer needs you'
+  customer_escalation: 'Customer needs you',
+  customer_question: 'Needs your answer'
 };
 
 function formatNotificationTime(iso) {
@@ -11741,7 +11743,7 @@ function renderNotificationItem(n) {
     <div class="notification-item${unreadClass}" data-id="${n.id}">
       <div class="notification-item-row">
         <input type="checkbox" class="notification-item-checkbox" data-id="${n.id}" onclick="event.stopPropagation(); onNotificationCheckboxChange()">
-        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : `discussNotification(${n.id})`}">
+        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : ((n.type === 'customer_question' && n.question_id) ? `openQuestionFromNotification(${n.id}, ${Number(n.question_id)})` : `discussNotification(${n.id})`)}">
           <div class="notification-item-top">
             <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
             <span class="notification-item-title">${escapeHtml(n.title)}</span>
@@ -11787,6 +11789,22 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
     debugLog('submitShippingPrice failed: ' + (e && e.message));
     alert('Could not save the shipping price: ' + (e && e.message ? e.message : 'unknown error'));
   }
+};
+
+window.openQuestionFromNotification = async function(id, qid) {
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+  } catch (e) {}
+  try { checkNotificationsDot(); } catch (e) {}
+  closeNotificationsPanel();
+  goToChats();
+  await openSellerInboxFromChats();
+  try {
+    const rows = await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');
+    if (rows && rows[0] && rows[0].status === 'pending') openInboxDetail(rows[0]);
+    else if (rows && rows[0]) alert('You already answered this one.');
+  } catch (e) {}
 };
 
 window.openEscalationChat = async function(id, phone) {
@@ -11965,7 +11983,7 @@ async function loadInboxList() {
       item.onclick = () => openInboxDetail(q);
       const timeAgo = formatRelativeTime(new Date(q.created_at));
       item.innerHTML = `
-        <div class="inbox-item-phone">From customer: ${q.phone_number}</div>
+        <div class="inbox-item-phone">From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
         <div class="inbox-item-question"></div>
         <div class="inbox-item-time">${timeAgo}</div>
       `;
@@ -11984,7 +12002,7 @@ window.openInboxDetail = function(question) {
   inboxAttachedFile = null;
   document.getElementById('inbox-list').style.display = 'none';
   document.getElementById('inbox-detail').style.display = 'flex';
-  document.getElementById('inbox-detail-question').textContent = `Customer (${question.phone_number}) asked: ${question.question}`;
+  document.getElementById('inbox-detail-question').textContent = `Customer (${question.phone_number}) — the AI told them it would ask your ${question.department || 'manager'}:\n${question.question}`;
   document.getElementById('inbox-detail-answer').value = '';
   document.getElementById('inbox-attached-file-chip').style.display = 'none';
   document.getElementById('inbox-upload-status').textContent = '';
@@ -12092,6 +12110,11 @@ window.submitInboxAnswer = async function() {
     });
     const data = await res.json();
     if (data.success) {
+      if (finalScope !== 'this_customer') {
+        alert('Saved. From now on, when a customer brings up something like this, the AI will handle it by itself like this:\n\n' + (answerText || '(your attached file)') + (finalScope === 'all_customers' ? '\n\nApplies to: all customers.' : '\n\nApplies to: ' + finalScope + '.'));
+      } else {
+        alert('Sent to this customer. The AI will not treat this as a rule for other customers.');
+      }
       closeInboxDetail();
       await loadInboxList();
       await checkInboxDot();
