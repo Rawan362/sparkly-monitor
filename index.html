@@ -4437,6 +4437,27 @@
         <div id="inbox-detail-question"></div>
         <div id="inbox-chat-block" style="display:none;">
           <button id="inbox-open-chat-btn" onclick="inboxOpenChatForCurrent()" style="width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent, #2563eb);color:#fff;font-size:15px;cursor:pointer;margin-bottom:12px;">Open the chat with this customer</button>
+          <div id="inbox-agent-block" style="display:none;">
+            <div id="inbox-agent-summary" style="font-size:14px;line-height:1.55;margin-bottom:12px;"></div>
+            <div class="inbox-scope-label">Was the way the agent handled it right? Apply your choice to:</div>
+            <div id="inbox-agent-scopes" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px;">
+              <button class="inbox-scope-btn active" data-scope="customer" onclick="agentSelectScope(this)">Only this customer</button>
+              <button class="inbox-scope-btn" data-scope="all" onclick="agentSelectScope(this)">All customers</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <button id="inbox-agent-good-btn" onclick="agentDecide('good')" style="flex:1;padding:12px;border:0;border-radius:10px;background:#16a34a;color:#fff;font-size:15px;cursor:pointer;">&#9989; Good</button>
+              <button id="inbox-agent-adjust-btn" onclick="agentShowAdjust()" style="flex:1;padding:12px;border:1px solid var(--border, #cbd5e1);border-radius:10px;background:transparent;color:inherit;font-size:15px;cursor:pointer;">&#9998;&#65039; Adjust</button>
+            </div>
+            <div id="inbox-agent-adjust" style="display:none;">
+              <textarea id="inbox-agent-adjust-text" style="width:100%;min-height:90px;" placeholder="Tell the agent how to handle this rule from now on, in your own words (any language)."></textarea>
+              <label id="inbox-agent-send-row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:8px 0;"><input type="checkbox" id="inbox-agent-send"> <span>Also send this customer a short correction now. The agent writes it in the customer's language and you can edit it before it is sent.</span></label>
+              <div id="inbox-agent-draft-wrap" style="display:none;margin-bottom:8px;">
+                <div class="inbox-scope-label">Message to the customer (you can edit it):</div>
+                <textarea id="inbox-agent-draft" style="width:100%;min-height:90px;"></textarea>
+              </div>
+              <button id="inbox-agent-save-btn" onclick="agentSaveAdjust()" style="width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent, #2563eb);color:#fff;font-size:15px;cursor:pointer;">Save adjustment</button>
+            </div>
+          </div>
           <button id="inbox-dismiss-btn" onclick="inboxDismissAlert()" style="display:none;width:100%;padding:12px;border:1px solid var(--border, #cbd5e1);border-radius:10px;background:transparent;color:inherit;font-size:15px;cursor:pointer;margin-bottom:12px;">Got it</button>
           <div id="inbox-lesson-block" style="display:none;">
             <div id="inbox-lesson-context" style="white-space:pre-line;font-size:13px;opacity:.8;margin-bottom:12px;"></div>
@@ -11998,7 +12019,7 @@ async function loadInboxList() {
       item.onclick = () => openInboxDetail(q);
       const timeAgo = formatRelativeTime(new Date(q.created_at));
       item.innerHTML = `
-        <div class="inbox-item-phone">${q.kind === 'rule_alert' ? '⚠️ A rule was not followed · ' : (q.kind === 'chat_needed' ? (q.status === 'lesson' ? '✅ You solved it — tell the AI how · ' : '💬 Needs you in the chat · ') : '')}From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
+        <div class="inbox-item-phone">${q.kind === 'rule_alert' ? '⚠️ ' + agentKindsLabel(q) + ' · ' : (q.kind === 'chat_needed' ? (q.status === 'lesson' ? '✅ You solved it — tell the AI how · ' : '💬 Needs you in the chat · ') : '')}From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
         <div class="inbox-item-question"></div>
         <div class="inbox-item-time">${timeAgo}</div>
       `;
@@ -12041,6 +12062,16 @@ function setupInboxKind(q) {
   const lesson = !alertKind && q.status === 'lesson';
   document.getElementById('inbox-open-chat-btn').style.display = lesson ? 'none' : 'block';
   document.getElementById('inbox-lesson-block').style.display = lesson ? 'block' : 'none';
+  const agentBlock = document.getElementById('inbox-agent-block');
+  if (agentBlock) agentBlock.style.display = 'none';
+  if (alertKind && q.meta && Array.isArray(q.meta.breaks) && q.meta.breaks.length && agentBlock) {
+    document.getElementById('inbox-lesson-block').style.display = 'none';
+    document.getElementById('inbox-open-chat-btn').style.display = 'block';
+    if (dismissBtn) dismissBtn.style.display = 'none';
+    agentBlock.style.display = 'block';
+    agentRenderCard(q);
+    return;
+  }
   if (alertKind) {
     document.getElementById('inbox-lesson-block').style.display = 'none';
     document.getElementById('inbox-open-chat-btn').style.display = 'block';
@@ -12062,6 +12093,121 @@ function setupInboxKind(q) {
     }).catch(() => { document.getElementById('inbox-lesson-context').textContent = ''; });
   }
 }
+
+// ===== RULE AGENT card: what broke, what the agent did, and the owner's Good / Adjust choice =====
+let agentScope = 'customer';
+let agentDraftReady = false;
+function agentKindName(k) { return k === 'hard' ? 'HARD rule' : (k === 'strict' ? 'STRICT rule' : 'NORMAL rule'); }
+function agentKindsLabel(q) {
+  try {
+    const ks = Array.from(new Set(((q.meta && q.meta.breaks) || []).map(b => agentKindName(b.rule_kind))));
+    if (ks.length) return ks.join(' + ') + ' not followed';
+  } catch (e) {}
+  return 'A rule was not followed';
+}
+function agentRenderCard(q) {
+  const m = q.meta || {};
+  const rows = (m.breaks || []).map(b => '<div style="margin-bottom:8px;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:' + (b.rule_kind === 'hard' ? '#fee2e2;color:#991b1b' : (b.rule_kind === 'strict' ? '#fef3c7;color:#92400e' : '#e0e7ff;color:#3730a3')) + ';">' + agentKindName(b.rule_kind) + '</span> <b>' + escapeHtml(b.topic || 'rule') + '</b>' + (b.why ? '<div style="opacity:.8;font-size:13px;">' + escapeHtml(b.why) + '</div>' : '') + '</div>').join('');
+  const ch = m.channel === 'call' ? 'phone call' : 'WhatsApp';
+  let what;
+  if (m.channel === 'call') what = 'The AI had already said the wrong thing on the call, so the agent made it correct itself with the customer in its next sentence.';
+  else if (m.held) what = 'The agent could not make the reply follow a STRICT rule, so it was held. The customer got a short waiting message instead and the case waits for you.';
+  else what = 'The agent fixed the reply before the customer saw it, and sent the customer the corrected one.';
+  document.getElementById('inbox-agent-summary').innerHTML =
+    '<div style="margin-bottom:8px;"><b>Rule broken (' + ch + ') · customer ' + escapeHtml(q.phone_number) + '</b></div>' + rows +
+    (m.customer_text ? '<div style="margin:8px 0;"><b>Customer wrote:</b> ' + escapeHtml(m.customer_text) + '</div>' : '') +
+    (m.wrong_text ? '<div style="margin:8px 0;"><b>The AI first wrote:</b> ' + escapeHtml(m.wrong_text) + '</div>' : '') +
+    (m.final_text && !m.held ? '<div style="margin:8px 0;"><b>The customer received:</b> ' + escapeHtml(m.final_text) + '</div>' : '') +
+    '<div style="margin:10px 0;padding:10px;border-radius:10px;background:var(--accent-soft, #eff6ff);">' + escapeHtml(what) + '</div>' +
+    '<div style="opacity:.85;">Good = the agent handles this rule the same way next time without bothering you. Adjust = you tell the agent how it should handle it next time.</div>';
+  agentScope = 'customer';
+  document.querySelectorAll('#inbox-agent-scopes .inbox-scope-btn').forEach(b => b.classList.toggle('active', b.dataset.scope === 'customer'));
+  document.getElementById('inbox-agent-adjust').style.display = 'none';
+  document.getElementById('inbox-agent-adjust-text').value = '';
+  document.getElementById('inbox-agent-draft').value = '';
+  document.getElementById('inbox-agent-draft-wrap').style.display = 'none';
+  document.getElementById('inbox-agent-send').checked = !!m.sent_wrong;
+  document.getElementById('inbox-agent-save-btn').textContent = 'Save adjustment';
+  agentDraftReady = false;
+}
+window.agentSelectScope = function(btn) {
+  document.querySelectorAll('#inbox-agent-scopes .inbox-scope-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  agentScope = btn.dataset.scope;
+};
+window.agentShowAdjust = function() {
+  const el = document.getElementById('inbox-agent-adjust');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+async function agentSaveResolutions(q, decision, instruction) {
+  const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+  const rows = ((q.meta && q.meta.breaks) || []).map(b => ({ seller_id: SELLER_CHAT_ID, guideline_id: b.id || null, topic: b.topic || null, decision, instruction: instruction || null, scope: agentScope, phone_number: agentScope === 'customer' ? q.phone_number : null }));
+  if (!rows.length) return;
+  const r = await fetch(SUPABASE_URL + '/rest/v1/rule_resolutions', { method: 'POST', headers, body: JSON.stringify(rows) });
+  if (!r.ok) throw new Error('Could not save your choice (' + r.status + ')');
+}
+async function agentCloseCard(q, answer) {
+  const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+  const r = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: String(answer).slice(0, 900), answer_scope: agentScope === 'all' ? 'all_customers' : 'this_customer' }) });
+  if (!r.ok) throw new Error('Could not update the card (' + r.status + ')');
+}
+window.agentDecide = async function(decision) {
+  const q = inboxCurrentQuestion;
+  if (!q) return;
+  const btn = document.getElementById('inbox-agent-good-btn');
+  btn.disabled = true;
+  try {
+    await agentSaveResolutions(q, 'good', null);
+    await agentCloseCard(q, 'Good (' + agentScope + ')');
+    alert(agentScope === 'all' ? 'Saved. When this rule breaks again for any customer, the agent fixes it the same way and does not send you a card.' : 'Saved. When this rule breaks again for this customer, the agent fixes it the same way and does not send you a card.');
+    closeInboxDetail();
+    await loadInboxList();
+    await checkInboxDot();
+  } catch (e) {
+    alert('Something went wrong: ' + (e && e.message ? e.message : 'unknown error'));
+  } finally { btn.disabled = false; }
+};
+window.agentSaveAdjust = async function() {
+  const q = inboxCurrentQuestion;
+  if (!q) return;
+  const instruction = document.getElementById('inbox-agent-adjust-text').value.trim();
+  if (!instruction) { alert('Please write how the agent should handle this rule.'); return; }
+  const wantSend = document.getElementById('inbox-agent-send').checked;
+  const btn = document.getElementById('inbox-agent-save-btn');
+  btn.disabled = true;
+  try {
+    const m = q.meta || {};
+    if (wantSend && !agentDraftReady) {
+      btn.textContent = 'Writing the message...';
+      const res = await fetch(BUSINESS_CHAT_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: SELLER_CHAT_ID, action: 'compose_correction', customerText: m.customer_text || '', wrongText: m.wrong_text || '', instruction, sentWrong: !!m.sent_wrong, chatHistory: [] }) });
+      const data = await res.json();
+      if (!data || !data.reply) throw new Error('The agent could not write the message. Untick "send" to only save your adjustment.');
+      document.getElementById('inbox-agent-draft').value = data.reply;
+      document.getElementById('inbox-agent-draft-wrap').style.display = 'block';
+      agentDraftReady = true;
+      btn.textContent = 'Send to customer and save';
+      return;
+    }
+    let sentNote = '';
+    if (wantSend) {
+      const msg = document.getElementById('inbox-agent-draft').value.trim();
+      if (!msg) { alert('The message to the customer is empty.'); return; }
+      const res = await fetch(ANSWER_INBOX_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, answerText: msg, scope: 'this_customer' }) });
+      const data = await res.json();
+      if (!data || !data.success) throw new Error((data && data.error) || 'Could not send the message to the customer');
+      if (data.warning) alert(data.warning);
+      sentNote = ' Sent to the customer: ' + msg;
+    }
+    await agentSaveResolutions(q, 'adjust', instruction);
+    await agentCloseCard(q, 'Adjusted (' + agentScope + '): ' + instruction + sentNote);
+    alert((agentScope === 'all' ? 'Saved for all customers.' : 'Saved for this customer.') + ' From now on the agent follows your adjustment when this rule breaks.' + (wantSend ? ' The correction was sent to the customer.' : ''));
+    closeInboxDetail();
+    await loadInboxList();
+    await checkInboxDot();
+  } catch (e) {
+    alert('Something went wrong: ' + (e && e.message ? e.message : 'unknown error'));
+  } finally { btn.disabled = false; if (!agentDraftReady) btn.textContent = 'Save adjustment'; else btn.textContent = 'Send to customer and save'; }
+};
 
 window.inboxDismissAlert = async function() {
   const q = inboxCurrentQuestion;
