@@ -4437,6 +4437,7 @@
         <div id="inbox-detail-question"></div>
         <div id="inbox-chat-block" style="display:none;">
           <button id="inbox-open-chat-btn" onclick="inboxOpenChatForCurrent()" style="width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent, #2563eb);color:#fff;font-size:15px;cursor:pointer;margin-bottom:12px;">Open the chat with this customer</button>
+          <button id="inbox-dismiss-btn" onclick="inboxDismissAlert()" style="display:none;width:100%;padding:12px;border:1px solid var(--border, #cbd5e1);border-radius:10px;background:transparent;color:inherit;font-size:15px;cursor:pointer;margin-bottom:12px;">Got it</button>
           <div id="inbox-lesson-block" style="display:none;">
             <div id="inbox-lesson-context" style="white-space:pre-line;font-size:13px;opacity:.8;margin-bottom:12px;"></div>
             <div class="inbox-scope-label">Does this solution apply to:</div>
@@ -11997,7 +11998,7 @@ async function loadInboxList() {
       item.onclick = () => openInboxDetail(q);
       const timeAgo = formatRelativeTime(new Date(q.created_at));
       item.innerHTML = `
-        <div class="inbox-item-phone">${q.kind === 'chat_needed' ? (q.status === 'lesson' ? '✅ You solved it — tell the AI how · ' : '💬 Needs you in the chat · ') : ''}From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
+        <div class="inbox-item-phone">${q.kind === 'rule_alert' ? '⚠️ A rule was not followed · ' : (q.kind === 'chat_needed' ? (q.status === 'lesson' ? '✅ You solved it — tell the AI how · ' : '💬 Needs you in the chat · ') : '')}From customer: ${q.phone_number}${q.department ? ' · for your ' + escapeHtml(q.department) : ''}</div>
         <div class="inbox-item-question"></div>
         <div class="inbox-item-time">${timeAgo}</div>
       `;
@@ -12030,13 +12031,22 @@ window.openInboxDetail = function(question) {
 const INBOX_NORMAL_IDS = ['inbox-detail-answer', 'inbox-attach-row', 'inbox-scope-row', 'inbox-send-answer-btn'];
 let lessonScope = 'this_customer';
 function setupInboxKind(q) {
-  const chatKind = q.kind === 'chat_needed';
+  const alertKind = q.kind === 'rule_alert';
+  const chatKind = q.kind === 'chat_needed' || alertKind;
   INBOX_NORMAL_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = chatKind ? 'none' : ''; });
   document.getElementById('inbox-chat-block').style.display = chatKind ? 'block' : 'none';
+  const dismissBtn = document.getElementById('inbox-dismiss-btn');
+  if (dismissBtn) dismissBtn.style.display = alertKind ? 'block' : 'none';
   if (!chatKind) return;
-  const lesson = q.status === 'lesson';
+  const lesson = !alertKind && q.status === 'lesson';
   document.getElementById('inbox-open-chat-btn').style.display = lesson ? 'none' : 'block';
   document.getElementById('inbox-lesson-block').style.display = lesson ? 'block' : 'none';
+  if (alertKind) {
+    document.getElementById('inbox-lesson-block').style.display = 'none';
+    document.getElementById('inbox-open-chat-btn').style.display = 'block';
+    document.getElementById('inbox-detail-question').textContent = 'One of your rules was not followed in a reply to customer ' + q.phone_number + '. The AI tried to fix it itself.\n\n' + q.question + '\n\nYou can open the chat to correct it with the customer, or tap "Got it" if it is fine.';
+    return;
+  }
   document.getElementById('inbox-detail-question').textContent = lesson
     ? 'You solved the problem of customer ' + q.phone_number + ' and turned the AI back on.\n\nThe problem was: ' + q.question
     : 'Customer ' + q.phone_number + ' needs you personally. The AI told them your ' + (q.department || 'manager') + ' will help. It keeps answering until you reply in the chat.\n\n' + q.question;
@@ -12052,6 +12062,21 @@ function setupInboxKind(q) {
     }).catch(() => { document.getElementById('inbox-lesson-context').textContent = ''; });
   }
 }
+
+window.inboxDismissAlert = async function() {
+  const q = inboxCurrentQuestion;
+  if (!q) return;
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    const r = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: '(seen)' }) });
+    if (!r.ok) throw new Error('Could not update (' + r.status + ')');
+    closeInboxDetail();
+    await loadInboxList();
+    await checkInboxDot();
+  } catch (err) {
+    alert('Something went wrong: ' + (err && err.message ? err.message : 'unknown error'));
+  }
+};
 
 window.inboxOpenChatForCurrent = function() {
   const q = inboxCurrentQuestion;
