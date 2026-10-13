@@ -14300,10 +14300,11 @@ const ENGINE_PURPOSES = {
   test_mode: ['Test Mode', 'Your practice chats with the customer AI'],
   customer_reply: ['Customer replies', 'The AI answering customers'],
   rule_check: ['Rule checks on replies', 'Quality checks before a reply is sent'],
+  order_check: ['Order checks', 'Checking whether an order was really confirmed'],
   call: ['Phone calls', 'The AI talking on calls']
 };
 const ENGINE_COLORS = ['#2E4A87', '#D98B2B', '#3E9B6E', '#B04A8E', '#6B7BD6', '#C25B4A', '#7A7568'];
-let engineState = { model: 'claude-sonnet-5-5', prices: {}, rows: [], period: '7', fModel: 'all', fPurpose: 'all', fChannel: 'all' };
+let engineState = { models: { chat: 'claude-sonnet-5-5', customer: 'claude-haiku-4-5-20251001', call: 'claude-haiku-5-5' }, prices: {}, rows: [], period: '7', fModel: 'all', fPurpose: 'all', fChannel: 'all' };
 
 window.openEnginePanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
@@ -14331,10 +14332,14 @@ async function loadEngine() {
   box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:30px 4px;color:var(--text-muted);font-size:13.5px;"><div class="spinner"></div>Loading your engine...</div>';
   try {
     const [eng, prices] = await Promise.all([
-      sb('seller_engine?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_model&limit=1'),
+      sb('seller_engine?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_model,customer_model,call_model&limit=1'),
       sb('ai_model_prices?select=*')
     ]);
-    if (eng && eng[0] && eng[0].chat_model) engineState.model = eng[0].chat_model;
+    if (eng && eng[0]) {
+      if (eng[0].chat_model) engineState.models.chat = eng[0].chat_model;
+      if (eng[0].customer_model) engineState.models.customer = eng[0].customer_model;
+      if (eng[0].call_model) engineState.models.call = eng[0].call_model;
+    }
     engineState.prices = {};
     (prices || []).forEach(p => { engineState.prices[p.model] = p; });
     await engineLoadUsage();
@@ -14349,17 +14354,20 @@ async function engineLoadUsage() {
   engineState.rows = await sb('ai_usage?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + encodeURIComponent(start.toISOString()) + '&select=created_at,model,purpose,channel,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens&order=created_at.desc&limit=5000') || [];
 }
 
-window.engineChoose = async function(id) {
-  engineState.model = id;
+window.engineChoose = async function(kind, id) {
+  engineState.models[kind] = id;
   engineRender();
+  const col = { chat: 'chat_model', customer: 'customer_model', call: 'call_model' }[kind];
+  const where = { chat: 'your AI chat', customer: 'customer messages (text, voice notes) and Test Mode', call: 'phone calls' }[kind];
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, chat_model: id, updated_at: new Date().toISOString() })
+      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, [col]: id, updated_at: new Date().toISOString() })
     });
-    const n = document.getElementById('engine-saved'); if (n) { n.textContent = 'Saved. Your next message uses ' + engineModelName(id) + '.'; }
-  } catch (e) { const n = document.getElementById('engine-saved'); if (n) n.textContent = 'Could not save, try again.'; }
+    if (!res.ok) throw new Error('save failed ' + res.status);
+    const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = 'Saved. ' + where.charAt(0).toUpperCase() + where.slice(1) + ' now use ' + engineModelName(id) + (kind === 'call' ? ' (from the next call).' : ' (from the next message).');
+  } catch (e) { const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = 'Could not save, try again.'; }
 };
 window.engineSetFilter = async function(key, val) {
   engineState[key] = val;
@@ -14383,23 +14391,28 @@ function engineRender() {
   const channels = [...new Set(all.map(r => r.channel || 'seller_chat'))];
   const colorOf = {}; models.forEach((m, i) => { colorOf[m] = ENGINE_COLORS[i % ENGINE_COLORS.length]; });
 
-  let h = '<div class="eng-h" style="margin-top:0;">Your AI chat engine</div>';
-  h += '<div class="eng-sub">Pick which Claude model answers you in the AI chat. A stronger model costs more per message.</div>';
-  h += ENGINE_MODELS.map(m => {
-    const pr = engineState.prices[m.id];
-    const price = pr ? '$' + pr.input_per_m + ' in / $' + pr.output_per_m + ' out per 1M tokens' : '';
-    return '<div class="eng-opt' + (engineState.model === m.id ? ' sel' : '') + '" onclick="engineChoose(\'' + m.id + '\')"><span class="eng-dot"></span><div><b>' + escapeHtml(m.name) + '</b><small>' + escapeHtml(m.blurb) + (price ? ' · ' + escapeHtml(price) : '') + '</small></div><span class="eng-tag">' + escapeHtml(m.level) + '</span></div>';
-  }).join('');
-  h += '<div class="eng-opt dis"><span class="eng-dot"></span><div><b>Model for talking to your customers</b><small>Coming soon: choose it separately from your own chat.</small></div></div>';
-  h += '<div class="eng-opt dis"><span class="eng-dot"></span><div><b>Model for phone calls</b><small>Coming soon.</small></div></div>';
-  h += '<div id="engine-saved" class="eng-note"></div>';
+  const groups = [
+    ['chat', 'Your side: your AI chat', 'The AI you talk to about your business. A cheaper model is usually enough here.'],
+    ['customer', 'Customer side: messages and voice notes', 'The AI that answers your customers on WhatsApp. Test Mode uses the same model, so your tests match real chats. A stronger model can sell better.'],
+    ['call', 'Customer side: phone calls', 'The AI that talks to customers on calls. Calls need a fast model.']
+  ];
+  let h = '';
+  groups.forEach((g, gi) => {
+    h += '<div class="eng-h"' + (gi === 0 ? ' style="margin-top:0;"' : '') + '>' + g[1] + '</div><div class="eng-sub">' + g[2] + '</div>';
+    h += ENGINE_MODELS.map(m => {
+      const pr = engineState.prices[m.id];
+      const price = pr ? '$' + pr.input_per_m + ' in / $' + pr.output_per_m + ' out per 1M tokens' : '';
+      return '<div class="eng-opt' + (engineState.models[g[0]] === m.id ? ' sel' : '') + '" onclick="engineChoose(\'' + g[0] + '\', \'' + m.id + '\')"><span class="eng-dot"></span><div><b>' + escapeHtml(m.name) + '</b><small>' + escapeHtml(m.blurb) + (price ? ' · ' + escapeHtml(price) : '') + '</small></div><span class="eng-tag">' + escapeHtml(m.level) + '</span></div>';
+    }).join('');
+    h += '<div id="engine-saved-' + g[0] + '" class="eng-note"></div>';
+  });
 
   h += '<div class="eng-h">Spending</div>';
   h += '<div class="eng-filters">' +
     '<select onchange="engineSetFilter(\'period\', this.value)">' + [['today', 'Today'], ['7', 'Last 7 days'], ['30', 'Last 30 days']].map(o => '<option value="' + o[0] + '"' + (engineState.period === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
     '<select onchange="engineSetFilter(\'fModel\', this.value)"><option value="all">All models</option>' + models.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fModel === m ? ' selected' : '') + '>' + escapeHtml(engineModelName(m)) + '</option>').join('') + '</select>' +
     '<select onchange="engineSetFilter(\'fPurpose\', this.value)"><option value="all">All purposes</option>' + purposes.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fPurpose === m ? ' selected' : '') + '>' + escapeHtml(enginePurposeName(m)) + '</option>').join('') + '</select>' +
-    '<select onchange="engineSetFilter(\'fChannel\', this.value)"><option value="all">All places</option>' + channels.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fChannel === m ? ' selected' : '') + '>' + escapeHtml(m === 'seller_chat' ? 'Your AI chat' : m) + '</option>').join('') + '</select>' +
+    '<select onchange="engineSetFilter(\'fChannel\', this.value)"><option value="all">All places</option>' + channels.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fChannel === m ? ' selected' : '') + '>' + escapeHtml({ seller_chat: 'Your AI chat', customer: 'Customer messages', test_mode: 'Test Mode', call: 'Phone calls' }[m] || m) + '</option>').join('') + '</select>' +
     '</div>';
   h += '<div class="eng-tiles"><div class="eng-tile"><b>' + engineMoney(total) + '</b><span>Estimated cost</span></div><div class="eng-tile"><b>' + rows.length + '</b><span>AI calls</span></div><div class="eng-tile"><b>' + (tokens >= 1e6 ? (tokens / 1e6).toFixed(2) + 'M' : tokens >= 1e3 ? Math.round(tokens / 1e3) + 'K' : tokens) + '</b><span>Tokens used</span></div></div>';
 
@@ -14438,12 +14451,12 @@ window.engineShowAdvice = function() {
   const total = rows.reduce((s, r) => s + engineCost(r), 0);
   const chat = rows.filter(r => r.purpose === 'seller_chat');
   const chatCost = chat.reduce((s, r) => s + engineCost(r), 0);
-  const cur = engineState.prices[engineState.model];
+  const cur = engineState.prices[engineState.models.chat];
   // 1) strong model for chat
   const cheap = engineState.prices['claude-haiku-5-5'];
   if (cur && cheap && cur.input_per_m > cheap.input_per_m * 3 && chatCost > total * 0.4) {
     const as = chat.reduce((s, r) => s + ((r.input_tokens || 0) * cheap.input_per_m + (r.output_tokens || 0) * cheap.output_per_m + (r.cache_write_tokens || 0) * cheap.cache_write_per_m + (r.cache_read_tokens || 0) * cheap.cache_read_per_m) / 1e6, 0);
-    tips.push({ warn: true, t: 'Your chat uses ' + engineModelName(engineState.model) + ' for every message', b: 'About ' + Math.round(chatCost / total * 100) + '% of your spending is your AI chat answers (' + engineMoney(chatCost) + '). With Haiku 5.5 the same messages would cost about ' + engineMoney(as) + '.', why: 'A stronger model costs several times more per token, even for simple questions like "show my rules".', fix: 'Choose Haiku 5.5 above for everyday questions and switch to Sonnet 5.5 only when you are teaching rules or changing many settings.' });
+    tips.push({ warn: true, t: 'Your chat uses ' + engineModelName(engineState.models.chat) + ' for every message', b: 'About ' + Math.round(chatCost / total * 100) + '% of your spending is your AI chat answers (' + engineMoney(chatCost) + '). With Haiku 5.5 the same messages would cost about ' + engineMoney(as) + '.', why: 'A stronger model costs several times more per token, even for simple questions like "show my rules".', fix: 'Choose Haiku 5.5 above for everyday questions and switch to Sonnet 5.5 only when you are teaching rules or changing many settings.' });
   }
   // 2) long history / big requests
   if (chat.length) {
@@ -14466,6 +14479,13 @@ window.engineShowAdvice = function() {
   if (chat.length) {
     const avgOut = chat.reduce((s, r) => s + (r.output_tokens || 0), 0) / chat.length;
     if (avgOut > 600) tips.push({ t: 'The AI writes long answers', b: 'Average answer: about ' + Math.round(avgOut) + ' tokens.', why: 'Answers cost more than the text you send (several times more per token).', fix: 'Tell your AI chat: "keep answers short unless I ask for details".' });
+  }
+  // 7) customer side model (informational: it is the seller's choice to sell more)
+  const cust = rows.filter(r => r.purpose === 'customer_reply');
+  const curC = engineState.prices[engineState.models.customer];
+  if (cust.length && curC && curC.input_per_m >= 2) {
+    const cc = cust.reduce((s, r) => s + engineCost(r), 0);
+    tips.push({ t: 'Customer replies use ' + engineModelName(engineState.models.customer), b: 'Each customer reply cost about ' + engineMoney(cc / cust.length) + ' on average (' + engineMoney(cc) + ' for ' + cust.length + ' replies).', why: 'A stronger model on the customer side costs more on every message, even for simple questions like "how much is shipping".', fix: 'Keep it if it brings you more sales. If many customer messages are simple, a cheaper model costs a fraction of this.' });
   }
   if (!tips.length) tips.push({ t: 'Your spending looks healthy', b: 'Total in this period: ' + engineMoney(total) + '. I found nothing wasteful.', why: '', fix: 'Check again after a busy day.' });
   out.innerHTML = tips.map(x => '<div class="eng-advice' + (x.warn ? ' warn' : '') + '"><b>' + escapeHtml(x.t) + '</b>' + escapeHtml(x.b || '') + (x.why ? '<em>Why this happens: ' + escapeHtml(x.why) + '</em>' : '') + '<em>What to do: ' + escapeHtml(x.fix) + '</em></div>').join('');
