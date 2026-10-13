@@ -2787,6 +2787,46 @@
   .alert-card-body { font-size: 13px; color: var(--text); white-space: pre-line; line-height: 1.5; }
 
   /* ═══ REPORTS ═══ */
+
+  /* ENGINE: choose the AI model + spending dashboard */
+  #engine-tab-content { flex: 1; overflow: hidden; display: none; flex-direction: column; min-height: 0; }
+  #engine-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #engine-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #engine-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #engine-content { flex: 1; overflow-y: auto; padding: 16px 16px 40px; }
+  .eng-h { font-weight: 700; font-size: 14px; margin: 18px 0 8px; }
+  .eng-sub { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
+  .eng-opt { display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); cursor: pointer; }
+  .eng-opt.sel { border-color: var(--accent); background: var(--accent-soft); }
+  .eng-opt.dis { opacity: .5; cursor: default; }
+  .eng-opt b { font-size: 13.5px; display: block; }
+  .eng-opt small { color: var(--text-muted); font-size: 12px; }
+  .eng-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; }
+  .eng-opt.sel .eng-dot { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 45%, transparent 50%); }
+  .eng-tag { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; }
+  .eng-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .eng-filters select { padding: 7px 9px; border-radius: 9px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 13px; }
+  .eng-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .eng-tile { padding: 10px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); }
+  .eng-tile b { display: block; font-size: 17px; }
+  .eng-tile span { font-size: 11.5px; color: var(--text-muted); }
+  .eng-bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .eng-bar { flex: 1; min-width: 6px; display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; background: transparent; position: relative; }
+  .eng-bar i { display: block; width: 100%; }
+  .eng-bar-labels { display: flex; gap: 4px; font-size: 10px; color: var(--text-muted); margin-bottom: 12px; }
+  .eng-bar-labels span { flex: 1; min-width: 6px; text-align: center; overflow: hidden; }
+  .eng-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .eng-row .eng-sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .eng-row .eng-grow { flex: 1; min-width: 0; }
+  .eng-row .eng-grow small { display: block; color: var(--text-muted); font-size: 11.5px; }
+  .eng-row .eng-money { font-weight: 700; white-space: nowrap; }
+  .eng-btn { width: 100%; padding: 12px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; margin: 6px 0 10px; }
+  .eng-btn.sec { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .eng-advice { padding: 12px 14px; margin-bottom: 10px; border-radius: 12px; background: var(--panel-2); border-left: 4px solid var(--accent-2); font-size: 13px; line-height: 1.55; }
+  .eng-advice.warn { border-left-color: var(--danger); }
+  .eng-advice b { display: block; margin-bottom: 4px; }
+  .eng-advice em { font-style: normal; color: var(--text-muted); display: block; margin-top: 4px; }
+  .eng-note { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
   #reports-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
 
   /* ═══ CUSTOMER DEBTS ═══ */
@@ -4314,6 +4354,14 @@
       </div>
       <div id="alerts-list"><div id="alerts-loading"><div class="spinner"></div>Checking for anything that needs attention...</div></div>
     </div>
+    <div id="engine-tab-content" style="display:none;">
+      <div id="engine-header-row">
+        <button onclick="closeEnginePanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="engine-title">Choose your engine</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="engine-content"></div>
+    </div>
     <div id="reports-tab-content" style="display:none;">
       <div id="reports-header-row">
         <button onclick="closeReportsPanel()" title="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
@@ -4563,6 +4611,10 @@
       <div class="settings-row" onclick="openErrorLog()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span>Error Log</span>
+      </div>
+      <div class="settings-row" onclick="openEnginePanel()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+        <span id="settings-label-engine">Choose your engine</span>
       </div>
       <div class="settings-row" onclick="openMediaBackup()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -8873,7 +8925,7 @@ window.logout = function() {
 };
 
 function hideAllSidebarPanels() {
-  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'profile-tab-content', 'products-tab-content', 'customers-tab-content', 'orders-tab-content', 'orders-box-tab-content', 'alerts-tab-content', 'reports-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
+  ['chats-tab-content', 'settings-tab-content', 'business-tab-content', 'profile-tab-content', 'products-tab-content', 'customers-tab-content', 'orders-tab-content', 'orders-box-tab-content', 'alerts-tab-content', 'reports-tab-content', 'engine-tab-content', 'debts-tab-content', 'business-chat-tab-content', 'seller-inbox-tab-content', 'seller-notifications-tab-content', 'test-mode-tab-content', 'language-tab-content', 'devices-tab-content', 'appearance-tab-content', 'debug-log-tab-content', 'error-log-tab-content', 'media-backup-tab-content'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -14228,6 +14280,195 @@ window.selectAppearance = function(mode) {
   applyTheme();
   renderAppearanceList();
   closeAppearancePicker();
+};
+
+
+// ═══════════ ENGINE: choose the Claude model + spending dashboard ═══════════
+const ENGINE_MODELS = [
+  { id: 'claude-haiku-5-5', name: 'Haiku 5.5', blurb: 'Fastest and cheapest. Good for simple questions.', level: 'Lowest cost' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', blurb: 'Fast and low cost.', level: 'Low cost' },
+  { id: 'claude-sonnet-5-5', name: 'Sonnet 5.5', blurb: 'Smart and balanced. Best at saving your settings and rules reliably.', level: 'Medium cost' },
+  { id: 'claude-opus-5-5', name: 'Opus 5.5', blurb: 'Strongest, for hard thinking. Costs the most.', level: 'Highest cost' }
+];
+const ENGINE_PURPOSES = {
+  seller_chat: ['Your AI chat answers', 'Every message you send to your AI partner'],
+  chat_title: ['Naming your chats', 'A short title for each new chat'],
+  rule_conflict_check: ['Checking new rules for conflicts', 'Runs when you teach a rule'],
+  rule_compile: ['Understanding your rules', 'Turns a rule you typed into a checkable rule'],
+  teach_detect: ['Checking if you taught something', 'Safety net after a message that saved nothing'],
+  rule_agent_correction: ['Correction messages (Rule Agent)', 'Draft of a message to a customer after a rule slip'],
+  test_mode: ['Test Mode', 'Your practice chats with the customer AI'],
+  customer_reply: ['Customer replies', 'The AI answering customers'],
+  rule_check: ['Rule checks on replies', 'Quality checks before a reply is sent'],
+  call: ['Phone calls', 'The AI talking on calls']
+};
+const ENGINE_COLORS = ['#2E4A87', '#D98B2B', '#3E9B6E', '#B04A8E', '#6B7BD6', '#C25B4A', '#7A7568'];
+let engineState = { model: 'claude-sonnet-5-5', prices: {}, rows: [], period: '7', fModel: 'all', fPurpose: 'all', fChannel: 'all' };
+
+window.openEnginePanel = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('engine-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition'); void panel.offsetWidth; panel.classList.add('screen-transition');
+  await loadEngine();
+};
+window.closeEnginePanel = function() {
+  document.getElementById('engine-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+
+function engineCost(r) {
+  const pr = engineState.prices[r.model];
+  if (!pr) return 0;
+  return ((r.input_tokens || 0) * pr.input_per_m + (r.output_tokens || 0) * pr.output_per_m + (r.cache_write_tokens || 0) * pr.cache_write_per_m + (r.cache_read_tokens || 0) * pr.cache_read_per_m) / 1e6;
+}
+function engineMoney(v) { return v >= 1 ? '$' + v.toFixed(2) : (v >= 0.01 ? '$' + v.toFixed(3) : '$' + v.toFixed(4)); }
+function engineModelName(id) { const m = ENGINE_MODELS.find(x => x.id === id); return m ? m.name : id; }
+function enginePurposeName(id) { return (ENGINE_PURPOSES[id] || [id])[0]; }
+
+async function loadEngine() {
+  const box = document.getElementById('engine-content');
+  box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:30px 4px;color:var(--text-muted);font-size:13.5px;"><div class="spinner"></div>Loading your engine...</div>';
+  try {
+    const [eng, prices] = await Promise.all([
+      sb('seller_engine?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_model&limit=1'),
+      sb('ai_model_prices?select=*')
+    ]);
+    if (eng && eng[0] && eng[0].chat_model) engineState.model = eng[0].chat_model;
+    engineState.prices = {};
+    (prices || []).forEach(p => { engineState.prices[p.model] = p; });
+    await engineLoadUsage();
+    engineRender();
+  } catch (e) {
+    box.innerHTML = '<div class="eng-sub" style="padding:20px 4px;">Could not load the engine screen. ' + escapeHtml(String(e.message || e)) + '</div>';
+  }
+}
+async function engineLoadUsage() {
+  const days = engineState.period === 'today' ? 1 : parseInt(engineState.period, 10) || 7;
+  const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (days - 1));
+  engineState.rows = await sb('ai_usage?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + encodeURIComponent(start.toISOString()) + '&select=created_at,model,purpose,channel,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens&order=created_at.desc&limit=5000') || [];
+}
+
+window.engineChoose = async function(id) {
+  engineState.model = id;
+  engineRender();
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, chat_model: id, updated_at: new Date().toISOString() })
+    });
+    const n = document.getElementById('engine-saved'); if (n) { n.textContent = 'Saved. Your next message uses ' + engineModelName(id) + '.'; }
+  } catch (e) { const n = document.getElementById('engine-saved'); if (n) n.textContent = 'Could not save, try again.'; }
+};
+window.engineSetFilter = async function(key, val) {
+  engineState[key] = val;
+  if (key === 'period') { await engineLoadUsage(); }
+  engineRender();
+};
+
+function engineFilteredRows() {
+  return engineState.rows.filter(r => (engineState.fModel === 'all' || r.model === engineState.fModel) && (engineState.fPurpose === 'all' || r.purpose === engineState.fPurpose) && (engineState.fChannel === 'all' || (r.channel || 'seller_chat') === engineState.fChannel));
+}
+
+function engineRender() {
+  const box = document.getElementById('engine-content');
+  const scrollTop = box.scrollTop;
+  const rows = engineFilteredRows();
+  const all = engineState.rows;
+  const total = rows.reduce((s, r) => s + engineCost(r), 0);
+  const tokens = rows.reduce((s, r) => s + (r.input_tokens || 0) + (r.output_tokens || 0) + (r.cache_read_tokens || 0) + (r.cache_write_tokens || 0), 0);
+  const models = [...new Set(all.map(r => r.model))];
+  const purposes = [...new Set(all.map(r => r.purpose))];
+  const channels = [...new Set(all.map(r => r.channel || 'seller_chat'))];
+  const colorOf = {}; models.forEach((m, i) => { colorOf[m] = ENGINE_COLORS[i % ENGINE_COLORS.length]; });
+
+  let h = '<div class="eng-h" style="margin-top:0;">Your AI chat engine</div>';
+  h += '<div class="eng-sub">Pick which Claude model answers you in the AI chat. A stronger model costs more per message.</div>';
+  h += ENGINE_MODELS.map(m => {
+    const pr = engineState.prices[m.id];
+    const price = pr ? '$' + pr.input_per_m + ' in / $' + pr.output_per_m + ' out per 1M tokens' : '';
+    return '<div class="eng-opt' + (engineState.model === m.id ? ' sel' : '') + '" onclick="engineChoose(\'' + m.id + '\')"><span class="eng-dot"></span><div><b>' + escapeHtml(m.name) + '</b><small>' + escapeHtml(m.blurb) + (price ? ' · ' + escapeHtml(price) : '') + '</small></div><span class="eng-tag">' + escapeHtml(m.level) + '</span></div>';
+  }).join('');
+  h += '<div class="eng-opt dis"><span class="eng-dot"></span><div><b>Model for talking to your customers</b><small>Coming soon: choose it separately from your own chat.</small></div></div>';
+  h += '<div class="eng-opt dis"><span class="eng-dot"></span><div><b>Model for phone calls</b><small>Coming soon.</small></div></div>';
+  h += '<div id="engine-saved" class="eng-note"></div>';
+
+  h += '<div class="eng-h">Spending</div>';
+  h += '<div class="eng-filters">' +
+    '<select onchange="engineSetFilter(\'period\', this.value)">' + [['today', 'Today'], ['7', 'Last 7 days'], ['30', 'Last 30 days']].map(o => '<option value="' + o[0] + '"' + (engineState.period === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+    '<select onchange="engineSetFilter(\'fModel\', this.value)"><option value="all">All models</option>' + models.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fModel === m ? ' selected' : '') + '>' + escapeHtml(engineModelName(m)) + '</option>').join('') + '</select>' +
+    '<select onchange="engineSetFilter(\'fPurpose\', this.value)"><option value="all">All purposes</option>' + purposes.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fPurpose === m ? ' selected' : '') + '>' + escapeHtml(enginePurposeName(m)) + '</option>').join('') + '</select>' +
+    '<select onchange="engineSetFilter(\'fChannel\', this.value)"><option value="all">All places</option>' + channels.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fChannel === m ? ' selected' : '') + '>' + escapeHtml(m === 'seller_chat' ? 'Your AI chat' : m) + '</option>').join('') + '</select>' +
+    '</div>';
+  h += '<div class="eng-tiles"><div class="eng-tile"><b>' + engineMoney(total) + '</b><span>Estimated cost</span></div><div class="eng-tile"><b>' + rows.length + '</b><span>AI calls</span></div><div class="eng-tile"><b>' + (tokens >= 1e6 ? (tokens / 1e6).toFixed(2) + 'M' : tokens >= 1e3 ? Math.round(tokens / 1e3) + 'K' : tokens) + '</b><span>Tokens used</span></div></div>';
+
+  if (!rows.length) {
+    h += '<div class="eng-sub" style="padding:14px 0;">No AI calls recorded for this choice yet. Usage appears here after your next AI chat message.</div>';
+  } else {
+    // by day (stacked by model)
+    const byDay = {};
+    rows.forEach(r => { const d = new Date(r.created_at).toLocaleDateString('en-CA'); (byDay[d] = byDay[d] || {}); byDay[d][r.model] = (byDay[d][r.model] || 0) + engineCost(r); });
+    const days = Object.keys(byDay).sort();
+    const maxDay = Math.max(...days.map(d => Object.values(byDay[d]).reduce((a, b) => a + b, 0)), 0.0001);
+    h += '<div class="eng-h">Cost per day</div><div class="eng-bars">' + days.map(d => {
+      const sum = Object.values(byDay[d]).reduce((a, b) => a + b, 0);
+      return '<div class="eng-bar" style="height:' + Math.max(4, Math.round(sum / maxDay * 100)) + '%;" title="' + d + ': ' + engineMoney(sum) + '">' + Object.keys(byDay[d]).map(m => '<i style="height:' + Math.round(byDay[d][m] / sum * 100) + '%;background:' + colorOf[m] + ';"></i>').join('') + '</div>';
+    }).join('') + '</div><div class="eng-bar-labels">' + days.map(d => '<span>' + d.slice(8) + '</span>').join('') + '</div>';
+    // by model
+    const byModel = {}; rows.forEach(r => { byModel[r.model] = (byModel[r.model] || 0) + engineCost(r); });
+    h += '<div class="eng-h">Which model spent how much</div>' + Object.keys(byModel).sort((a, b) => byModel[b] - byModel[a]).map(m => '<div class="eng-row"><span class="eng-sw" style="background:' + colorOf[m] + ';"></span><div class="eng-grow">' + escapeHtml(engineModelName(m)) + '<small>' + rows.filter(r => r.model === m).length + ' calls</small></div><span class="eng-money">' + engineMoney(byModel[m]) + '</span></div>').join('');
+    // by purpose
+    const byP = {}; rows.forEach(r => { byP[r.purpose] = byP[r.purpose] || { c: 0, n: 0 }; byP[r.purpose].c += engineCost(r); byP[r.purpose].n++; });
+    h += '<div class="eng-h">What the money was spent on</div>' + Object.keys(byP).sort((a, b) => byP[b].c - byP[a].c).map(k => '<div class="eng-row"><div class="eng-grow">' + escapeHtml(enginePurposeName(k)) + '<small>' + escapeHtml((ENGINE_PURPOSES[k] || ['', ''])[1]) + ' · ' + byP[k].n + ' calls</small></div><span class="eng-money">' + engineMoney(byP[k].c) + '</span></div>').join('');
+  }
+
+  h += '<button class="eng-btn" onclick="engineShowAdvice()">Show me how to spend less</button><div id="engine-advice"></div>';
+  h += '<button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\', \'_blank\')">Open the Anthropic console (exact bill)</button>';
+  h += '<div class="eng-note">Costs here are estimates worked out from the tokens each AI call used and the price list in your account, so they can differ slightly from the exact bill in the Anthropic console. Only calls made after this feature was switched on are counted.</div>';
+  box.innerHTML = h;
+  box.scrollTop = scrollTop;
+}
+
+window.engineShowAdvice = function() {
+  const out = document.getElementById('engine-advice');
+  const rows = engineState.rows;
+  if (!rows.length) { out.innerHTML = '<div class="eng-advice"><b>Nothing to analyse yet</b>Use your AI chat for a while, then come back. The advice is based on your real usage.</div>'; return; }
+  const tips = [];
+  const total = rows.reduce((s, r) => s + engineCost(r), 0);
+  const chat = rows.filter(r => r.purpose === 'seller_chat');
+  const chatCost = chat.reduce((s, r) => s + engineCost(r), 0);
+  const cur = engineState.prices[engineState.model];
+  // 1) strong model for chat
+  const cheap = engineState.prices['claude-haiku-5-5'];
+  if (cur && cheap && cur.input_per_m > cheap.input_per_m * 3 && chatCost > total * 0.4) {
+    const as = chat.reduce((s, r) => s + ((r.input_tokens || 0) * cheap.input_per_m + (r.output_tokens || 0) * cheap.output_per_m + (r.cache_write_tokens || 0) * cheap.cache_write_per_m + (r.cache_read_tokens || 0) * cheap.cache_read_per_m) / 1e6, 0);
+    tips.push({ warn: true, t: 'Your chat uses ' + engineModelName(engineState.model) + ' for every message', b: 'About ' + Math.round(chatCost / total * 100) + '% of your spending is your AI chat answers (' + engineMoney(chatCost) + '). With Haiku 5.5 the same messages would cost about ' + engineMoney(as) + '.', why: 'A stronger model costs several times more per token, even for simple questions like "show my rules".', fix: 'Choose Haiku 5.5 above for everyday questions and switch to Sonnet 5.5 only when you are teaching rules or changing many settings.' });
+  }
+  // 2) long history / big requests
+  if (chat.length) {
+    const avgIn = chat.reduce((s, r) => s + (r.input_tokens || 0) + (r.cache_read_tokens || 0) + (r.cache_write_tokens || 0), 0) / chat.length;
+    if (avgIn > 8000) tips.push({ t: 'Each chat message sends a lot of text', b: 'On average one message sends about ' + Math.round(avgIn / 1000) + 'K tokens of text to the AI.', why: 'The AI re-reads your instructions and the chat history every time you send a message. Long chats and long instruction lists make every single message more expensive.', fix: 'Start a new chat for a new topic. Keep rules short and remove old rules you no longer need.' });
+    // 3) cache
+    const cr = chat.reduce((s, r) => s + (r.cache_read_tokens || 0), 0);
+    const ci = chat.reduce((s, r) => s + (r.input_tokens || 0) + (r.cache_read_tokens || 0) + (r.cache_write_tokens || 0), 0);
+    if (ci > 20000 && cr / ci < 0.3) tips.push({ t: 'The repeated text is mostly not being reused', b: 'Only ' + Math.round(cr / ci * 100) + '% of the repeated text was served at the cheap reused price.', why: 'The AI can reuse repeated text at a much lower price only if the next message comes within a few minutes. Messages sent far apart pay the full price again.', fix: 'Send your related questions together in one sitting instead of one now and one hours later.' });
+  }
+  // 4) test mode
+  const tm = rows.filter(r => r.purpose === 'test_mode');
+  const tmCost = tm.reduce((s, r) => s + engineCost(r), 0);
+  if (tm.length && tmCost > total * 0.2) tips.push({ t: 'Test Mode is a big part of your spending', b: engineMoney(tmCost) + ' (' + Math.round(tmCost / total * 100) + '%) went to practice chats.', why: 'Every Test Mode message runs the full customer AI plus the rule checks, just like a real customer.', fix: 'Test with a short list of important questions, change several things at once, then test once.' });
+  // 5) rule helper calls
+  const helper = rows.filter(r => ['rule_conflict_check', 'rule_compile', 'teach_detect', 'chat_title'].includes(r.purpose));
+  const helperCost = helper.reduce((s, r) => s + engineCost(r), 0);
+  if (helper.length > 6 && helperCost > total * 0.15) tips.push({ t: 'Small helper checks add up', b: helper.length + ' helper calls cost ' + engineMoney(helperCost) + '.', why: 'Each time you teach a rule the AI also checks it for conflicts and turns it into a checkable rule. Many small rules mean many small calls.', fix: 'Write related instructions as one rule instead of five.' });
+  // 6) output length
+  if (chat.length) {
+    const avgOut = chat.reduce((s, r) => s + (r.output_tokens || 0), 0) / chat.length;
+    if (avgOut > 600) tips.push({ t: 'The AI writes long answers', b: 'Average answer: about ' + Math.round(avgOut) + ' tokens.', why: 'Answers cost more than the text you send (several times more per token).', fix: 'Tell your AI chat: "keep answers short unless I ask for details".' });
+  }
+  if (!tips.length) tips.push({ t: 'Your spending looks healthy', b: 'Total in this period: ' + engineMoney(total) + '. I found nothing wasteful.', why: '', fix: 'Check again after a busy day.' });
+  out.innerHTML = tips.map(x => '<div class="eng-advice' + (x.warn ? ' warn' : '') + '"><b>' + escapeHtml(x.t) + '</b>' + escapeHtml(x.b || '') + (x.why ? '<em>Why this happens: ' + escapeHtml(x.why) + '</em>' : '') + '<em>What to do: ' + escapeHtml(x.fix) + '</em></div>').join('');
 };
 
 window.openMediaBackup = function() {
