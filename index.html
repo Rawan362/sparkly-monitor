@@ -4443,6 +4443,15 @@
             <div id="inbox-agent-scopes" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px;">
               <button class="inbox-scope-btn active" data-scope="customer" onclick="agentSelectScope(this)">Only this customer</button>
               <button class="inbox-scope-btn" data-scope="all" onclick="agentSelectScope(this)">All customers</button>
+              <button class="inbox-scope-btn" data-scope="group" onclick="agentSelectScope(this)">A group of customers</button>
+            </div>
+            <div id="inbox-agent-group-panel" style="display:none;margin:-4px 0 12px;padding:10px;border:1px solid var(--border, #cbd5e1);border-radius:10px;">
+              <div class="inbox-scope-label">Choose the group (this customer is added to it automatically):</div>
+              <div style="display:flex;gap:8px;margin:8px 0;">
+                <select id="inbox-agent-group-select" style="flex:1;padding:8px;border-radius:8px;"></select>
+                <button onclick="agentNewGroup()" style="padding:8px 12px;border:1px solid var(--border, #cbd5e1);border-radius:8px;background:transparent;color:inherit;cursor:pointer;">+ New group</button>
+              </div>
+              <textarea id="inbox-agent-group-numbers" style="width:100%;min-height:60px;" placeholder="Optional: add more customers to this group by their phone numbers, separated by commas or new lines."></textarea>
             </div>
             <div style="display:flex;gap:8px;margin-bottom:10px;">
               <button id="inbox-agent-good-btn" onclick="agentDecide('good')" style="flex:1;padding:12px;border:0;border-radius:10px;background:#16a34a;color:#fff;font-size:15px;cursor:pointer;">&#9989; Good</button>
@@ -12120,6 +12129,9 @@ function agentRenderCard(q) {
     (m.final_text && !m.held ? '<div style="margin:8px 0;"><b>The customer received:</b> ' + escapeHtml(m.final_text) + '</div>' : '') +
     '<div style="margin:10px 0;padding:10px;border-radius:10px;background:var(--accent-soft, #eff6ff);">' + escapeHtml(what) + '</div>' +
     '<div style="opacity:.85;">Good = the agent handles this rule the same way next time without bothering you. Adjust = you tell the agent how it should handle it next time.</div>';
+  agentGroups = [];
+  const gp = document.getElementById('inbox-agent-group-panel'); if (gp) gp.style.display = 'none';
+  const gn = document.getElementById('inbox-agent-group-numbers'); if (gn) gn.value = '';
   agentScope = 'customer';
   document.querySelectorAll('#inbox-agent-scopes .inbox-scope-btn').forEach(b => b.classList.toggle('active', b.dataset.scope === 'customer'));
   document.getElementById('inbox-agent-adjust').style.display = 'none';
@@ -12134,21 +12146,59 @@ window.agentSelectScope = function(btn) {
   document.querySelectorAll('#inbox-agent-scopes .inbox-scope-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   agentScope = btn.dataset.scope;
+  const gp = document.getElementById('inbox-agent-group-panel');
+  if (gp) gp.style.display = agentScope === 'group' ? 'block' : 'none';
+  if (agentScope === 'group') agentLoadGroups();
 };
+let agentGroups = [];
+async function agentLoadGroups(selectId) {
+  try {
+    const rows = await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');
+    agentGroups = Array.isArray(rows) ? rows : [];
+  } catch (e) { agentGroups = []; }
+  const sel = document.getElementById('inbox-agent-group-select');
+  if (!sel) return;
+  sel.innerHTML = agentGroups.length ? agentGroups.map(g => '<option value="' + g.id + '">' + escapeHtml(g.name) + '</option>').join('') : '<option value="">(no groups yet - tap + New group)</option>';
+  if (selectId) sel.value = String(selectId);
+}
+window.agentNewGroup = async function() {
+  const name = (prompt('Name of the new group (for example: Wholesale customers):') || '').trim();
+  if (!name) return;
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+    const r = await fetch(SUPABASE_URL + '/rest/v1/customer_groups', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, name }) });
+    if (!r.ok) throw new Error('Could not create the group (' + r.status + ')');
+    const j = await r.json();
+    await agentLoadGroups(j && j[0] && j[0].id);
+  } catch (e) { alert('Something went wrong: ' + (e && e.message ? e.message : 'unknown error')); }
+};
+// the group (and its members) used when the owner saves Good / Adjust with the scope "A group of customers"
+async function agentPrepareGroup(q) {
+  const sel = document.getElementById('inbox-agent-group-select');
+  const gid = sel && sel.value ? parseInt(sel.value, 10) : 0;
+  if (!gid) throw new Error('Please choose a group or create a new one.');
+  const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' };
+  const extra = String(document.getElementById('inbox-agent-group-numbers').value || '').split(/[\s,;]+/).map(x => x.replace(/\D/g, '')).filter(x => x.length >= 6);
+  const phones = Array.from(new Set([String(q.phone_number).replace(/^\+/, '')].concat(extra)));
+  const r = await fetch(SUPABASE_URL + '/rest/v1/customer_group_members?on_conflict=group_id,phone_number', { method: 'POST', headers, body: JSON.stringify(phones.map(p => ({ group_id: gid, seller_id: SELLER_CHAT_ID, phone_number: p }))) });
+  if (!r.ok) throw new Error('Could not add customers to the group (' + r.status + ')');
+  return gid;
+}
 window.agentShowAdjust = function() {
   const el = document.getElementById('inbox-agent-adjust');
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
 async function agentSaveResolutions(q, decision, instruction) {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-  const rows = ((q.meta && q.meta.breaks) || []).map(b => ({ seller_id: SELLER_CHAT_ID, guideline_id: b.id || null, topic: b.topic || null, decision, instruction: instruction || null, scope: agentScope, phone_number: agentScope === 'customer' ? q.phone_number : null }));
+  const gid = agentScope === 'group' ? await agentPrepareGroup(q) : null;
+  const rows = ((q.meta && q.meta.breaks) || []).map(b => ({ seller_id: SELLER_CHAT_ID, guideline_id: b.id || null, topic: b.topic || null, decision, instruction: instruction || null, scope: agentScope, phone_number: agentScope === 'customer' ? q.phone_number : null, group_id: gid }));
   if (!rows.length) return;
   const r = await fetch(SUPABASE_URL + '/rest/v1/rule_resolutions', { method: 'POST', headers, body: JSON.stringify(rows) });
   if (!r.ok) throw new Error('Could not save your choice (' + r.status + ')');
 }
 async function agentCloseCard(q, answer) {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-  const r = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: String(answer).slice(0, 900), answer_scope: agentScope === 'all' ? 'all_customers' : 'this_customer' }) });
+  const r = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: String(answer).slice(0, 900), answer_scope: agentScope === 'all' ? 'all_customers' : (agentScope === 'group' ? 'group' : 'this_customer') }) });
   if (!r.ok) throw new Error('Could not update the card (' + r.status + ')');
 }
 window.agentDecide = async function(decision) {
@@ -12159,7 +12209,7 @@ window.agentDecide = async function(decision) {
   try {
     await agentSaveResolutions(q, 'good', null);
     await agentCloseCard(q, 'Good (' + agentScope + ')');
-    alert(agentScope === 'all' ? 'Saved. When this rule breaks again for any customer, the agent fixes it the same way and does not send you a card.' : 'Saved. When this rule breaks again for this customer, the agent fixes it the same way and does not send you a card.');
+    alert('Saved. When this rule breaks again for ' + (agentScope === 'all' ? 'any customer' : (agentScope === 'group' ? 'a customer in this group' : 'this customer')) + ', the agent fixes it the same way and does not send you a card.');
     closeInboxDetail();
     await loadInboxList();
     await checkInboxDot();
@@ -12200,7 +12250,7 @@ window.agentSaveAdjust = async function() {
     }
     await agentSaveResolutions(q, 'adjust', instruction);
     await agentCloseCard(q, 'Adjusted (' + agentScope + '): ' + instruction + sentNote);
-    alert((agentScope === 'all' ? 'Saved for all customers.' : 'Saved for this customer.') + ' From now on the agent follows your adjustment when this rule breaks.' + (wantSend ? ' The correction was sent to the customer.' : ''));
+    alert((agentScope === 'all' ? 'Saved for all customers.' : (agentScope === 'group' ? 'Saved for the group.' : 'Saved for this customer.')) + ' From now on the agent follows your adjustment when this rule breaks.' + (wantSend ? ' The correction was sent to the customer.' : ''));
     closeInboxDetail();
     await loadInboxList();
     await checkInboxDot();
