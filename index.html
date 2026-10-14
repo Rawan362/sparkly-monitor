@@ -2827,6 +2827,15 @@
   .eng-advice b { display: block; margin-bottom: 4px; }
   .eng-advice em { font-style: normal; color: var(--text-muted); display: block; margin-top: 4px; }
   .eng-note { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
+  .eng-conn { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); margin-bottom: 6px; font-size: 13px; line-height: 1.5; }
+  .eng-conn .ok { color: var(--accent-2); font-weight: 700; }
+  .eng-modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .eng-modal > div { background: var(--panel); border-radius: 16px; padding: 18px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }
+  .eng-modal input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 13px; margin: 4px 0 10px; }
+  .eng-modal label { font-size: 12.5px; font-weight: 700; }
+  .eng-err { color: var(--danger); font-size: 12.5px; margin-bottom: 8px; }
+  .eng-real { border: 1px solid var(--accent); border-radius: 14px; padding: 12px; margin-top: 14px; }
+  .eng-tiles4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
   #reports-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
 
   /* ═══ CUSTOMER DEBTS ═══ */
@@ -14304,7 +14313,7 @@ const ENGINE_PURPOSES = {
   call: ['Phone calls', 'The AI talking on calls']
 };
 const ENGINE_COLORS = ['#2E4A87', '#D98B2B', '#3E9B6E', '#B04A8E', '#6B7BD6', '#C25B4A', '#7A7568'];
-let engineState = { models: { chat: 'claude-sonnet-5-5', customer: 'claude-haiku-4-5-20251001', call: 'claude-haiku-5-5' }, prices: {}, rows: [], period: '7', fModel: 'all', fPurpose: 'all', fChannel: 'all' };
+let engineState = { conn: null, real: null, rPeriod: 'today', rModel: 'all', models: { chat: 'claude-sonnet-5-5', customer: 'claude-haiku-4-5-20251001', call: 'claude-haiku-5-5' }, prices: {}, rows: [], period: '7', fModel: 'all', fPurpose: 'all', fChannel: 'all' };
 
 window.openEnginePanel = async function() {
   document.getElementById('settings-tab-content').style.display = 'none';
@@ -14343,7 +14352,9 @@ async function loadEngine() {
     engineState.prices = {};
     (prices || []).forEach(p => { engineState.prices[p.model] = p; });
     await engineLoadUsage();
+    await engineLoadConn();
     engineRender();
+    if (engineState.conn && engineState.conn.admin_connected) engineLoadReal();
   } catch (e) {
     box.innerHTML = '<div class="eng-sub" style="padding:20px 4px;">Could not load the engine screen. ' + escapeHtml(String(e.message || e)) + '</div>';
   }
@@ -14352,6 +14363,133 @@ async function engineLoadUsage() {
   const days = engineState.period === 'today' ? 1 : parseInt(engineState.period, 10) || 7;
   const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (days - 1));
   engineState.rows = await sb('ai_usage?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + encodeURIComponent(start.toISOString()) + '&select=created_at,model,purpose,channel,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens&order=created_at.desc&limit=5000') || [];
+}
+
+
+// ── Anthropic account connection + real usage ──
+async function engineCall(body) {
+  const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-connect', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ seller_id: SELLER_CHAT_ID }, body)) });
+  return r.json();
+}
+async function engineLoadConn() {
+  try { engineState.conn = await engineCall({ action: 'status' }); } catch (e) { engineState.conn = { connected: false, admin_connected: false }; }
+}
+window.engineOpenConnect = function() {
+  const c = engineState.conn || {};
+  const m = document.createElement('div'); m.className = 'eng-modal'; m.id = 'engine-modal';
+  m.innerHTML = '<div><div class="eng-h" style="margin-top:0;font-size:16px;">Connect your Anthropic account</div>' +
+    '<div class="eng-sub">Your AI will then run on your own Anthropic account and your own credits. <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent);">Create an API key</a> in the Anthropic console, copy it and paste it here. To add credits, use <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:var(--accent);">Billing</a> in the same console.</div>' +
+    '<label>API key' + (c.connected ? ' (connected: ' + escapeHtml(c.key_hint || '') + ')' : '') + '</label><input id="eng-key" type="password" placeholder="sk-ant-api03-..." autocomplete="off">' +
+    '<label>Admin key (optional, for the exact real bill)' + (c.admin_connected ? ' (connected: ' + escapeHtml(c.admin_hint || '') + ')' : '') + '</label><input id="eng-akey" type="password" placeholder="sk-ant-admin01-..." autocomplete="off">' +
+    '<div class="eng-sub">An Admin key lets the dashboard read your exact usage and cost straight from Anthropic. Anthropic only gives Admin keys to organization accounts (Console, Settings, Organization). Without it the dashboard shows every call Sparkly makes for you.</div>' +
+    '<div id="eng-conn-err" class="eng-err"></div>' +
+    '<button class="eng-btn" id="eng-conn-save" onclick="engineConnectSave()">Connect</button>' +
+    '<button class="eng-btn sec" onclick="document.getElementById(\'engine-modal\').remove()">Cancel</button>' +
+    (c.connected || c.admin_connected ? '<button class="eng-btn sec" onclick="engineDisconnect()">Disconnect my account</button>' : '') + '</div>';
+  document.body.appendChild(m);
+};
+window.engineConnectSave = async function() {
+  const err = document.getElementById('eng-conn-err'), btn = document.getElementById('eng-conn-save');
+  const keys = [document.getElementById('eng-key').value.trim(), document.getElementById('eng-akey').value.trim()].filter(Boolean);
+  if (!keys.length) { err.textContent = 'Paste a key first.'; return; }
+  btn.disabled = true; btn.textContent = 'Checking with Anthropic...'; err.textContent = '';
+  for (const k of keys) {
+    try {
+      const r = await engineCall({ action: 'connect', key: k });
+      if (!r.ok) { err.textContent = r.error || 'Could not connect.'; btn.disabled = false; btn.textContent = 'Connect'; return; }
+    } catch (e) { err.textContent = 'Could not reach the server, try again.'; btn.disabled = false; btn.textContent = 'Connect'; return; }
+  }
+  document.getElementById('engine-modal').remove();
+  await engineLoadConn(); engineState.real = null; engineRender();
+  if (engineState.conn.admin_connected) engineLoadReal();
+};
+window.engineDisconnect = async function() {
+  if (!confirm('Disconnect your Anthropic account? Your AI will go back to the shared account.')) return;
+  await engineCall({ action: 'disconnect', which: 'api' }); await engineCall({ action: 'disconnect', which: 'admin' });
+  document.getElementById('engine-modal').remove();
+  await engineLoadConn(); engineState.real = null; engineRender();
+};
+function engineConnCard() {
+  const c = engineState.conn;
+  if (!c) return '';
+  let h = '<div class="eng-conn">';
+  if (c.connected) h += '<span class="ok">Connected</span> to your Anthropic account (' + escapeHtml(c.key_hint || '') + '). Your AI runs on your own credits.';
+  else h += 'Not connected. Your AI is using the shared account. Connect your own Anthropic account to use your own credits and see your real usage.';
+  if (c.admin_connected) h += '<br><span class="ok">Real bill on</span> (Admin key ' + escapeHtml(c.admin_hint || '') + (c.org_name ? ', ' + escapeHtml(c.org_name) : '') + ').';
+  h += '</div><button class="eng-btn" onclick="engineOpenConnect()">' + (c.connected || c.admin_connected ? 'Manage connection' : 'Connect') + '</button>';
+  return h;
+}
+window.engineLoadReal = async function() {
+  const p = engineState.rPeriod;
+  const now = new Date(); const start = new Date(); start.setHours(0, 0, 0, 0);
+  const days = p === 'today' ? 1 : parseInt(p, 10);
+  start.setDate(start.getDate() - (days - 1));
+  const bucket = p === 'today' ? '1m' : (days <= 7 ? '1h' : '1d');
+  engineState.real = { loading: true };
+  engineRender();
+  try {
+    const q = { from: start.toISOString().slice(0, 19) + 'Z', to: new Date(now.getTime() + 3600e3).toISOString().slice(0, 19) + 'Z' };
+    const [u, c] = await Promise.all([engineCall(Object.assign({ action: 'usage', bucket }, q)), engineCall(Object.assign({ action: 'cost' }, q))]);
+    if (!u.ok) throw new Error(u.error || 'usage failed');
+    engineState.real = { buckets: u.data, bucket, cost: c.ok ? c.data : null, costErr: c.ok ? null : c.error };
+  } catch (e) { engineState.real = { error: String(e.message || e) }; }
+  engineRender();
+};
+window.engineRealFilter = function(k, v) { engineState[k] = v; if (k === 'rPeriod') engineLoadReal(); else engineRender(); };
+function engineRealRows() {
+  const out = [];
+  ((engineState.real && engineState.real.buckets) || []).forEach(b => (b.results || []).forEach(r => {
+    const cc = r.cache_creation || {};
+    out.push({ t: b.starting_at, model: r.model || 'unknown', key: r.api_key_id || 'unknown', input_tokens: r.uncached_input_tokens || 0, output_tokens: r.output_tokens || 0, cache_read_tokens: r.cache_read_input_tokens || 0, cache_write_tokens: (cc.ephemeral_5m_input_tokens || 0) + (cc.ephemeral_1h_input_tokens || 0) });
+  }));
+  return out;
+}
+function engineRealHtml() {
+  const R = engineState.real;
+  let h = '<div class="eng-real"><div class="eng-h" style="margin-top:0;">Real usage from Anthropic</div>';
+  h += '<div class="eng-filters"><select onchange="engineRealFilter(\'rPeriod\', this.value)">' + [['today', 'Today (per minute)'], ['7', 'Last 7 days (per hour)'], ['30', 'Last 30 days (per day)']].map(o => '<option value="' + o[0] + '"' + (engineState.rPeriod === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>';
+  if (!R || R.loading) return h + '</div><div class="eng-sub"><div class="spinner" style="display:inline-block;vertical-align:middle;margin-right:8px;"></div>Reading your Anthropic account...</div></div>';
+  if (R.error) return h + '</div><div class="eng-err">Anthropic could not be read: ' + escapeHtml(R.error) + '</div><button class="eng-btn sec" onclick="engineLoadReal()">Try again</button></div>';
+  const all = engineRealRows();
+  const models = [...new Set(all.map(r => r.model))];
+  h += '<select onchange="engineRealFilter(\'rModel\', this.value)"><option value="all">All models</option>' + models.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.rModel === m ? ' selected' : '') + '>' + escapeHtml(engineModelName(m)) + '</option>').join('') + '</select></div>';
+  const rows = all.filter(r => engineState.rModel === 'all' || r.model === engineState.rModel);
+  const est = r => engineCost(r);
+  const tot = rows.reduce((s, r) => s + est(r), 0);
+  const sum = f => rows.reduce((s, r) => s + (r[f] || 0), 0);
+  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
+  let bill = null;
+  if (R.cost) { bill = 0; R.cost.forEach(b => (b.results || []).forEach(x => { bill += parseFloat(x.amount || 0) / 100; })); }
+  h += '<div class="eng-tiles4"><div class="eng-tile"><b>' + (bill !== null ? engineMoney(bill) : engineMoney(tot)) + '</b><span>' + (bill !== null ? 'Exact bill (Anthropic)' : 'Cost from real tokens') + '</span></div><div class="eng-tile"><b>' + fmt(sum('input_tokens') + sum('cache_write_tokens')) + '</b><span>Text sent in</span></div><div class="eng-tile"><b>' + fmt(sum('output_tokens')) + '</b><span>Text written out</span></div><div class="eng-tile"><b>' + fmt(sum('cache_read_tokens')) + '</b><span>Reused at cheap price</span></div></div>';
+  if (R.costErr) h += '<div class="eng-note">The exact bill could not be read (' + escapeHtml(R.costErr) + '). Cost shown is worked out from the real tokens.</div>';
+  const byT = {}; rows.forEach(r => { byT[r.t] = (byT[r.t] || 0) + est(r); });
+  const ts = Object.keys(byT).sort();
+  if (ts.length) {
+    const mx = Math.max(...ts.map(t => byT[t]), 0.000001);
+    const lab = t => R.bucket === '1d' ? t.slice(5, 10) : (R.bucket === '1h' ? t.slice(5, 10) + ' ' + t.slice(11, 13) + 'h' : t.slice(11, 16));
+    h += '<div class="eng-h">Cost over time (' + ({ '1m': 'per minute', '1h': 'per hour', '1d': 'per day' }[R.bucket]) + ')</div><div class="eng-bars">' + ts.map(t => '<div class="eng-bar" style="height:' + Math.max(4, Math.round(byT[t] / mx * 100)) + '%;background:var(--accent);" title="' + lab(t) + ': ' + engineMoney(byT[t]) + '"></div>').join('') + '</div><div class="eng-bar-labels"><span style="text-align:left;">' + lab(ts[0]) + '</span><span style="text-align:right;">' + lab(ts[ts.length - 1]) + '</span></div>';
+  } else h += '<div class="eng-sub">No usage in this period.</div>';
+  const grp = (kf) => { const g = {}; rows.forEach(r => { const k = kf(r); g[k] = g[k] || { c: 0, i: 0, o: 0 }; g[k].c += est(r); g[k].i += r.input_tokens + r.cache_write_tokens + r.cache_read_tokens; g[k].o += r.output_tokens; }); return g; };
+  const show = (g, nm) => Object.keys(g).sort((a, b) => g[b].c - g[a].c).map(k => '<div class="eng-row"><div class="eng-grow">' + escapeHtml(nm(k)) + '<small>' + fmt(g[k].i) + ' in · ' + fmt(g[k].o) + ' out</small></div><span class="eng-money">' + engineMoney(g[k].c) + '</span></div>').join('');
+  h += '<div class="eng-h">Per model</div>' + show(grp(r => r.model), engineModelName);
+  const gk = grp(r => r.key);
+  if (Object.keys(gk).length > 1) h += '<div class="eng-h">Per API key</div>' + show(gk, k => k.slice(0, 14));
+  h += '<div class="eng-note">Anthropic reports usage down to one minute, not to the second. Cost per row is worked out from the real tokens and the price list; the Exact bill tile is Anthropic\'s own number.</div></div>';
+  return h;
+}
+function engineRealAdvice() {
+  const R = engineState.real; if (!R || !R.buckets) return [];
+  const rows = engineRealRows(); if (!rows.length) return [];
+  const tips = []; const total = rows.reduce((s, r) => s + engineCost(r), 0) || 0.000001;
+  const byM = {}; rows.forEach(r => { byM[r.model] = (byM[r.model] || 0) + engineCost(r); });
+  const top = Object.keys(byM).sort((a, b) => byM[b] - byM[a])[0];
+  const pr = engineState.prices[top];
+  if (pr && pr.input_per_m >= 2 && byM[top] / total > 0.6) tips.push({ warn: true, t: 'REAL DATA: ' + engineModelName(top) + ' is ' + Math.round(byM[top] / total * 100) + '% of your real spending', b: 'Anthropic shows ' + engineMoney(byM[top]) + ' on this model in the selected period.', fix: 'Use a cheaper model for everyday work and keep this one for tasks that need it.' });
+  const ci = rows.reduce((s, r) => s + r.input_tokens + r.cache_read_tokens + r.cache_write_tokens, 0), cr = rows.reduce((s, r) => s + r.cache_read_tokens, 0);
+  if (ci > 50000 && cr / ci < 0.3) tips.push({ t: 'REAL DATA: only ' + Math.round(cr / ci * 100) + '% of repeated text is reused cheaply', b: 'Anthropic counted ' + Math.round(cr / 1000) + 'K reused tokens out of ' + Math.round(ci / 1000) + 'K.', why: 'Repeated text is cheap only when the same text is sent again within a few minutes.', fix: 'Send related messages together instead of spread over hours.' });
+  const oi = rows.reduce((s, r) => s + r.output_tokens, 0);
+  if (oi > ci * 0.5 && oi > 20000) tips.push({ t: 'REAL DATA: the AI writes a lot', b: 'Written text is ' + Math.round(oi / (ci + oi) * 100) + '% of all tokens, and costs several times more per token.', fix: 'Ask for shorter answers.' });
+  return tips;
 }
 
 window.engineChoose = async function(kind, id) {
@@ -14396,7 +14534,7 @@ function engineRender() {
     ['customer', 'Customer side: messages and voice notes', 'The AI that answers your customers on WhatsApp. Test Mode uses the same model, so your tests match real chats. A stronger model can sell better.'],
     ['call', 'Customer side: phone calls', 'The AI that talks to customers on calls. Calls need a fast model.']
   ];
-  let h = '';
+  let h = engineConnCard();
   groups.forEach((g, gi) => {
     h += '<div class="eng-h"' + (gi === 0 ? ' style="margin-top:0;"' : '') + '>' + g[1] + '</div><div class="eng-sub">' + g[2] + '</div>';
     h += ENGINE_MODELS.map(m => {
@@ -14407,7 +14545,8 @@ function engineRender() {
     h += '<div id="engine-saved-' + g[0] + '" class="eng-note"></div>';
   });
 
-  h += '<div class="eng-h">Spending</div>';
+  if (engineState.conn && engineState.conn.admin_connected) h += engineRealHtml();
+  h += '<div class="eng-h">' + (engineState.conn && engineState.conn.admin_connected ? 'Every call Sparkly made for you' : 'Spending') + '</div>';
   h += '<div class="eng-filters">' +
     '<select onchange="engineSetFilter(\'period\', this.value)">' + [['today', 'Today'], ['7', 'Last 7 days'], ['30', 'Last 30 days']].map(o => '<option value="' + o[0] + '"' + (engineState.period === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
     '<select onchange="engineSetFilter(\'fModel\', this.value)"><option value="all">All models</option>' + models.map(m => '<option value="' + escapeHtml(m) + '"' + (engineState.fModel === m ? ' selected' : '') + '>' + escapeHtml(engineModelName(m)) + '</option>').join('') + '</select>' +
@@ -14438,7 +14577,7 @@ function engineRender() {
 
   h += '<button class="eng-btn" onclick="engineShowAdvice()">Show me how to spend less</button><div id="engine-advice"></div>';
   h += '<button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\', \'_blank\')">Open the Anthropic console (exact bill)</button>';
-  h += '<div class="eng-note">Costs here are estimates worked out from the tokens each AI call used and the price list in your account, so they can differ slightly from the exact bill in the Anthropic console. Only calls made after this feature was switched on are counted.</div>';
+  h += '<div class="eng-note">Without an Admin key, costs here are worked out from the tokens each AI call used and the price list, so they can differ slightly from the exact bill in the Anthropic console. With an Admin key connected, the real Anthropic numbers are shown above. Only calls made after this feature was switched on are counted.</div>';
   box.innerHTML = h;
   box.scrollTop = scrollTop;
 }
@@ -14446,8 +14585,9 @@ function engineRender() {
 window.engineShowAdvice = function() {
   const out = document.getElementById('engine-advice');
   const rows = engineState.rows;
-  if (!rows.length) { out.innerHTML = '<div class="eng-advice"><b>Nothing to analyse yet</b>Use your AI chat for a while, then come back. The advice is based on your real usage.</div>'; return; }
-  const tips = [];
+  const realTips = engineRealAdvice();
+  if (!rows.length && !realTips.length) { out.innerHTML = '<div class="eng-advice"><b>Nothing to analyse yet</b>Use your AI chat for a while, then come back. The advice is based on your real usage.</div>'; return; }
+  const tips = realTips.slice();
   const total = rows.reduce((s, r) => s + engineCost(r), 0);
   const chat = rows.filter(r => r.purpose === 'seller_chat');
   const chatCost = chat.reduce((s, r) => s + engineCost(r), 0);
