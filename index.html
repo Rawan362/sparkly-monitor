@@ -14380,8 +14380,6 @@ window.engineOpenConnect = function() {
   m.innerHTML = '<div><div class="eng-h" style="margin-top:0;font-size:16px;">Connect your Anthropic account</div>' +
     '<div class="eng-sub">Your AI will then run on your own Anthropic account and your own credits. <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent);">Create an API key</a> in the Anthropic console, copy it and paste it here. To add credits, use <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:var(--accent);">Billing</a> in the same console.</div>' +
     '<label>API key' + (c.connected ? ' (connected: ' + escapeHtml(c.key_hint || '') + ')' : '') + '</label><input id="eng-key" type="password" placeholder="sk-ant-api03-..." autocomplete="off">' +
-    '<label>Admin key (optional, for the exact real bill)' + (c.admin_connected ? ' (connected: ' + escapeHtml(c.admin_hint || '') + ')' : '') + '</label><input id="eng-akey" type="password" placeholder="sk-ant-admin01-..." autocomplete="off">' +
-    '<div class="eng-sub">An Admin key lets the dashboard read your exact usage and cost straight from Anthropic. Anthropic only gives Admin keys to organization accounts (Console, Settings, Organization). Without it the dashboard shows every call Sparkly makes for you.</div>' +
     '<div id="eng-conn-err" class="eng-err"></div>' +
     '<button class="eng-btn" id="eng-conn-save" onclick="engineConnectSave()">Connect</button>' +
     '<button class="eng-btn sec" onclick="document.getElementById(\'engine-modal\').remove()">Cancel</button>' +
@@ -14390,7 +14388,7 @@ window.engineOpenConnect = function() {
 };
 window.engineConnectSave = async function() {
   const err = document.getElementById('eng-conn-err'), btn = document.getElementById('eng-conn-save');
-  const keys = [document.getElementById('eng-key').value.trim(), document.getElementById('eng-akey').value.trim()].filter(Boolean);
+  const keys = [document.getElementById('eng-key').value.trim()].filter(Boolean);
   if (!keys.length) { err.textContent = 'Paste a key first.'; return; }
   btn.disabled = true; btn.textContent = 'Checking with Anthropic...'; err.textContent = '';
   for (const k of keys) {
