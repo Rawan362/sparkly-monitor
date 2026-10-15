@@ -14372,8 +14372,58 @@ async function engineCall(body) {
   const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-connect', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ seller_id: SELLER_CHAT_ID }, body)) });
   return r.json();
 }
+// ── AI setup guide: account, key, funds (shown at sign-up and whenever the AI cannot run) ──
+const AI_STEPS = [
+  ['Create your Anthropic account', 'Open <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> and sign up (free). This is the account that pays for your AI.'],
+  ['Add funds', 'In the console open <a href="https://console.anthropic.com/settings/billing" target="_blank">Settings, Billing</a> and press Buy credits. Start with $5 to $10. Anthropic takes the payment on their own page. We never see your card.'],
+  ['Create your API key', 'Open <a href="https://console.anthropic.com/settings/keys" target="_blank">Settings, API keys</a>, press Create key, give it any name and copy it. It starts with sk-ant-. Anthropic shows it only once.'],
+  ['Paste your key here', 'Paste it below and press Connect. We check it with Anthropic and keep it private to your account.']
+];
+async function engineCheckState() {
+  try { const r = await engineCall({ action: 'check' }); return r.state || 'error'; } catch (e) { return 'error'; }
+}
+function aiStateText(st) {
+  return { ready: 'Ready. Your AI can run.', no_key: 'Not connected yet.', invalid: 'Anthropic did not accept your key. Create a new key and connect it again.', no_credit: 'Your key works, but your Anthropic account has no credits. Add funds, then check again.', error: 'Could not check right now. Try again in a minute.' }[st] || '';
+}
+window.showAiSetupWizard = function(state, onReady) {
+  const old = document.getElementById('ai-setup-wizard'); if (old) old.remove();
+  const m = document.createElement('div'); m.className = 'eng-modal'; m.id = 'ai-setup-wizard'; m.style.zIndex = 200000;
+  const steps = AI_STEPS.map((x, i) => '<div class="eng-opt" style="cursor:default;align-items:flex-start;"><b style="min-width:22px;">' + (i + 1) + '</b><div><b>' + x[0] + '</b><small style="display:block;margin-top:2px;">' + x[1] + '</small></div></div>').join('');
+  m.innerHTML = '<div><div class="eng-h" style="margin-top:0;font-size:17px;">Set up your AI</div>' +
+    '<div class="eng-sub">Your AI runs on your own Anthropic account. It starts working as soon as your key is connected and your account has credits. This takes about 5 minutes.</div>' + steps +
+    '<label>Your API key</label><input id="ai-w-key" type="password" placeholder="sk-ant-api03-..." autocomplete="off">' +
+    '<div id="ai-w-msg" class="eng-err">' + escapeHtml(aiStateText(state)) + '</div>' +
+    '<button class="eng-btn" id="ai-w-go">Connect and check</button>' +
+    '<button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\',\'_blank\')">Add funds (opens Anthropic billing)</button>' +
+    '<button class="eng-btn sec" id="ai-w-recheck">I added funds, check again</button></div>';
+  document.body.appendChild(m);
+  const msg = document.getElementById('ai-w-msg');
+  async function recheck() {
+    msg.style.color = 'var(--text-muted)'; msg.textContent = 'Checking with Anthropic...';
+    const st = await engineCheckState();
+    if (st === 'ready') { m.remove(); if (typeof onReady === 'function') onReady(); return; }
+    msg.style.color = ''; msg.textContent = aiStateText(st);
+  }
+  document.getElementById('ai-w-recheck').onclick = recheck;
+  document.getElementById('ai-w-go').onclick = async function() {
+    const k = document.getElementById('ai-w-key').value.trim();
+    if (k) {
+      msg.style.color = 'var(--text-muted)'; msg.textContent = 'Checking your key...';
+      try { const r = await engineCall({ action: 'connect', key: k }); if (!r.ok) { msg.style.color = ''; msg.textContent = r.error || 'Could not connect.'; return; } } catch (e) { msg.style.color = ''; msg.textContent = 'Could not reach the server, try again.'; return; }
+    }
+    await recheck();
+  };
+};
+async function ensureAiReady(onReady) {
+  const st = await engineCheckState();
+  if (st === 'ready' || st === 'error') return true; // never lock a seller out because the check itself failed
+  window.showAiSetupWizard(st, onReady);
+  return false;
+}
+
 async function engineLoadConn() {
   try { engineState.conn = await engineCall({ action: 'status' }); } catch (e) { engineState.conn = { connected: false, admin_connected: false }; }
+  engineState.conn.state = engineState.conn.connected ? await engineCheckState() : 'no_key';
 }
 window.engineOpenConnect = function() {
   const c = engineState.conn || {};
@@ -14414,8 +14464,9 @@ function engineConnCard() {
   let h = '<div class="eng-conn">';
   if (c.connected) h += '<span class="ok">Connected</span> to your Anthropic account (' + escapeHtml(c.key_hint || '') + '). Your AI runs on your own credits.';
   else h += 'Not connected. Your AI is using the shared account. Connect your own Anthropic account to use your own credits and see your real usage.';
+  h += '<br>' + (c.state === 'ready' ? '<span class="ok">' + escapeHtml(aiStateText(c.state)) + '</span>' : escapeHtml(aiStateText(c.state || 'no_key')));
   if (c.admin_connected) h += '<br><span class="ok">Real bill on</span> (Admin key ' + escapeHtml(c.admin_hint || '') + (c.org_name ? ', ' + escapeHtml(c.org_name) : '') + ').';
-  h += '</div><button class="eng-btn" onclick="engineOpenConnect()">' + (c.connected || c.admin_connected ? 'Manage connection' : 'Connect') + '</button>';
+  h += '</div><button class="eng-btn" onclick="engineOpenConnect()">' + (c.connected || c.admin_connected ? 'Manage connection' : 'Connect') + '</button><button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\', \'_blank\')">Add funds</button><button class="eng-btn sec" onclick="showAiSetupWizard(engineState.conn && engineState.conn.state, function(){ loadEngine(); })">Step by step guide</button>';
   return h;
 }
 window.engineLoadReal = async function() {
@@ -15397,7 +15448,7 @@ async function checkWhatsAppConnectedThenOnboarding() {
   } catch (e) {
     debugLog('checkWhatsAppConnectedThenOnboarding failed: ' + (e && e.message));
   }
-  checkOnboardingNeeded();
+  ensureAiReady(checkOnboardingNeeded).then(ok => { if (ok) checkOnboardingNeeded(); });
   setTimeout(() => window.refreshCallingStatus(), 4000);
   setTimeout(() => window.saveMediaToDevice(), 9000);
   setInterval(() => window.saveMediaToDevice(), 10 * 60 * 1000);
@@ -15811,7 +15862,7 @@ if ('serviceWorker' in navigator) {
               if (isGateActive) {
                 document.getElementById('whatsapp-connect-gate').style.display = 'none';
                 document.getElementById('app').style.display = 'flex';
-                checkOnboardingNeeded();
+                ensureAiReady(checkOnboardingNeeded).then(ok => { if (ok) checkOnboardingNeeded(); });
               }
             } else {
               if (statusEl) statusEl.textContent = 'Failed';
