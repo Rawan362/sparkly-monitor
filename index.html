@@ -2826,6 +2826,17 @@
   .eng-advice.warn { border-left-color: var(--danger); }
   .eng-advice b { display: block; margin-bottom: 4px; }
   .eng-advice em { font-style: normal; color: var(--text-muted); display: block; margin-top: 4px; }
+  .eng-btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .eng-coach { margin-top: 14px; border: 1px solid var(--border); border-radius: 14px; padding: 12px; background: var(--panel); }
+  .eng-coach-msgs { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+  .eng-coach-msg { padding: 9px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; max-width: 92%; }
+  .eng-coach-msg.u { align-self: flex-end; background: var(--accent); color: #fff; }
+  .eng-coach-msg.a { align-self: flex-start; background: var(--panel-2); color: var(--text); }
+  .eng-coach-row { display: flex; gap: 8px; }
+  .eng-coach-row input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 14px; }
+  .eng-coach-row button { padding: 0 16px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
+  .eng-coach-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .eng-coach-chips button { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 12px; cursor: pointer; }
   .eng-note { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
   .eng-conn { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); margin-bottom: 6px; font-size: 13px; line-height: 1.5; }
   .eng-conn .ok { color: var(--accent-2); font-weight: 700; }
@@ -14310,6 +14321,7 @@ const ENGINE_PURPOSES = {
   customer_reply: ['Customer replies', 'The AI answering customers'],
   rule_check: ['Rule checks on replies', 'Quality checks before a reply is sent'],
   order_check: ['Order checks', 'Checking whether an order was really confirmed'],
+  spend_advice: ['Spending coach', 'Your questions to the spending coach in this screen'],
   customer_memory: ['Customer notes', 'Short private notes the AI keeps about each customer'],
   call: ['Phone calls', 'The AI talking on calls']
 };
@@ -14434,7 +14446,7 @@ window.engineOpenConnect = function() {
     '<div id="eng-conn-err" class="eng-err"></div>' +
     '<button class="eng-btn" id="eng-conn-save" onclick="engineConnectSave()">Connect</button>' +
     '<button class="eng-btn sec" onclick="document.getElementById(\'engine-modal\').remove()">Cancel</button>' +
-    (c.connected || c.admin_connected ? '<button class="eng-btn sec" onclick="engineDisconnect()">Disconnect my account</button>' : '') + '</div>';
+    (c.connected || c.admin_connected ? '<button class="eng-btn danger" onclick="engineDisconnect()">Remove my key</button>' : '') + '</div>';
   document.body.appendChild(m);
 };
 window.engineConnectSave = async function() {
@@ -14453,7 +14465,7 @@ window.engineConnectSave = async function() {
   if (engineState.conn.admin_connected) engineLoadReal();
 };
 window.engineDisconnect = async function() {
-  if (!confirm('Disconnect your Anthropic account? Your AI will go back to the shared account.')) return;
+  if (!confirm('Remove your Anthropic key? Your AI will stop answering customers, calls and your AI chat until you connect a key again.')) return;
   await engineCall({ action: 'disconnect', which: 'api' }); await engineCall({ action: 'disconnect', which: 'admin' });
   document.getElementById('engine-modal').remove();
   await engineLoadConn(); engineState.real = null; engineRender();
@@ -14463,10 +14475,10 @@ function engineConnCard() {
   if (!c) return '';
   let h = '<div class="eng-conn">';
   if (c.connected) h += '<span class="ok">Connected</span> to your Anthropic account (' + escapeHtml(c.key_hint || '') + '). Your AI runs on your own credits.';
-  else h += 'Not connected. Your AI is using the shared account. Connect your own Anthropic account to use your own credits and see your real usage.';
+  else h += 'Not connected. Your AI is switched off until you connect your own Anthropic account and add funds.';
   h += '<br>' + (c.state === 'ready' ? '<span class="ok">' + escapeHtml(aiStateText(c.state)) + '</span>' : escapeHtml(aiStateText(c.state || 'no_key')));
   if (c.admin_connected) h += '<br><span class="ok">Real bill on</span> (Admin key ' + escapeHtml(c.admin_hint || '') + (c.org_name ? ', ' + escapeHtml(c.org_name) : '') + ').';
-  h += '</div><button class="eng-btn" onclick="engineOpenConnect()">' + (c.connected || c.admin_connected ? 'Manage connection' : 'Connect') + '</button><button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\', \'_blank\')">Add funds</button><button class="eng-btn sec" onclick="showAiSetupWizard(engineState.conn && engineState.conn.state, function(){ loadEngine(); })">Step by step guide</button>';
+  h += '</div><button class="eng-btn" onclick="engineOpenConnect()">' + (c.connected || c.admin_connected ? 'Manage connection' : 'Connect') + '</button><button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\', \'_blank\')">Add funds</button><button class="eng-btn sec" onclick="showAiSetupWizard(engineState.conn && engineState.conn.state, function(){ loadEngine(); })">Step by step guide</button>' + (c.connected || c.admin_connected ? '<button class="eng-btn danger" onclick="engineDisconnect()">Remove my key</button>' : '');
   return h;
 }
 window.engineLoadReal = async function() {
@@ -14625,12 +14637,60 @@ function engineRender() {
     h += '<div class="eng-h">What the money was spent on</div>' + Object.keys(byP).sort((a, b) => byP[b].c - byP[a].c).map(k => '<div class="eng-row"><div class="eng-grow">' + escapeHtml(enginePurposeName(k)) + '<small>' + escapeHtml((ENGINE_PURPOSES[k] || ['', ''])[1]) + ' · ' + byP[k].n + ' calls</small></div><span class="eng-money">' + engineMoney(byP[k].c) + '</span></div>').join('');
   }
 
-  h += '<button class="eng-btn" onclick="engineShowAdvice()">Show me how to spend less</button><div id="engine-advice"></div>';
+  h += '<button class="eng-btn" onclick="engineShowAdvice()">Show me how to spend less</button><div id="engine-advice"></div>' + engineCoachHtml();
   h += '<button class="eng-btn sec" onclick="window.open(\'https://console.anthropic.com/settings/billing\', \'_blank\')">Open the Anthropic console (exact bill)</button>';
   h += '<div class="eng-note">Without an Admin key, costs here are worked out from the tokens each AI call used and the price list, so they can differ slightly from the exact bill in the Anthropic console. With an Admin key connected, the real Anthropic numbers are shown above. Only calls made after this feature was switched on are counted.</div>';
   box.innerHTML = h;
   box.scrollTop = scrollTop;
 }
+
+function engineCoachHtml() {
+  const c = engineState.conn || {};
+  const chat = engineState.coach || [];
+  let h = '<div class="eng-coach"><div class="eng-h" style="margin-top:0;">Ask your spending coach</div><div class="eng-sub">Ask anything about your AI costs. It sees your real usage here and answers in your language.</div>';
+  if (!c.connected) return h + '<div class="eng-note">Connect your Anthropic key first. The coach runs on your own account and costs a fraction of a cent per question.</div></div>';
+  h += '<div class="eng-coach-chips">' + ['Why is my bill high?', 'Which model should I use for chat?', 'How can I spend less on customer replies?', 'Is Test Mode costing me a lot?'].map(q => '<button onclick="engineCoachAsk(this.textContent)">' + escapeHtml(q) + '</button>').join('') + '</div>';
+  h += '<div class="eng-coach-msgs" id="eng-coach-msgs">' + chat.map(m => '<div class="eng-coach-msg ' + (m.role === 'user' ? 'u' : 'a') + '">' + escapeHtml(m.content) + '</div>').join('') + '</div>';
+  h += '<div class="eng-coach-row"><input id="eng-coach-in" placeholder="Ask about your spending..." onkeydown="if(event.key===\'Enter\')engineCoachAsk()"><button id="eng-coach-send" onclick="engineCoachAsk()">Send</button></div></div>';
+  return h;
+}
+function engineCoachSummary() {
+  const rows = engineState.rows || [], total = rows.reduce((s, r) => s + engineCost(r), 0);
+  let t = 'Period: last ' + engineState.period + ' days. Total spent (estimated from tokens): ' + engineMoney(total) + ' over ' + rows.length + ' AI calls.\n';
+  t += 'Models now: chat = ' + engineModelName(engineState.models.chat) + ', customer replies = ' + engineModelName(engineState.models.customer) + ', calls = ' + engineModelName(engineState.models.call) + '.\n';
+  const byM = {}, byP = {};
+  rows.forEach(r => { const c = engineCost(r); (byM[r.model] = byM[r.model] || { c: 0, n: 0, i: 0, o: 0 }); byM[r.model].c += c; byM[r.model].n++; byM[r.model].i += (r.input_tokens || 0) + (r.cache_read_tokens || 0) + (r.cache_write_tokens || 0); byM[r.model].o += r.output_tokens || 0; (byP[r.purpose] = byP[r.purpose] || { c: 0, n: 0 }); byP[r.purpose].c += c; byP[r.purpose].n++; });
+  t += 'By model: ' + (Object.keys(byM).map(m => engineModelName(m) + ' ' + engineMoney(byM[m].c) + ' (' + byM[m].n + ' calls, avg ' + Math.round(byM[m].i / byM[m].n) + ' input and ' + Math.round(byM[m].o / byM[m].n) + ' output tokens)').join('; ') || 'none') + '.\n';
+  t += 'By purpose: ' + (Object.keys(byP).map(k => enginePurposeName(k) + ' ' + engineMoney(byP[k].c) + ' (' + byP[k].n + ' calls)').join('; ') || 'none') + '.\n';
+  t += 'Prices per million tokens (input/output): ' + Object.keys(engineState.prices).map(m => engineModelName(m) + ' $' + engineState.prices[m].input_per_m + '/$' + engineState.prices[m].output_per_m).join('; ') + '.';
+  return t;
+}
+window.engineCoachAsk = async function(preset) {
+  const inp = document.getElementById('eng-coach-in');
+  const q = (typeof preset === 'string' && preset ? preset : (inp ? inp.value : '')).trim();
+  if (!q) return;
+  engineState.coach = engineState.coach || [];
+  const history = engineState.coach.slice(-8);
+  engineState.coach.push({ role: 'user', content: q });
+  if (inp) inp.value = '';
+  const box = document.getElementById('eng-coach-msgs');
+  const send = document.getElementById('eng-coach-send');
+  if (send) send.disabled = true;
+  if (box) { box.insertAdjacentHTML('beforeend', '<div class="eng-coach-msg u">' + escapeHtml(q) + '</div><div class="eng-coach-msg a" id="eng-coach-wait">Thinking...</div>'); box.scrollTop = box.scrollHeight; }
+  let reply = '';
+  try {
+    const r = await engineCall({ action: 'ask', question: q, history, summary: engineCoachSummary() });
+    if (r.ok) reply = r.reply || '...';
+    else if (r.error === 'no_credit') reply = 'Your Anthropic account has no credits left. Press Add funds, then ask again.';
+    else if (r.error === 'invalid') reply = 'Anthropic rejected your key. Press Manage connection and paste a new one.';
+    else if (r.error === 'no_key') reply = 'Connect your Anthropic key first.';
+    else reply = 'Sorry, the coach could not answer right now. Try again in a moment.';
+  } catch (e) { reply = 'Could not reach the server. Try again.'; }
+  engineState.coach.push({ role: 'assistant', content: reply });
+  const w = document.getElementById('eng-coach-wait'); if (w) { w.removeAttribute('id'); w.textContent = reply; }
+  if (box) box.scrollTop = box.scrollHeight;
+  if (send) send.disabled = false;
+};
 
 window.engineShowAdvice = function() {
   const out = document.getElementById('engine-advice');
