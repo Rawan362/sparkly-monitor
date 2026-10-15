@@ -14356,8 +14356,8 @@ function engineMoney(v) { return v >= 1 ? '$' + v.toFixed(2) : (v >= 0.01 ? '$' 
 function engineModelList() {
   const known = ENGINE_MODELS.slice();
   (engineState.liveModels || []).forEach(m => {
-    if (!m.id || !/^claude-/.test(m.id) || known.some(k => k.id === m.id)) return;
-    const f = /haiku/.test(m.id) ? ['Fast and low cost.', 'Low cost'] : /opus/.test(m.id) ? ['Strongest, for hard thinking. Costs the most.', 'Highest cost'] : /sonnet/.test(m.id) ? ['Smart and balanced.', 'Medium cost'] : ['New model from Anthropic.', 'Check price'];
+    if (!m.id || known.some(k => k.id === m.id)) return;
+    const f = /haiku/.test(m.id) ? ['Fast and low cost.', 'Low cost'] : /opus/.test(m.id) ? ['Strongest, for hard thinking. Costs the most.', 'Highest cost'] : /sonnet/.test(m.id) ? ['Smart and balanced.', 'Medium cost'] : /fable|mythos/.test(m.id) ? ['Anthropic\'s top tier. Very capable, check the price before using it.', 'Top tier'] : ['Model from Anthropic.', 'Check price'];
     known.push({ id: m.id, name: m.name || m.id, blurb: f[0] + ' (New: added automatically.)', level: f[1], isNew: true });
   });
   return known;
@@ -14368,8 +14368,9 @@ async function engineLoadModels() {
   try {
     const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-models', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ seller_id: SELLER_CHAT_ID }) });
     const d = await r.json();
-    if (d && d.ok && Array.isArray(d.models)) engineState.liveModels = d.models;
-  } catch (e) {}
+    if (d && d.ok && Array.isArray(d.models)) { engineState.liveModels = d.models; engineState.modelsNote = 'Showing every model your Anthropic account offers (' + d.models.length + ' found).'; }
+    else engineState.modelsNote = 'Could not load the full model list from Anthropic (' + ((d && d.error) || 'unknown') + '). Showing the standard models.';
+  } catch (e) { engineState.modelsNote = 'Could not load the full model list. Showing the standard models.'; }
 }
 function enginePurposeName(id) { return (ENGINE_PURPOSES[id] || [id])[0]; }
 
@@ -14624,6 +14625,7 @@ function engineRender() {
   ];
   let h = engineConnCard();
   engineState.open = engineState.open || {};
+  if (engineState.modelsNote) h += '<div class="eng-note" style="margin:4px 0 0;">' + escapeHtml(engineState.modelsNote) + '</div>';
   groups.forEach((g, gi) => {
     const isOpen = !!engineState.open[g[0]];
     h += '<div class="eng-menu-head' + (isOpen ? ' open' : '') + '" onclick="engineToggleMenu(\'' + g[0] + '\')"><div class="eng-grow"><b>' + g[1] + '</b><small>Now: ' + escapeHtml(engineModelName(engineState.models[g[0]])) + '</small></div><span class="eng-chev">&#9662;</span></div>';
