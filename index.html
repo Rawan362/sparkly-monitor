@@ -15390,7 +15390,7 @@ async function sendAdminChatTurn(userText) {
     const res = await fetch(ADMIN_CHAT_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userText, chatHistory: adminChatHistory })
+      body: JSON.stringify({ userText, chatHistory: adminChatHistory, chatId: SELLER_CHAT_ID })
     });
     const data = await res.json();
     hideAdminTyping();
