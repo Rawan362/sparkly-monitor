@@ -4704,7 +4704,6 @@
       <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
         <label id="biz-reply-delay-label">Reply delay</label>
         <select id="biz-reply-delay" onchange="onReplyDelayChange(this)">
-          <option value="0">Instant</option>
           <option value="10">10 seconds</option>
           <option value="30" selected>30 seconds</option>
           <option value="60">1 minute</option>
@@ -4713,9 +4712,12 @@
           <option value="custom">Custom...</option>
         </select>
         <div id="biz-reply-delay-custom-row" style="display:none;margin-top:8px;">
-          <input type="number" id="biz-reply-delay-custom" min="0" max="3600" step="1" placeholder="Seconds (0 to 3600)" style="width:100%;box-sizing:border-box;" onchange="saveReplyDelayCustom(this)">
+          <div style="display:flex;gap:8px;">
+            <input type="number" id="biz-reply-delay-custom" min="1" step="1" placeholder="e.g. 15 or 3" style="flex:1;box-sizing:border-box;" onchange="saveReplyDelayCustom()">
+            <select id="biz-reply-delay-unit" onchange="saveReplyDelayCustom()" style="width:120px;"><option value="s">seconds</option><option value="m">minutes</option></select>
+          </div>
         </div>
-        <span id="biz-reply-delay-hint" style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">How long the AI waits, counted from the customer's last message, before it sends its reply, so it feels human. The AI writes the reply right away and then holds it; if the customer sends more messages while it waits, they are all answered together in one reply. Applies to text and voice-note replies.</span>
+        <span id="biz-reply-delay-hint" style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">How long the AI waits, counted from the customer's last message, before it sends its reply, so it feels human. The AI writes the reply right away and then holds it; if the customer sends more messages while it waits, they are all answered together in one reply. Applies to text and voice-note replies, never to phone calls. Minimum 10 seconds: answering every single message separately looks robotic and costs more AI usage, so the AI waits at least 10 seconds to combine messages into one human-like reply. Maximum 1 hour.</span>
       </div>
       <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
         <label>Voice replies on WhatsApp</label>
@@ -14147,15 +14149,20 @@ window.syncWaProfile = async function(btn) {
 };
 
 // ===== Reply delay (seconds the AI holds its reply, counted from the customer's last message) =====
-const REPLY_DELAY_PRESETS = ['0', '10', '30', '60', '120', '300'];
+const REPLY_DELAY_PRESETS = ['10', '30', '60', '120', '300'];
+const REPLY_DELAY_MIN = 10, REPLY_DELAY_MAX = 3600;
 function setReplyDelayUi(sec) {
   const sel = document.getElementById('biz-reply-delay');
   const row = document.getElementById('biz-reply-delay-custom-row');
   const inp = document.getElementById('biz-reply-delay-custom');
   if (!sel) return;
-  const v = String(sec);
+  const v = String(sec < REPLY_DELAY_MIN ? REPLY_DELAY_MIN : sec);
   if (REPLY_DELAY_PRESETS.indexOf(v) >= 0) { sel.value = v; if (row) row.style.display = 'none'; }
-  else { sel.value = 'custom'; if (row) row.style.display = 'block'; if (inp) inp.value = v; }
+  else {
+    sel.value = 'custom'; if (row) row.style.display = 'block';
+    const unit = document.getElementById('biz-reply-delay-unit'); const n = Number(v);
+    if (unit && inp) { if (n % 60 === 0) { unit.value = 'm'; inp.value = n / 60; } else { unit.value = 's'; inp.value = n; } }
+  }
 }
 async function loadReplyDelay() {
   // separate, tolerant request: the rest of the settings must still load if this column is not there yet
@@ -14164,7 +14171,7 @@ async function loadReplyDelay() {
     if (!r.ok) return;
     const rows = await r.json();
     const v = rows && rows[0] ? Number(rows[0].reply_delay_seconds) : NaN;
-    setReplyDelayUi(Number.isFinite(v) && v >= 0 ? v : 30);
+    setReplyDelayUi(Number.isFinite(v) && v >= 0 ? v : 30); // a stored value below 10 (test seller only) is displayed as 10
   } catch (e) { debugLog('loadReplyDelay failed: ' + (e && e.message)); }
 }
 async function saveReplyDelaySeconds(sec) {
@@ -14191,12 +14198,16 @@ window.onReplyDelayChange = function(sel) {
   if (row) row.style.display = 'none';
   saveReplyDelaySeconds(Number(sel.value));
 };
-window.saveReplyDelayCustom = function(inp) {
-  let n = Math.round(Number(String(inp.value).replace(/[^\d.]/g, '')));
-  if (!Number.isFinite(n) || n < 0) n = 0;
-  if (n > 3600) n = 3600;
-  inp.value = n;
-  saveReplyDelaySeconds(n);
+window.saveReplyDelayCustom = function() {
+  const inp = document.getElementById('biz-reply-delay-custom');
+  const unit = document.getElementById('biz-reply-delay-unit');
+  let n = Number(String(inp.value).replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return;
+  let sec = Math.round(unit && unit.value === 'm' ? n * 60 : n);
+  if (sec < REPLY_DELAY_MIN) { sec = REPLY_DELAY_MIN; alert('The minimum reply delay is 10 seconds, so the AI can combine your customer\'s messages into one human-like reply.'); }
+  if (sec > REPLY_DELAY_MAX) sec = REPLY_DELAY_MAX;
+  if (unit && unit.value === 'm') { inp.value = Math.round(sec / 60) || 1; if (sec < 60) { unit.value = 's'; inp.value = sec; } } else { inp.value = sec; }
+  saveReplyDelaySeconds(sec);
 };
 
 window.saveBizField = async function(el) {
