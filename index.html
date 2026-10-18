@@ -4702,6 +4702,24 @@
         <input type="text" id="biz-ai-name" data-key="ai_name" data-table="seller_sales_config" placeholder="e.g. Ahmad" onchange="saveBizField(this)">
       </div>
       <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
+        <label id="biz-reply-delay-label">Reply delay</label>
+        <select id="biz-reply-delay" onchange="onReplyDelayChange(this)">
+          <option value="10">10 seconds</option>
+          <option value="30" selected>30 seconds</option>
+          <option value="60">1 minute</option>
+          <option value="120">2 minutes</option>
+          <option value="300">5 minutes</option>
+          <option value="custom">Custom...</option>
+        </select>
+        <div id="biz-reply-delay-custom-row" style="display:none;margin-top:8px;">
+          <div style="display:flex;gap:8px;">
+            <input type="number" id="biz-reply-delay-custom" min="1" step="1" placeholder="e.g. 15 or 3" style="flex:1;box-sizing:border-box;" onchange="saveReplyDelayCustom()">
+            <select id="biz-reply-delay-unit" onchange="saveReplyDelayCustom()" style="width:120px;"><option value="s">seconds</option><option value="m">minutes</option></select>
+          </div>
+        </div>
+        <span id="biz-reply-delay-hint" style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">How long the AI waits, counted from the customer's last message, before it sends its reply, so it feels human. The AI writes the reply right away and then holds it; if the customer sends more messages while it waits, they are all answered together in one reply. Applies to text and voice-note replies, never to phone calls. Minimum 10 seconds: answering every single message separately looks robotic and costs more AI usage, so the AI waits at least 10 seconds to combine messages into one human-like reply. Maximum 1 hour.</span>
+      </div>
+      <div class="biz-field" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
         <label>Voice replies on WhatsApp</label>
         <select id="biz-voice-reply-mode" data-key="voice_reply_mode" data-table="seller_sales_config" onchange="saveBizField(this)">
           <option value="off">Never — always reply with text</option>
@@ -13878,6 +13896,7 @@ async function loadBizSettings() {
     if (currencyData.voice_tone_instructions) document.getElementById('biz-voice-tone').value = currencyData.voice_tone_instructions;
     if (currencyData.default_language != null) document.getElementById('biz-default-language').value = currencyData.default_language;
     if (currencyData.call_greeting != null) document.getElementById('biz-call-greeting').value = currencyData.call_greeting;
+    loadReplyDelay();
 
     bizSettingsLoaded = true;
     bizLoadedFor = loadingFor;
@@ -14127,6 +14146,68 @@ window.syncWaProfile = async function(btn) {
   } finally {
     if (btn) btn.disabled = false;
   }
+};
+
+// ===== Reply delay (seconds the AI holds its reply, counted from the customer's last message) =====
+const REPLY_DELAY_PRESETS = ['10', '30', '60', '120', '300'];
+const REPLY_DELAY_MIN = 10, REPLY_DELAY_MAX = 3600;
+function setReplyDelayUi(sec) {
+  const sel = document.getElementById('biz-reply-delay');
+  const row = document.getElementById('biz-reply-delay-custom-row');
+  const inp = document.getElementById('biz-reply-delay-custom');
+  if (!sel) return;
+  const v = String(sec < REPLY_DELAY_MIN ? REPLY_DELAY_MIN : sec);
+  if (REPLY_DELAY_PRESETS.indexOf(v) >= 0) { sel.value = v; if (row) row.style.display = 'none'; }
+  else {
+    sel.value = 'custom'; if (row) row.style.display = 'block';
+    const unit = document.getElementById('biz-reply-delay-unit'); const n = Number(v);
+    if (unit && inp) { if (n % 60 === 0) { unit.value = 'm'; inp.value = n / 60; } else { unit.value = 's'; inp.value = n; } }
+  }
+}
+async function loadReplyDelay() {
+  // separate, tolerant request: the rest of the settings must still load if this column is not there yet
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=reply_delay_seconds&limit=1', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } });
+    if (!r.ok) return;
+    const rows = await r.json();
+    const v = rows && rows[0] ? Number(rows[0].reply_delay_seconds) : NaN;
+    setReplyDelayUi(Number.isFinite(v) && v >= 0 ? v : 30); // a stored value below 10 (test seller only) is displayed as 10
+  } catch (e) { debugLog('loadReplyDelay failed: ' + (e && e.message)); }
+}
+async function saveReplyDelaySeconds(sec) {
+  if (!SELLER_CHAT_ID || (bizLoadedFor && bizLoadedFor !== SELLER_CHAT_ID)) {
+    alert('Account changed - please reload the app before saving settings.');
+    return;
+  }
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ chat_id: SELLER_CHAT_ID, reply_delay_seconds: sec })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    showBizSaveHint();
+  } catch (e) {
+    debugLog('saveReplyDelay failed: ' + (e && e.message));
+    alert((currentLang === 'ar' ? 'تعذر الحفظ: ' : 'Could not save: ') + (e && e.message ? e.message : 'unknown error'));
+  }
+}
+window.onReplyDelayChange = function(sel) {
+  const row = document.getElementById('biz-reply-delay-custom-row');
+  if (sel.value === 'custom') { if (row) row.style.display = 'block'; const inp = document.getElementById('biz-reply-delay-custom'); if (inp) inp.focus(); return; }
+  if (row) row.style.display = 'none';
+  saveReplyDelaySeconds(Number(sel.value));
+};
+window.saveReplyDelayCustom = function() {
+  const inp = document.getElementById('biz-reply-delay-custom');
+  const unit = document.getElementById('biz-reply-delay-unit');
+  let n = Number(String(inp.value).replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return;
+  let sec = Math.round(unit && unit.value === 'm' ? n * 60 : n);
+  if (sec < REPLY_DELAY_MIN) { sec = REPLY_DELAY_MIN; alert('The minimum reply delay is 10 seconds, so the AI can combine your customer\'s messages into one human-like reply.'); }
+  if (sec > REPLY_DELAY_MAX) sec = REPLY_DELAY_MAX;
+  if (unit && unit.value === 'm') { inp.value = Math.round(sec / 60) || 1; if (sec < 60) { unit.value = 's'; inp.value = sec; } } else { inp.value = sec; }
+  saveReplyDelaySeconds(sec);
 };
 
 window.saveBizField = async function(el) {
