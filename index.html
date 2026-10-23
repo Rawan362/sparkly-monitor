@@ -12602,6 +12602,21 @@ function renderTmNote(text) {
   wrap.scrollTop = wrap.scrollHeight;
 }
 
+// task 15g: 'rules followed' note under a Test Mode reply: closed by default, plain words from the server, no ids
+function renderTmRuleProof(p) {
+  const wrap = document.getElementById('tm-messages');
+  const det = document.createElement('details');
+  det.className = 'ob-msg assistant';
+  det.style.cssText = 'font-size:12px;opacity:.8;border:1px dashed currentColor;background:transparent;';
+  const sum = document.createElement('summary');
+  sum.style.cssText = 'cursor:pointer;font-style:italic;';
+  sum.textContent = '\u2139\uFE0F ' + String(p.title || '');
+  det.appendChild(sum);
+  (Array.isArray(p.lines) ? p.lines : []).slice(0, 4).forEach(function (l) { const d = document.createElement('div'); d.textContent = String(l); det.appendChild(d); });
+  wrap.appendChild(det);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
 function showTmTyping() {
   const wrap = document.getElementById('tm-messages');
   const div = document.createElement('div');
@@ -12637,6 +12652,7 @@ window.sendTestModeMessage = async function() {
     const tmActs = Array.isArray(data.actions) ? data.actions : [];
     if (data.reply) renderTmMessage(data.reply, 'assistant');
     tmActs.forEach(a => renderTmNote(a));
+    if (data.ruleProof && Array.isArray(data.ruleProof.lines) && data.ruleProof.lines.length) renderTmRuleProof(data.ruleProof);
     if (!data.reply && !tmActs.length) renderTmMessage('...', 'assistant');
     tmHistory = data.chatHistory || [];
   } catch (e) {
