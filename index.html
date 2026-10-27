@@ -5305,6 +5305,69 @@ async function logSystemError(source, message, context) {
 const SELLER_CALLING_URL = 'https://sparklly.site/webhook/seller-calling-settings';
 let _callingBusy = false;
 
+// <auth-guard> (tested by tests/auth-guard.test.mjs, which reads everything between these two markers)
+// The seller on screen must always be the seller a send goes out as. The server decides the seller from the login
+// token, so a token left behind by another account (for example Khani's) would make a Double Line screen send as Khani.
+const AUTH_MISMATCH_MESSAGE = 'Your login does not match this account. Please sign in again.';
+const AUTH_STORAGE_KEYS = ['sparkly_auth_token', 'sparkly_refresh_token', 'sparkly_session_token', 'sparkly_seller_chat_id', 'sparkly_is_admin', 'sparkly_pending_link_code'];
+
+// Removes every stored login token (and the remembered seller) from every place the app keeps them.
+function clearAllAuthStorage() {
+  const stores = [localStorage];
+  try { if (typeof sessionStorage !== 'undefined' && sessionStorage) stores.push(sessionStorage); } catch (e) {}
+  for (const store of stores) {
+    try {
+      const keys = AUTH_STORAGE_KEYS.slice();
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && /^sparkly_.*(token|chat_id|is_admin|link_code)/.test(k)) keys.push(k);
+      }
+      for (const k of keys) store.removeItem(k);
+    } catch (e) {}
+  }
+}
+
+// "Link with a code" signs this device in as the linked seller but gives it no login token of its own, so any token
+// still on the device belongs to someone else: it is removed instead of being left behind.
+function applyLinkedSeller(sellerId) {
+  clearAllAuthStorage();
+  SELLER_CHAT_ID = sellerId;
+  localStorage.setItem('sparkly_seller_chat_id', sellerId);
+}
+
+function authTokenUserId(token) {
+  try {
+    const p = JSON.parse(atob(String(token).split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return p && p.sub ? String(p.sub).toLowerCase() : null;
+  } catch (e) { return null; }
+}
+
+const _sellerAuthUserCache = {};
+// The login user a seller belongs to: web sellers are named web_<login user id>; older sellers are looked up once.
+async function expectedAuthUserId(sellerChatId) {
+  const m = /^web_(.+)$/.exec(String(sellerChatId));
+  if (m) return m[1].toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(_sellerAuthUserCache, sellerChatId)) return _sellerAuthUserCache[sellerChatId];
+  const r = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(sellerChatId) + '&select=auth_user_id&limit=1', {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+  });
+  if (!r.ok) throw new Error('Could not verify your login. Please try again.');
+  const rows = await r.json();
+  const id = rows && rows[0] && rows[0].auth_user_id ? String(rows[0].auth_user_id).toLowerCase() : null;
+  _sellerAuthUserCache[sellerChatId] = id;
+  return id;
+}
+
+// Throws (and the caller does not send) when the login token is not the login of the seller shown on screen.
+// It never logs anyone out: the person sees the message and signs in again on purpose.
+async function assertTokenMatchesSeller(token) {
+  if (!token || !SELLER_CHAT_ID) return token; // no token: the server refuses it and asks to sign in again (unchanged)
+  const have = authTokenUserId(token);
+  const want = await expectedAuthUserId(SELLER_CHAT_ID);
+  if (!have || !want || have !== want) throw new Error(AUTH_MISMATCH_MESSAGE);
+  return token;
+}
+
 async function getFreshAuthToken() {
   const rt = localStorage.getItem('sparkly_refresh_token');
   if (!rt) return null;
@@ -5324,7 +5387,7 @@ async function getFreshAuthToken() {
 
 // Uses the saved login token while it is still good for a couple of minutes, and only
 // asks for a new one when it is about to expire (fewer refresh calls, fewer failures).
-async function getValidAuthToken() {
+async function loadValidAuthToken() {
   try {
     const t = localStorage.getItem('sparkly_auth_token');
     if (t && t.split('.').length === 3) {
@@ -5334,6 +5397,12 @@ async function getValidAuthToken() {
   } catch (e) {}
   return await getFreshAuthToken(); // null for older sessions that have no refresh key yet
 }
+
+// Every send and every settings call gets its token here, so none of them can go out as another seller.
+async function getValidAuthToken() {
+  return assertTokenMatchesSeller(await loadValidAuthToken());
+}
+// </auth-guard>
 
 async function callSellerCalling(action, enabled) {
   const token = await getValidAuthToken();
@@ -8648,8 +8717,7 @@ window.doLogin = async function() {
       showLoginScreen('Incorrect chat ID or password.');
       return;
     }
-    localStorage.setItem('sparkly_seller_chat_id', chatId);
-    SELLER_CHAT_ID = chatId;
+    applyLinkedSeller(chatId); // this sign-in gives no login token either: never keep another account's
     document.removeEventListener('keydown', loginKeyHandler);
     const overlay = document.getElementById('login-overlay');
     if (overlay) overlay.remove();
@@ -8946,7 +9014,7 @@ async function deleteAccountNow() {
       body: JSON.stringify({ p_chat_id: SELLER_CHAT_ID })
     });
     if (!res.ok) throw new Error('Server error');
-    localStorage.removeItem('sparkly_seller_chat_id');
+    clearAllAuthStorage();
     await clearLocalMediaCache();
     alert('Your account and all associated data have been deleted.');
     location.reload();
@@ -8963,8 +9031,7 @@ window.logout = function() {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     }).catch(() => {});
   }
-  localStorage.removeItem('sparkly_seller_chat_id');
-  localStorage.removeItem('sparkly_session_token');
+  clearAllAuthStorage();
   location.reload();
 };
 
@@ -15200,8 +15267,7 @@ function resumeLinkCodeDisplay(code, expiresAt) {
           window.removeEventListener('focus', linkVisibilityHandler);
         }
         localStorage.removeItem('sparkly_pending_link_code');
-        SELLER_CHAT_ID = rows[0].seller_id;
-        localStorage.setItem('sparkly_seller_chat_id', rows[0].seller_id);
+        applyLinkedSeller(rows[0].seller_id);
         document.getElementById('link-device-overlay').classList.remove('show');
         document.removeEventListener('keydown', loginKeyHandler);
         const loginOverlay = document.getElementById('login-overlay');
@@ -15492,8 +15558,7 @@ async function heartbeatSession() {
   try {
     const rows = await sb('sessions?session_token=eq.' + encodeURIComponent(token) + '&select=id');
     if (!rows || rows.length === 0) {
-      localStorage.removeItem('sparkly_seller_chat_id');
-      localStorage.removeItem('sparkly_session_token');
+      clearAllAuthStorage();
       alert('You were signed out from this device.');
       location.reload();
       return;
@@ -15539,8 +15604,7 @@ function startAdminApp() {
 }
 
 window.adminLogout = function() {
-  localStorage.removeItem('sparkly_is_admin');
-  localStorage.removeItem('sparkly_auth_token');
+  clearAllAuthStorage();
   location.reload();
 };
 
