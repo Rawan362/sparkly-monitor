@@ -1056,6 +1056,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .msg-reply-quote-media[hidden] { display: none; }
+  .msg-reply-quote-thumb { height: 26px; width: 26px; object-fit: cover; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
   .msg-attachment-card {
     display: flex;
     align-items: center;
@@ -7995,6 +7997,72 @@ function markOptimisticSent(tempId) {
   el.title = 'Sent';
 }
 
+// <media-quote>
+// The quote box above a reply. A TEXT quote is drawn from the saved quote text, exactly as before. A quote of a photo, video,
+// voice note or file has a quote id but no quote text (the quoted bubble has no text of its own), so its box is a hidden
+// placeholder that fillMediaQuotes fills from the quoted message once that message has been drawn; if it has not (older than
+// what is loaded) the box stays hidden, as before.
+function replyQuoteHtmlFor(m) {
+  const quoteSrc = m.reply_to_text || m.replyToText || '';
+  if (quoteSrc) return `<div class="msg-reply-quote" onclick="event.stopPropagation(); jumpToQuoted('${escapeHtml(m.reply_to_wa_id || '')}')">${escapeHtml(quoteSrc.slice(0, 80))}</div>`;
+  if (m.reply_to_wa_id) return `<div class="msg-reply-quote msg-reply-quote-media" data-quote-wa="${escapeHtml(m.reply_to_wa_id)}" hidden onclick="event.stopPropagation(); jumpToQuoted('${escapeHtml(m.reply_to_wa_id)}')"></div>`;
+  return '';
+}
+
+// Every bubble that is drawn leaves its text here, by WhatsApp id, so a later quote of it can be described. Nothing is drawn.
+function rememberMessageForQuotes(m) {
+  if (!m || !m.wa_message_id || !m.message) return;
+  const store = (window._quoteSource = window._quoteSource || {});
+  store[m.wa_message_id] = String(m.message).slice(0, 2000);
+  const keys = Object.keys(store);
+  if (keys.length > 3000) keys.slice(0, 1000).forEach(function(k) { delete store[k]; });
+}
+
+// What a quoted media message is, in words: { label, thumb }, or null when it is not media.
+function quoteInfoFromMessage(message) {
+  const text = String(message || '');
+  const short = (s) => (s && s.length > 40 ? s.slice(0, 40) + '…' : s || '');
+  let m = text.match(/^🖼️ Photo: (\S+)(?:\s\|\s(.*))?$/);
+  if (m) return { label: 'Photo' + (m[2] ? ': ' + short(m[2]) : ''), thumb: /^https?:\/\/[^\s"'<>]+$/.test(m[1]) ? m[1] : '' };
+  m = text.match(/^🎥 Video: (\S+)(?:\s\|\s(.*))?$/);
+  if (m) return { label: 'Video' + (m[2] ? ': ' + short(m[2]) : ''), thumb: '' };
+  m = text.match(/^📄 File: (.+) \| (\S+)$/);
+  if (m) return { label: short(m[1]), thumb: '' };
+  if (/^🎤 Voice: \S+$/.test(text) || text === '[Voice note sent]') return { label: 'Voice note', thumb: '' };
+  if (/^📍 Location: /.test(text)) return { label: 'Location', thumb: '' };
+  if (text === '[Photo sent]' || text.startsWith('[Photo] ')) return { label: 'Photo', thumb: '' };
+  m = text.match(/^\[File sent: (.+)\]$/);
+  if (m) return { label: short(m[1]), thumb: '' };
+  return null;
+}
+
+// The inside of a media quote box (everything escaped; the thumbnail only for an http(s) address).
+function quoteInnerHtml(info) {
+  const img = info.thumb ? `<img class="msg-reply-quote-thumb" src="${escapeHtml(info.thumb)}" alt="" loading="lazy">` : '';
+  return `${img}<span>${escapeHtml(info.label)}</span>`;
+}
+
+// Fills every hidden media quote box on the page from the text of the message it quotes.
+function fillMediaQuotes() {
+  const store = window._quoteSource || {};
+  document.querySelectorAll('.msg-reply-quote-media[hidden]').forEach(function(box) {
+    const info = quoteInfoFromMessage(store[box.getAttribute('data-quote-wa')]);
+    if (!info) return;
+    box.innerHTML = quoteInnerHtml(info);
+    box.removeAttribute('hidden');
+  });
+}
+(function watchForMediaQuotes() {
+  let scheduled = false;
+  const run = function() { scheduled = false; fillMediaQuotes(); };
+  const start = function() {
+    new MutationObserver(function() { if (!scheduled) { scheduled = true; setTimeout(run, 0); } })
+      .observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
+// </media-quote>
+
 function renderBubble(m) {
   if (m.kind === 'call_recording') return renderCallRecordingCard(m);
   const isOut = m.role === 'assistant';
@@ -8005,8 +8073,8 @@ function renderBubble(m) {
     m.pinned ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>' : '',
     m.starred ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : ''
   ].filter(Boolean).join('');
-  const quoteSrc = m.reply_to_text || m.replyToText || '';
-  const replyQuoteHtml = quoteSrc ? `<div class="msg-reply-quote" onclick="event.stopPropagation(); jumpToQuoted('${escapeHtml(m.reply_to_wa_id || '')}')">${escapeHtml(quoteSrc.slice(0, 80))}</div>` : '';
+  rememberMessageForQuotes(m);
+  const replyQuoteHtml = replyQuoteHtmlFor(m);
   const attachmentHtml = renderAttachmentContent(m.message || '');
   const bodyHtml = attachmentHtml || `<span class="msg-text" dir="auto">${escapeHtml(m.message)}</span>`;
   const arrowBtn = `<button class="msg-actions-arrow" onclick="event.stopPropagation(); const r=this.closest('.msg-row'); openMessageActionMenu(r, this.getBoundingClientRect().right, this.getBoundingClientRect().bottom);" title="More">
