@@ -6629,13 +6629,14 @@ window.cancelStagedAttachment = function() {
   if (textarea) toggleComposerButtons(textarea);
 };
 
-async function sendAttachment(dataUrl, mimeType, kind, fileName, caption, phoneOverride) {
+async function sendAttachment(dataUrl, mimeType, kind, fileName, caption, phoneOverride, quote) {
   const targetPhone = phoneOverride || activePhone;
   if (!targetPhone) return false;
-  // Capture the quoted message now (before the reply bar is cleared), then send it as a real WhatsApp quote.
-  const quoteWaId = replyingTo ? (replyingTo.waId || '') : '';
-  const quoteText = replyingTo ? (replyingTo.text || '') : '';
-  if (replyingTo) cancelReplyMode();
+  // The quote is captured by the caller (sendReply) BEFORE the reply bar is cleared and passed in here, because this
+  // runs later from the send queue, when the reply bar is already gone. Without it, fall back to the open reply bar.
+  const quoteWaId = quote ? (quote.waId || '') : (replyingTo ? (replyingTo.waId || '') : '');
+  const quoteText = quote ? (quote.text || '') : (replyingTo ? (replyingTo.text || '') : '');
+  if (!quote && replyingTo) cancelReplyMode();
   try {
     const authToken = await getValidAuthToken();
     const res = await fetch(SELLER_SEND_MEDIA_WEBHOOK, {
@@ -6765,7 +6766,7 @@ function cancelLongPress() {
     if (!row || !row.closest('#messages')) return;
     if (row.dataset.table === 'call_recordings') return;
     const text = row.querySelector('.msg-text');
-    startReplyMode(row.dataset.msgId, text ? text.textContent : '');
+    startReplyMode(row.dataset.msgId, text ? text.textContent : '', row.dataset.waId || '');
   });
 })();
 
@@ -8540,6 +8541,9 @@ window.sendReply = async function(phone) {
     }
     const tempId = appendOptimisticBubble(previewBody);
 
+    // Capture the quoted message NOW, before the reply bar is cleared below (the send itself runs later from the queue).
+    const stagedQuote = { waId: replyingTo ? (replyingTo.waId || '') : '', text: replyingTo ? (replyingTo.text || '') : '' };
+
     // Clear the composer immediately — the send is now happening invisibly
     // in the background, matching how WhatsApp/Telegram feel instant.
     window._stagedAttachment = null;
@@ -8552,7 +8556,7 @@ window.sendReply = async function(phone) {
     window._isSending = false;
 
     enqueueSend(phone, async () => {
-      const ok = await sendAttachment(staged.dataUrl, staged.mimeType, staged.kind, staged.fileName, message, phone);
+      const ok = await sendAttachment(staged.dataUrl, staged.mimeType, staged.kind, staged.fileName, message, phone, stagedQuote);
       if (ok) markOptimisticSent(tempId);
       else markOptimisticFailed(tempId);
     });
