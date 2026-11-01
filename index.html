@@ -7658,6 +7658,72 @@ function tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliver
   return true;
 }
 
+// <fast-poll>
+// Fast refresh of the OPEN chat: every 2.5 s, only while the chat is on screen and the page is visible, ask for the single newest
+// row of this customer (a tiny answer). Only when it differs from what is on screen, run the same silent refresh the 8 s poll uses.
+// No live subscription (the conversations table has no row-level security yet).
+const FAST_POLL_MS = 2500;
+window._fastNewest = window._fastNewest || {};
+let _fastPollBusy = false;
+async function fastPollOpenChat() {
+  if (_fastPollBusy) return;
+  if (!activePhone || document.hidden || !document.getElementById('messages')) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const phone = activePhone;
+  _fastPollBusy = true;
+  try {
+    const r = await sb('conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=id,timestamp&order=timestamp.desc&limit=1');
+    if (phone !== activePhone) return;
+    const newest = r && r[0] ? (r[0].id + '|' + r[0].timestamp) : '';
+    if (newest !== (window._fastNewest[phone] || '')) await loadThread(phone, true);
+  } catch (e) {} finally { _fastPollBusy = false; }
+}
+// Opt-in timing mode (open the app with ?timing=1): for every NEW incoming row that appears in the open chat, show
+// "arrived -> shown (seconds)" in a small box at the bottom left and keep the last 50 lines in localStorage. Off otherwise.
+const TIMING_MODE = (function() { try { return new URLSearchParams(location.search).get('timing') === '1'; } catch (e) { return false; } })();
+window._timingSeen = window._timingSeen || {};
+function timingKind(m) {
+  const t = String(m || '');
+  return /^🖼/.test(t) ? 'photo' : /^🎥/.test(t) ? 'video' : /^📄/.test(t) ? 'file' : /^🎤/.test(t) ? 'voice' : 'text';
+}
+function timingLog(line) {
+  try {
+    let box = document.getElementById('timing-box');
+    if (!box) {
+      box = document.createElement('pre');
+      box.id = 'timing-box';
+      box.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;max-width:92vw;margin:0;padding:6px 8px;background:rgba(0,0,0,.78);color:#fff;font:11px/1.35 monospace;border-radius:6px;pointer-events:none;white-space:pre-wrap;';
+      document.body.appendChild(box);
+    }
+    const lines = (box.textContent ? box.textContent.split('\n') : []).concat([line]).slice(-12);
+    box.textContent = lines.join('\n');
+  } catch (e) {}
+  try {
+    const k = 'sparkly_timing_log';
+    const old = JSON.parse(localStorage.getItem(k) || '[]');
+    old.push(line);
+    localStorage.setItem(k, JSON.stringify(old.slice(-50)));
+  } catch (e) {}
+}
+function timingNote(phone, rows) {
+  if (!TIMING_MODE) return;
+  const seen = window._timingSeen[phone];
+  if (!seen) { window._timingSeen[phone] = new Set(rows.map(function(r) { return String(r.id); })); return; }   // first load of this chat: nothing is "new"
+  rows.forEach(function(r) {
+    const id = String(r.id);
+    if (seen.has(id)) return;
+    seen.add(id);
+    if (r.role !== 'user') return;
+    const arrived = Date.parse(r.timestamp);
+    requestAnimationFrame(function() {   // runs right after the list is drawn in this same refresh
+      const now = Date.now();
+      const hhmmss = function(t) { return new Date(t).toISOString().slice(11, 23); };
+      timingLog('in ' + timingKind(r.message) + ': arrived ' + hhmmss(arrived) + ' -> shown ' + hhmmss(now) + ' (' + ((now - arrived) / 1000).toFixed(1) + ' s)');
+    });
+  });
+}
+// </fast-poll>
+
 async function loadThread(phone, silent) {
   if (threadRefreshBlockedByRecording(phone, silent)) return;
   const oldBox = document.getElementById('messages');
@@ -7677,6 +7743,7 @@ async function loadThread(phone, silent) {
     '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id,reply_to_wa_id,reply_to_text,is_forwarded&order=timestamp.desc&limit=200'
   );
   rows.reverse();
+  try { window._fastNewest[phone] = rows.length ? (rows[rows.length - 1].id + '|' + rows[rows.length - 1].timestamp) : ''; timingNote(phone, rows); } catch (eFp) {}
   let deliveryCtx = null;
   try { deliveryCtx = await fetchDeliveryContext(phone); } catch (e) {}
   rows.forEach(function(r) { if (r.role === 'assistant') { const d = computeDeliveryState(r, deliveryCtx); r.deliveryState = d.state; r.deliveryError = d.error; } });
@@ -15741,6 +15808,8 @@ function startApp() {
   checkNotificationsDot();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(loadConversations, 8000);
+  if (window._fastPollTimer) clearInterval(window._fastPollTimer);
+  window._fastPollTimer = setInterval(fastPollOpenChat, FAST_POLL_MS);   // open chat only, visible page only
   setInterval(function() { if (activePhone && !document.hidden && document.getElementById('messages')) window.refreshTicks(activePhone); }, 5000);
   if (inboxPollTimer) clearInterval(inboxPollTimer);
   inboxPollTimer = setInterval(checkInboxDot, 15000);
