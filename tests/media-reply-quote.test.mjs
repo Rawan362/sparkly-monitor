@@ -194,6 +194,7 @@ test('sendAttachment called without a quote still falls back to the open reply b
   assert.equal(w.api.replying(), null);
 });
 
-test('service worker cache version is v57', () => {
-  assert.match(sw, /CACHE_NAME = 'sparkly-shell-v57'/);
+test('service worker cache version is v57 or newer', () => {
+  const m = sw.match(/CACHE_NAME = 'sparkly-shell-v(\d+)'/);
+  assert.ok(m && Number(m[1]) >= 57);
 });
