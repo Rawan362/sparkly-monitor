@@ -52,11 +52,13 @@ class World {
   now() { return Date.now() - this.t0; }
   /** receipt for a message id: status appears `afterMs` after the message was accepted */
   setReceipt(id, status, afterMs) { this.receipts[id] = { status, at: Date.now() + afterMs }; }
-  answer(url, method) {
-    if (method === 'POST' && /\/webhook\/seller-send-(text|media|voice)$/.test(url)) {
+  answer(url, method, postData) {
+    if (method === 'POST' && /\/webhook\/seller-send-(text|media|voice|location)$/.test(url)) {
       const kind = url.split('seller-send-')[1];
       const id = 'wamid.' + kind + (++this.n);
-      this.reqs.push({ kind, at: this.now(), id });
+      let phone = null; try { phone = JSON.parse(postData || '{}').phone; } catch (e) { /* not json */ }
+      this.reqs.push({ kind, at: this.now(), id, phone });
+      if (kind === 'location' && this.failLocation) return { success: false, reason: 'Location refused by test' };
       if (!this.receipts[id] && this.defaultReceipt) this.setReceipt(id, this.defaultReceipt.status, this.defaultReceipt.afterMs);
       return this.noWaId ? { success: true } : { success: true, waMessageId: id };
     }
@@ -78,8 +80,9 @@ async function boot(browser, world, base) {
     if (u.startsWith(base)) return route.continue();
     const h = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: h });
-    return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify(world.answer(u, route.request().method())) });
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify(world.answer(u, route.request().method(), route.request().postData())) });
   });
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (ok) => setTimeout(() => ok({ coords: { latitude: 36.2, longitude: 44.0 } }), window.__geoDelay || 0) } }); });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message)));
   page.on('dialog', (d) => { errors.push('dialog: ' + d.message()); d.dismiss(); });
@@ -227,4 +230,66 @@ test('if the door does not return a WhatsApp id (old n8n answer), nothing is hel
 test('service worker cache version is v61 or newer', () => {
   const m = sw.match(/CACHE_NAME = 'sparkly-shell-v(\d+)'/);
   assert.ok(m && Number(m[1]) >= 61);
+});
+
+const sendLoc = (page) => page.evaluate(() => { sendLocation(); });
+
+test('video then LOCATION: the location waits in the same queue for the video\'s receipt, its bubble is visible meanwhile, then it goes out', { skip }, async () => {
+  const w = new World();
+  const { page, errors } = await boot(browser, w, base);
+  const orig = w.answer.bind(w);
+  w.answer = (u, m, d) => { const r = orig(u, m, d); if (m === 'POST' && /seller-send-media$/.test(u)) w.setReceipt(r.waMessageId, 'sent', 2200); return r; };
+  await sendMedia(page, 'video'); await sendLoc(page);
+  await waitFor(() => w.reqs.length >= 1);
+  await page.waitForTimeout(1200);
+  assert.deepEqual(kinds(w), ['media'], 'the location is waiting behind the video');
+  assert.ok(await page.evaluate(() => document.body.innerText.includes('Location - sending')), 'the waiting location bubble is visible');
+  await waitFor(() => w.reqs.length >= 2);
+  assert.deepEqual(kinds(w), ['media', 'location']);
+  assert.ok(w.reqs[1].at >= w.receipts[w.reqs[0].id].at - w.t0 - 50, 'only after the receipt');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('location then text: both go out at once, in order (a location is not held and holds nothing)', { skip }, async () => {
+  const w = new World();
+  const { page } = await boot(browser, w, base);
+  await sendLoc(page); await sendText(page, 'after the pin');
+  await waitFor(() => w.reqs.length >= 2);
+  assert.deepEqual(kinds(w), ['location', 'text']);
+  assert.ok(w.reqs[1].at - w.reqs[0].at < 1500);
+  assert.equal(w.polls || 0, 0, 'no receipt checks');
+  await page.close();
+});
+
+test('the customer is fixed when the button is pressed: switching chats while the position is being found does not redirect the location', { skip }, async () => {
+  const w = new World();
+  const { page } = await boot(browser, w, base);
+  await page.evaluate(() => { window.__geoDelay = 800; });
+  await sendLoc(page);
+  await page.evaluate(() => { activePhone = '96470000002'; });   // the seller opens another customer while the GPS is working
+  await waitFor(() => w.reqs.length >= 1);
+  assert.equal(w.reqs[0].phone, '96470000001', 'sent to the customer that was open when the button was pressed');
+  await page.close();
+});
+
+test('a refused location shows the reason and marks the bubble failed (nothing else breaks)', { skip }, async () => {
+  const w = new World(); w.failLocation = true;
+  const { page, errors } = await boot(browser, w, base);
+  await sendLoc(page);
+  await waitFor(() => errors.some((e) => e.includes('Location refused by test')));
+  assert.ok(errors.some((e) => e.startsWith('dialog: Failed to send location: Location refused by test')));
+  await page.close();
+});
+
+test('the old location code is gone: no immediate fetch outside the queue, no loud full reload', () => {
+  const a = html.indexOf('window.sendLocation = async function() {');
+  const body = html.slice(a, html.indexOf('// ═══ Per-message actions', a));
+  assert.ok(body.includes('enqueueSend(targetPhone'));
+  assert.ok(!/await loadThread\(activePhone\);/.test(body));
+});
+
+test('service worker cache version is v62 or newer', () => {
+  const m = sw.match(/CACHE_NAME = 'sparkly-shell-v(\d+)'/);
+  assert.ok(m && Number(m[1]) >= 62);
 });
