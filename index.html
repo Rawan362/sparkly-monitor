@@ -6732,34 +6732,44 @@ window.sendLocation = async function() {
     alert('Location only works over a secure (https) connection.');
     return;
   }
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    try {
-      const authToken = await getValidAuthToken();
-      const res = await fetch(SELLER_SEND_LOCATION_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: activePhone,
-          sellerChatId: SELLER_CHAT_ID,
-          token: authToken,
-          locationLat: pos.coords.latitude,
-          locationLng: pos.coords.longitude
-        })
-      });
-      const rawData = await res.json();
-      const data = Array.isArray(rawData) ? rawData[0] : rawData;
-      if (data && data.success) {
-        await loadConversations();
-        await loadThread(activePhone);
-      } else {
-        const reason = data && data.reason ? data.reason : 'unknown error';
-        logSystemError('sendLocation', reason, { phone: activePhone });
-        alert('Failed to send location: ' + reason);
+  // The customer is fixed NOW, when the button is pressed: finding the position can take up to 10 s, and the chat on screen may
+  // have changed by then. The location then joins the same send queue as every other message to this customer, so it keeps its
+  // place behind a photo, video, file or voice note that is still being delivered.
+  const targetPhone = activePhone;
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    const tempId = (activePhone === targetPhone) ? appendOptimisticBubble('<span>\uD83D\uDCCD ' + (_attAr() ? 'الموقع - جاري الإرسال...' : 'Location - sending...') + '</span>', 'out') : null;
+    enqueueSend(targetPhone, async () => {
+      try {
+        const authToken = await getValidAuthToken();
+        const res = await fetch(SELLER_SEND_LOCATION_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: targetPhone,
+            sellerChatId: SELLER_CHAT_ID,
+            token: authToken,
+            locationLat: lat,
+            locationLng: lng
+          })
+        });
+        const rawData = await res.json();
+        const data = Array.isArray(rawData) ? rawData[0] : rawData;
+        if (data && data.success) {
+          if (tempId) markOptimisticSent(tempId);
+          _needsReload[targetPhone] = true;   // the queue refreshes quietly once everything queued has been sent
+        } else {
+          const reason = data && data.reason ? data.reason : 'unknown error';
+          logSystemError('sendLocation', reason, { phone: targetPhone });
+          if (tempId) markOptimisticFailed(tempId);
+          alert('Failed to send location: ' + reason);
+        }
+      } catch (e) {
+        logSystemError('sendLocation', e.message, { phone: targetPhone });
+        if (tempId) markOptimisticFailed(tempId);
+        alert('Failed to send location: ' + e.message);
       }
-    } catch (e) {
-      logSystemError('sendLocation', e.message, { phone: activePhone });
-      alert('Failed to send location: ' + e.message);
-    }
+    });
   }, (err) => {
     let reason = err.message || '';
     if (err.code === 1) reason = 'Permission denied — location access is blocked for this site. Check your browser/phone Settings → Privacy → Location Services, and make sure this site is allowed.';
