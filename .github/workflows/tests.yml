@@ -1,5 +1,5 @@
 name: tests
-# Runs the web app's own tests (no dependencies, no network, no secrets).
+# Runs the web app's own tests (no network, no secrets). The browser tests use Playwright with Chromium, installed here for the run only.
 on:
   push:
   pull_request:
@@ -8,10 +8,12 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm install --no-save playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
       - run: node --test tests/*.test.mjs

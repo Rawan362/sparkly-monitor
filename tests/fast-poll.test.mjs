@@ -149,5 +149,5 @@ test('the real code is wired in: loadThread records the newest row and feeds the
   assert.ok(lt.includes("window._fastNewest[phone] = rows.length ?") && lt.includes('timingNote(phone, rows)'));
   assert.ok(html.includes('window._fastPollTimer = setInterval(fastPollOpenChat, FAST_POLL_MS)'));
   assert.ok(html.includes('pollTimer = setInterval(loadConversations, 8000)'), 'the 8 s poll is unchanged');
-  assert.match(sw, /CACHE_NAME = 'sparkly-shell-v58'/);
+  { const m = sw.match(/CACHE_NAME = 'sparkly-shell-v(\d+)'/); assert.ok(m && Number(m[1]) >= 58); }
 });

@@ -991,6 +991,24 @@
   }
   #scroll-bottom-btn:hover { background: var(--panel-2); }
   #scroll-bottom-btn.show { opacity: 1; transform: none; pointer-events: auto; }
+  /* New messages arrive with a soft spring (transform and opacity only, so it stays light on weak phones). */
+  .msg-row.msg-enter { animation: msgA-in 520ms cubic-bezier(.34, 1.45, .64, 1) both; will-change: transform, opacity; }
+  .msg-row.msg-enter .bubble { isolation: isolate; }
+  .msg-row.msg-enter .bubble::after { content: ""; position: absolute; inset: -8px; z-index: -1; border-radius: 24px; pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 45%, transparent), transparent 70%); opacity: 0; animation: msgA-glow 1000ms ease-out both; }
+  .msg-row.msg-from-typing { transform-origin: left bottom; animation-name: msgA-morph; }
+  @keyframes msgA-in { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes msgA-morph { from { opacity: .5; transform: scale(.45, .6); } to { opacity: 1; transform: none; } }
+  @keyframes msgA-glow { 0% { opacity: 0; } 25% { opacity: .55; } 100% { opacity: 0; } }
+  @keyframes msgRm-in { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .msg-row.msg-enter, .msg-row.msg-from-typing { animation: msgRm-in 120ms linear both; transform-origin: initial; }
+    .msg-row.msg-enter .bubble::after { display: none; }
+    #new-msgs-pill { transition: opacity 120ms; transform: translate(-50%, 0); }
+  }
+  /* "N new messages": shown only while you are scrolled up and something arrived */
+  #new-msgs-pill { position: absolute; left: 50%; bottom: 78px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 600; font-size: 13px; line-height: 1; box-shadow: 0 6px 18px rgba(0,0,0,0.22); z-index: 6; cursor: pointer; transition: transform 240ms cubic-bezier(.2, .8, .2, 1), opacity 200ms; }
+  #new-msgs-pill.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  #new-msgs-pill:focus-visible { outline: 2px solid var(--on-accent); outline-offset: 2px; }
   .msg-row { display: flex; margin: 3px 0; }
   .msg-row.out { justify-content: flex-end; }
   .bubble {
@@ -6113,7 +6131,7 @@ function renderConvoList() {
     el.innerHTML = '<div id="loading">' + (searchQuery || channelFilter !== 'all' ? t('no_matches') : t('no_conversations')) + '</div>';
     return;
   }
-  el.innerHTML = filtered.map(c => {
+  patchKeyedRows(el, filtered.map(c => {
     const isUnread = c.role === 'user';
     const chMeta = CHANNEL_META[c.channel] || CHANNEL_META.whatsapp;
     const badges = [
@@ -6121,7 +6139,7 @@ function renderConvoList() {
       c.muted ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>' : '',
       c.favorite ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>' : ''
     ].filter(Boolean).join('');
-    return `
+    return { key: c.phone_number, html: `
     <div class="convo-row" data-phone="${c.phone_number}">
       <div class="convo-actions-strip">
         <button class="convo-action-btn more" onclick="openConvoActionSheet('${c.phone_number}', event)" title="More"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><circle cx="12" cy="5.5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="18.5" r="1.9"/></svg></button>
@@ -6147,10 +6165,10 @@ function renderConvoList() {
         </div>
       </div>
     </div>
-  `;
-  }).join('');
+  ` };
+  }));
 
-  // The 8-second background refresh rebuilds this whole list — without this,
+  // The 8-second background refresh updates this list row by row (unchanged rows are kept); this part — without this,
   // an open swipe-actions row would silently snap shut the next time it polls.
   if (swipeOpenPhone) {
     const openRow = document.querySelector('.convo-row[data-phone="' + CSS.escape(swipeOpenPhone) + '"]');
@@ -7509,6 +7527,8 @@ function positionScrollBtn() {
   const msgsBottom = box.getBoundingClientRect().bottom;
   const under = Math.max(0, paneBottom - msgsBottom);
   btn.style.bottom = (under + 12) + 'px';
+  const pill = document.getElementById('new-msgs-pill');
+  if (pill) pill.style.bottom = (under + 12) + 'px';
 }
 function updateScrollBtn() {
   const box = document.getElementById('messages');
@@ -7516,6 +7536,7 @@ function updateScrollBtn() {
   if (!box || !btn) return;
   const nearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 120;
   btn.classList.toggle('show', !nearBottom);
+  if (nearBottom) hideNewMsgsPill();
   positionScrollBtn();
   if (window.ResizeObserver) {
     if (!window._scrollBtnRO) window._scrollBtnRO = new ResizeObserver(() => positionScrollBtn());
@@ -7610,7 +7631,7 @@ function threadFlagsMap(rows) { const m = {}; rows.forEach(function(r) { m[Strin
 function tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliveryCtx) {
   if (activePhone !== phone) return false;
   const box = document.getElementById('messages');
-  if (!box || rows.length >= 200) return false;
+  if (!box) return false;
   const known = window._threadFlags[phone];
   if (!known) return false;
   const nowFlags = threadFlagsMap(rows);
@@ -7620,8 +7641,9 @@ function tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliver
   const domRows = Array.prototype.slice.call(box.querySelectorAll('.msg-row[data-msg-id]'));
   const domIds = domRows.map(function(el) { return el.getAttribute('data-msg-id'); });
   const newIds = visible.map(function(m) { return String(m.id); });
-  for (let i = 0; i < domIds.length; i++) { if (domIds[i] !== newIds[i]) return false; }
-  const fresh = visible.slice(domIds.length);
+  const plan = planAppend(domIds, newIds);   // also accepts a chat whose newest-200 window has slid forward
+  if (!plan.ok) return false;
+  const fresh = visible.slice(plan.from);
   const typingBubble = box.querySelector('.typing-bubble');
   const typingRow = typingBubble ? typingBubble.closest('.msg-row') : null;
   if (fresh.length === 0 && !!typingRow === !!isTypingNow) { applyDeliveryToDom(phone, deliveryCtx); return true; }
@@ -7649,14 +7671,146 @@ function tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliver
       if (rec && rec.status === 'sent' && rec.phone === phone) { el.remove(); delete reg[id]; }
     });
   }
-  if (isTypingNow && !typingRow) box.insertAdjacentHTML('beforeend', '<div class="msg-row in"><div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>');
-  else if (!isTypingNow && typingRow) typingRow.remove();
-  if (wasNearBottom) box.scrollTop = box.scrollHeight;
+  const typingGone = !isTypingNow && !!typingRow;
+  if (isTypingNow && !typingRow) { box.insertAdjacentHTML('beforeend', '<div class="msg-row in"><div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>'); animateTypingRow(box); }
+  else if (typingGone) typingRow.remove();
+  animateNewRows(box, fresh.map(function(m) { return m.id; }), typingGone);
+  afterAppend(box, fresh.length, wasNearBottom);
   if (typeof updateScrollBtn === 'function') updateScrollBtn();
   window._threadFlags[phone] = nowFlags;
   applyDeliveryToDom(phone, deliveryCtx);
   return true;
 }
+
+// <smooth-update>
+// Updates must be silent: only NEW bubbles are added, everything already on screen is left exactly as it is, the scroll position is
+// kept, and the view follows the newest message only if you are already at the bottom (otherwise a small "N new messages" pill).
+// planAppend: given the message ids on screen and the ids that should be on screen, decide if the screen can simply be extended.
+// It also accepts a chat whose newest-200 window has slid forward (older rows dropped from the list, still on screen).
+function planAppend(domIds, newIds) {
+  if (!domIds.length) return { ok: true, from: 0 };
+  const idx = newIds.lastIndexOf(domIds[domIds.length - 1]);
+  if (idx === -1) return { ok: false, from: 0 };
+  const n = Math.min(domIds.length, idx + 1);
+  for (let k = 0; k < n; k++) { if (domIds[domIds.length - 1 - k] !== newIds[idx - k]) return { ok: false, from: 0 }; }
+  return { ok: true, from: idx + 1 };
+}
+function prefersReducedMotion() { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
+function smoothToBottom(box) {
+  if (box.scrollTo) box.scrollTo({ top: box.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); else box.scrollTop = box.scrollHeight;
+}
+// Gives the just-added rows their arrival animation (a class that is removed again as soon as it has played).
+function animateNewRows(box, ids, fromTyping) {
+  if (!box || !ids || !ids.length || document.hidden) return;
+  ids.forEach(function(id, i) {
+    const el = box.querySelector('.msg-row[data-msg-id="' + String(id).replace(/["\\]/g, '') + '"]');
+    if (!el) return;
+    el.classList.add('msg-enter');
+    if (fromTyping && i === 0) el.classList.add('msg-from-typing');
+    if (i > 0) el.style.animationDelay = (i * 70) + 'ms';
+    const done = function() { el.classList.remove('msg-enter', 'msg-from-typing'); el.style.animationDelay = ''; el.removeEventListener('animationend', onEnd); };
+    const onEnd = function(e) { if (e.target === el) done(); };
+    el.addEventListener('animationend', onEnd);
+    setTimeout(done, 1500);
+  });
+}
+function animateTypingRow(box) {
+  const el = box && box.lastElementChild;
+  if (!el || document.hidden) return;
+  el.classList.add('msg-enter');
+  const done = function() { el.classList.remove('msg-enter'); el.removeEventListener('animationend', onEnd); };
+  const onEnd = function(e) { if (e.target === el) done(); };
+  el.addEventListener('animationend', onEnd);
+  setTimeout(done, 1500);
+}
+const NEW_MSG_WORDS = { en: ['new message', 'new messages'], ar: ['\u0631\u0633\u0627\u0644\u0629 \u062C\u062F\u064A\u062F\u0629', '\u0631\u0633\u0627\u0626\u0644 \u062C\u062F\u064A\u062F\u0629'], es: ['mensaje nuevo', 'mensajes nuevos'], fr: ['nouveau message', 'nouveaux messages'], tr: ['yeni mesaj', 'yeni mesaj'] };
+window._unseenCount = 0;
+function hideNewMsgsPill() {
+  window._unseenCount = 0;
+  const pill = document.getElementById('new-msgs-pill');
+  if (pill) pill.classList.remove('show');
+}
+function showNewMsgsPill() {
+  const btn = document.getElementById('scroll-bottom-btn');
+  if (!btn || !btn.parentElement) return;
+  let pill = document.getElementById('new-msgs-pill');
+  if (!pill) {
+    pill = document.createElement('button');
+    pill.id = 'new-msgs-pill';
+    pill.type = 'button';
+    pill.addEventListener('click', function() { scrollMessagesToBottom(); hideNewMsgsPill(); });
+    btn.parentElement.appendChild(pill);
+  }
+  const w = NEW_MSG_WORDS[typeof currentLang === 'string' ? currentLang : 'en'] || NEW_MSG_WORDS.en;
+  const n = window._unseenCount;
+  pill.textContent = '\u2193 ' + n + ' ' + (n === 1 ? w[0] : w[1]);
+  pill.classList.add('show');
+  if (typeof positionScrollBtn === 'function') positionScrollBtn();
+}
+// After rows were added: follow them only if you were already at the bottom, otherwise keep your place and show the pill.
+function afterAppend(box, addedCount, wasNearBottom) {
+  if (wasNearBottom) { smoothToBottom(box); hideNewMsgsPill(); }
+  else if (addedCount > 0) { window._unseenCount += addedCount; showNewMsgsPill(); }
+}
+// Keyed list update: rows whose markup did not change are kept as they are (no flicker, an open swipe stays open); changed rows are
+// replaced, new ones inserted, missing ones removed, and the order is fixed by moving rows. items: [{ key, html }], rows carry data-phone.
+function patchKeyedRows(container, items) {
+  const hash = function(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return h; };
+  const existing = new Map();
+  Array.prototype.slice.call(container.children).forEach(function(ch) {
+    const k = ch.getAttribute('data-phone');
+    if (k === null) ch.remove(); else existing.set(k, ch);
+  });
+  let prev = null;
+  items.forEach(function(it) {
+    const sig = hash(it.html);
+    let node = existing.get(it.key);
+    existing.delete(it.key);
+    if (!node || node.__sig !== sig) {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = it.html.trim();
+      const fresh = tpl.content.firstElementChild;
+      fresh.__sig = sig;
+      if (node && node.parentNode === container) node.replaceWith(fresh);
+      node = fresh;
+    }
+    const want = prev ? prev.nextElementSibling : container.firstElementChild;
+    if (want !== node) container.insertBefore(node, want);
+    prev = node;
+  });
+  existing.forEach(function(n) { n.remove(); });
+}
+// The AI assistant screen: add only the new messages (same idea as the customer chat). Returns false when a full redraw is needed.
+function tryIncrementalAhmadUpdate(rows) {
+  if (typeof ahmadChatOpen === 'undefined' || !ahmadChatOpen) return false;
+  const box = document.getElementById('messages');
+  if (!box || !document.getElementById('reply-text') || !rows || !rows.length) return false;
+  if (box.querySelector('[data-optimistic-id], .typing-bubble')) return false;
+  const hidden = getLocallyDeletedIds();
+  const visible = rows.filter(function(m) { return !hidden.has(String(m.id)); });
+  const domRows = Array.prototype.slice.call(box.querySelectorAll('.msg-row[data-msg-id]'));
+  if (!domRows.length) return false;
+  const plan = planAppend(domRows.map(function(el) { return el.getAttribute('data-msg-id'); }), visible.map(function(m) { return String(m.id); }));
+  if (!plan.ok) return false;
+  const fresh = visible.slice(plan.from);
+  if (!fresh.length) return true;
+  let lastDate = null;
+  for (let i = domRows.length - 1; i >= 0; i--) { const ts = domRows[i].getAttribute('data-ts'); if (ts) { lastDate = new Date(ts).toDateString(); break; } }
+  if (lastDate === null) return false;
+  const wasNearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 120;
+  let html = '';
+  fresh.forEach(function(m) {
+    const dateStr = new Date(m.created_at).toDateString();
+    if (dateStr !== lastDate) { html += '<div class="date-divider">' + formatDateDivider(m.created_at) + '</div>'; lastDate = dateStr; }
+    html += renderBubble({ id: m.id, role: m.role === 'ahmad' ? 'assistant' : 'user', message: m.message, timestamp: m.created_at, starred: m.starred, pinned: m.pinned, table: 'seller_web_chat_log' });
+  });
+  box.insertAdjacentHTML('beforeend', html);
+  animateNewRows(box, fresh.map(function(m) { return m.id; }), false);
+  afterAppend(box, fresh.length, wasNearBottom);
+  if (typeof updateScrollBtn === 'function') updateScrollBtn();
+  return true;
+}
+// </smooth-update>
 
 // <fast-poll>
 // Fast refresh of the OPEN chat: every 2.5 s, only while the chat is on screen and the page is visible, ask for the single newest
@@ -7775,6 +7929,7 @@ async function loadThread(phone, silent) {
   if (silent && tryIncrementalThreadUpdate(phone, rows, callCards, isTypingNow, deliveryCtx)) { window._lastThreadFingerprint[phone] = fingerprint; return; }
   window._lastThreadFingerprint[phone] = fingerprint;
   window._threadFlags[phone] = threadFlagsMap(rows);
+  window._unseenCount = 0;
 
   const convo = conversations.find(c => c.phone_number === phone);
   const isActive = convo ? convo.aiActive : true;
@@ -8202,6 +8357,8 @@ async function renderAhmadChatPanel(silent) {
   }
   debugLog('renderAhmadChatPanel PROCEEDING to render, fingerprint changed');
   window._lastAhmadFingerprint = fingerprint;
+  if (silent && tryIncrementalAhmadUpdate(rows)) return;   // only the new messages are added; the header and the input stay untouched
+  window._unseenCount = 0;
 
   const oldBox = document.getElementById('messages');
   let oldScrollTop = 0;
