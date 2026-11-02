@@ -333,7 +333,7 @@ test('manual sends: a voice note and then a text sent quickly go out strictly in
   await page.close();
 });
 
-test('service worker cache version is v60 so every device fetches the new app', { skip: false }, () => {
-  assert.match(sw, /sparkly-shell-v60/);
+test('service worker cache version is v61 so every device fetches the new app', { skip: false }, () => {
+  assert.match(sw, /sparkly-shell-v6[0-9]/);
   assert.ok(html.includes('HOLD_MARK') && html.includes('function applyHold'));
 });

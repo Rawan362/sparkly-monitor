@@ -5566,9 +5566,29 @@ document.addEventListener('play', function(e) {
 // Sends go out ONE AT A TIME per customer, in the order you pressed send (like WhatsApp), without making you wait:
 // every message appears in the chat instantly, the composer and the microphone are free again at once, and the
 // messages reach WhatsApp one after another in the background.
+// <send-hold>
+// After a photo, video, file or voice note, the next send to the same customer waits until WhatsApp reports that message as
+// sent / delivered / read / played (or failed), but never longer than 60 s. WhatsApp takes a media message and fetches the file
+// afterwards (3-4 s), so a text sent right behind it used to overtake it. Text after text is not held. The waiting bubble stays visible.
+const SEND_HOLD_POLL_MS = 700;
+const SEND_HOLD_MAX_MS = 60000;
 const _sendChains = {};
 const _sendPending = {};
 const _needsReload = {};
+const _holdAfter = {};   // phone -> WhatsApp id of the media/voice note just sent
+async function waitForReceipt(waId) {
+  const max = window._sendHoldMaxMs || SEND_HOLD_MAX_MS, poll = window._sendHoldPollMs || SEND_HOLD_POLL_MS;
+  const t0 = Date.now();
+  while (Date.now() - t0 < max) {
+    try {
+      const r = await sb('message_status?wa_message_id=eq.' + encodeURIComponent(waId) + '&select=status&limit=1');
+      const st = r && r[0] && r[0].status;
+      if (st === 'sent' || st === 'delivered' || st === 'read' || st === 'played' || st === 'failed') return st;
+    } catch (e) { /* offline or a hiccup: keep trying until the time is up */ }
+    await new Promise(function(res) { setTimeout(res, poll); });
+  }
+  return 'timeout';
+}
 function enqueueSend(phone, job) {
   _sendPending[phone] = (_sendPending[phone] || 0) + 1;
   const prev = _sendChains[phone] || Promise.resolve();
@@ -5578,10 +5598,14 @@ function enqueueSend(phone, job) {
       _needsReload[phone] = false;
       try { await loadConversations(); if (activePhone === phone) await loadThread(phone, true); } catch (e) {}
     }
+    const waId = _holdAfter[phone];
+    delete _holdAfter[phone];
+    if (waId) { try { await waitForReceipt(waId); } catch (e) {} }   // the queue stays busy until the receipt: the next send waits here
   });
   _sendChains[phone] = run;
   return run;
 }
+// </send-hold>
 
 // ---- WhatsApp-style delivery ticks ----
 // one grey check = sent, two grey = delivered to the customer's phone, two blue = the customer read it,
@@ -6686,6 +6710,7 @@ async function sendAttachment(dataUrl, mimeType, kind, fileName, caption, phoneO
       // appears. The natural 8s background poll will quietly pick up the
       // confirmed version and update the sidebar preview shortly, without
       // disrupting what the user is currently looking at.
+      if (data.waMessageId) _holdAfter[targetPhone] = data.waMessageId;   // the next send to this customer waits for the receipt
       return true;
     } else {
       const reason = data && data.reason ? data.reason : 'unknown error';
@@ -8772,6 +8797,7 @@ async function sendVoiceNote(phone, dataUrl) {
       if (data && data.success) {
         if (voiceTempId) markOptimisticSent(voiceTempId);
         _needsReload[phone] = true;
+        if (data.waMessageId) _holdAfter[phone] = data.waMessageId;   // the next send to this customer waits for the receipt
       } else {
         const reason = data && data.reason ? data.reason : 'unknown error';
         logSystemError('sendVoiceNote', reason, { phone });
