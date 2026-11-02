@@ -6021,8 +6021,12 @@ async function loadConversations() {
     '&select=phone_number,message,role,timestamp,channel&order=timestamp.desc&limit=500'
   );
   const byPhone = {};
+  // hold design: a chat's newest shown row is the newest one OLDER than its first pending row
+  const holdFrom = {};
+  rows.forEach(r => { if (holdActive(r)) { const t = Date.parse(r.timestamp); if (!(r.phone_number in holdFrom) || t < holdFrom[r.phone_number]) holdFrom[r.phone_number] = t; } });
   rows.forEach(r => {
-    if (!byPhone[r.phone_number]) byPhone[r.phone_number] = r;
+    if (r.phone_number in holdFrom && !(Date.parse(r.timestamp) < holdFrom[r.phone_number])) return;
+    if (!byPhone[r.phone_number]) byPhone[r.phone_number] = isHoldRow(r) ? Object.assign({}, r, { message: '[media could not be loaded]' }) : r;
   });
   const statuses = await sb(
     'client_status?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ai_active,pinned,muted,archived,favorite,blocked'
@@ -7819,6 +7823,38 @@ function tryIncrementalAhmadUpdate(rows) {
 const FAST_POLL_MS = 2500;
 window._fastNewest = window._fastNewest || {};
 let _fastPollBusy = false;
+// <hold>
+// HOLD DESIGN: a voice note, photo, video or file is saved by the server the moment it ARRIVES, as a pending row (its text starts with HOLD_MARK).
+// Until it is complete, it and every row after it stay out of the screen, so a later message can never show before it. When it is complete
+// it appears in its place, followed by everything that came after, in order. After HOLD_TIMEOUT_MS a stuck pending row stops holding.
+const HOLD_MARK = '\u23F3 pending:';
+const HOLD_TIMEOUT_MS = 4 * 60 * 1000;
+function isHoldRow(r) { return !!r && typeof r.message === 'string' && r.message.indexOf(HOLD_MARK) === 0; }
+function holdActive(r) {
+  if (!isHoldRow(r)) return false;
+  const t = Date.parse(r.timestamp || r.created_at);
+  return !isFinite(t) || (Date.now() - t) < HOLD_TIMEOUT_MS;
+}
+// rows are oldest first; returns what may be shown: everything before the first pending row
+function applyHold(rows) {
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (holdActive(r)) break;
+    out.push(isHoldRow(r) ? Object.assign({}, r, { message: '[media could not be loaded]' }) : r);
+  }
+  return out;
+}
+// what the 2.5 s check compares: the newest row, and which rows are still pending (so a pending row that becomes complete is noticed)
+function holdCursor(newest, pendingIds) {
+  return (newest ? (newest.id + '|' + newest.timestamp) : '') + '#' + (pendingIds || []).join(',');
+}
+function holdCursorOfRows(rowsAsc) {
+  const pend = [];
+  for (let i = rowsAsc.length - 1; i >= 0 && pend.length < 3; i--) if (isHoldRow(rowsAsc[i])) pend.push(rowsAsc[i].id);
+  return holdCursor(rowsAsc.length ? rowsAsc[rowsAsc.length - 1] : null, pend);
+}
+// </hold>
 async function fastPollOpenChat() {
   if (_fastPollBusy) return;
   if (!activePhone || document.hidden || !document.getElementById('messages')) return;
@@ -7826,9 +7862,14 @@ async function fastPollOpenChat() {
   const phone = activePhone;
   _fastPollBusy = true;
   try {
-    const r = await sb('conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=id,timestamp&order=timestamp.desc&limit=1');
+    const q = 'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID;
+    const both = await Promise.all([
+      sb(q + '&select=id,timestamp&order=timestamp.desc&limit=1'),
+      sb(q + '&message=like.' + encodeURIComponent(HOLD_MARK + '*') + '&select=id&order=timestamp.desc&limit=3')
+    ]);
     if (phone !== activePhone) return;
-    const newest = r && r[0] ? (r[0].id + '|' + r[0].timestamp) : '';
+    const r = both[0];
+    const newest = holdCursor(r && r[0] ? r[0] : null, (both[1] || []).map(function(x) { return x.id; }));
     if (newest !== (window._fastNewest[phone] || '')) await loadThread(phone, true);
   } catch (e) {} finally { _fastPollBusy = false; }
 }
@@ -7888,7 +7929,7 @@ async function loadThread(phone, silent) {
     wasNearBottom = (oldBox.scrollHeight - oldBox.scrollTop - oldBox.clientHeight) < 120;
   }
 
-  const rows = await sb(
+  let rows = await sb(
     // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
     // the oldest — otherwise any customer conversation that grows past 200
     // total messages would silently stop showing new messages forever,
@@ -7897,13 +7938,16 @@ async function loadThread(phone, silent) {
     '&select=id,role,message,timestamp,starred,pinned,channel,wa_message_id,reply_to_wa_id,reply_to_text,is_forwarded&order=timestamp.desc&limit=200'
   );
   rows.reverse();
-  try { window._fastNewest[phone] = rows.length ? (rows[rows.length - 1].id + '|' + rows[rows.length - 1].timestamp) : ''; timingNote(phone, rows); } catch (eFp) {}
+  const rowsLoaded = rows.length;
+  try { window._fastNewest[phone] = holdCursorOfRows(rows); } catch (eFp) {}
+  rows = applyHold(rows);   // hold design: nothing from the first pending row on is shown yet
+  try { timingNote(phone, rows); } catch (eFp2) {}
   let deliveryCtx = null;
   try { deliveryCtx = await fetchDeliveryContext(phone); } catch (e) {}
   rows.forEach(function(r) { if (r.role === 'assistant') { const d = computeDeliveryState(r, deliveryCtx); r.deliveryState = d.state; r.deliveryError = d.error; } });
   // Call recordings for the same window as the loaded messages (everything, unless
   // there are older messages still to load).
-  const callCards = await fetchCallRecordingCards(phone, rows.length >= 200 ? rows[0].timestamp : null, null);
+  const callCards = await fetchCallRecordingCards(phone, rowsLoaded >= 200 && rows.length ? rows[0].timestamp : null, null);
   let isTypingNow = false;
   try {
     const statusRows = await sb(
@@ -7944,7 +7988,7 @@ async function loadThread(phone, silent) {
   window._threadOldestLoaded = window._threadOldestLoaded || {};
   window._threadHasMoreOlder = window._threadHasMoreOlder || {};
   window._threadOldestLoaded[phone] = visibleThreadRows.length > 0 ? visibleThreadRows[0].timestamp : null;
-  window._threadHasMoreOlder[phone] = rows.length >= 200;
+  window._threadHasMoreOlder[phone] = rowsLoaded >= 200;
   if (window._threadHasMoreOlder[phone]) {
     bubblesHtml += `<div class="load-older-row"><button onclick="loadOlderThreadMessages('${phone}')">Load older messages</button></div>`;
   }
@@ -8341,6 +8385,7 @@ async function renderAhmadChatPanel(silent) {
       'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=300'
     );
     rows.reverse();
+    rows = applyHold(rows);
     debugLog('renderAhmadChatPanel fetch OK, rows=' + rows.length + ', lastMsg=' + JSON.stringify((rows[rows.length-1]||{}).message||'').slice(0,80));
   } catch (e) {
     debugLog('renderAhmadChatPanel fetch FAILED: ' + (e && e.message));
