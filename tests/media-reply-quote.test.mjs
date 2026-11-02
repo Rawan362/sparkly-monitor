@@ -21,7 +21,7 @@ function cut(startMarker, endMarker) {
 }
 const code = {
   escapeHtml: html.match(/function escapeHtml\(s\) \{[\s\S]*?\n\}/)[0],
-  enqueueSend: cut('function enqueueSend(phone, job) {', '\n}\n'),
+  enqueueSend: cut('// <send-hold>', '// </send-hold>'),   // the send queue, including the wait for WhatsApp's receipt
   sendAttachment: cut('async function sendAttachment(', '\n}\n'),
   sendReply: cut('window.sendReply = async function(phone) {', '\n};\n'),
   startReplyMode: cut('window.startReplyMode = function(', '\n};\n'),
@@ -60,7 +60,7 @@ function world() {
     let activePhone = '000';
     let replyingTo = null;
     const drafts = {};
-    const _sendPending = {}, _sendChains = {}, _needsReload = {};
+    async function sb() { return []; }
     async function loadConversations() {}
     async function loadThread() {}
     async function getValidAuthToken() { return 'fake-token'; }
