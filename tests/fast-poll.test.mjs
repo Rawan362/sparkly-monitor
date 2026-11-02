@@ -55,11 +55,12 @@ test('poll interval is 2.5 s', () => {
   assert.equal(world().api.FAST_POLL_MS, 2500);
 });
 
-test('asks for ONE tiny row (id and timestamp of the newest) for the open chat and this seller only', async () => {
-  const w = world({ sbImpl: () => [{ id: 5, timestamp: 't1' }] });
+test('asks for ONE tiny row (id and timestamp of the newest) and the ids (max 3) of pending rows, for the open chat and this seller only', async () => {
+  const w = world({ sbImpl: (p) => (/message=like/.test(p) ? [] : [{ id: 5, timestamp: 't1' }]) });
   await w.api.fastPollOpenChat();
-  assert.equal(w.calls.sb.length, 1);
+  assert.equal(w.calls.sb.length, 2);
   assert.match(w.calls.sb[0], /^conversations\?phone_number=eq\.111&seller_id=eq\.seller-test&select=id,timestamp&order=timestamp\.desc&limit=1$/);
+  assert.match(w.calls.sb[1], /^conversations\?phone_number=eq\.111&seller_id=eq\.seller-test&message=like\.[^&]+&select=id&order=timestamp\.desc&limit=3$/);
 });
 
 test('a newer row than the one on screen triggers the same silent refresh as the 8 s poll', async () => {
@@ -70,8 +71,8 @@ test('a newer row than the one on screen triggers the same silent refresh as the
 });
 
 test('nothing new: no refresh', async () => {
-  const w = world({ sbImpl: () => [{ id: 5, timestamp: 't1' }] });
-  vm.runInContext("window._fastNewest['111'] = '5|t1'", w.ctx);
+  const w = world({ sbImpl: (p) => (/message=like/.test(p) ? [] : [{ id: 5, timestamp: 't1' }]) });
+  vm.runInContext("window._fastNewest['111'] = '5|t1#'", w.ctx);
   await w.api.fastPollOpenChat();
   assert.equal(w.calls.loadThread.length, 0);
 });
@@ -89,16 +90,17 @@ test('no request at all when the page is hidden, offline, no chat is open, or th
 });
 
 test('never two polls at once, and a failed request is swallowed', async () => {
-  let release;
-  const w = world({ sbImpl: () => new Promise((r) => { release = () => r([]); }) });
+  const releases = [];
+  const release = () => releases.forEach((f) => f());
+  const w = world({ sbImpl: () => new Promise((r) => { releases.push(() => r([])); }) });
   const first = w.api.fastPollOpenChat();
   await w.api.fastPollOpenChat();   // second call while the first is waiting: ignored
-  assert.equal(w.calls.sb.length, 1);
+  assert.equal(w.calls.sb.length, 2);   // the first poll's two tiny requests
   release(); await first;
   const bad = world({ sbImpl: () => { throw new Error('network'); } });
   await bad.api.fastPollOpenChat();   // must not throw
   await bad.api.fastPollOpenChat();   // and the busy flag was released
-  assert.equal(bad.calls.sb.length, 2);
+  assert.equal(bad.calls.sb.length, 4);
 });
 
 test('if the customer changed while the request was running, the old answer is dropped', async () => {
@@ -144,9 +146,9 @@ test('timing mode names the kind of message without ever printing its content', 
   assert.equal(api.timingKind('plain words'), 'text');
 });
 
-test('the real code is wired in: loadThread records the newest row and feeds the timing note; the timer is 2.5 s; cache is v58', () => {
+test('the real code is wired in: loadThread records the newest row and feeds the timing note; the timer is 2.5 s; cache is v58 or newer', () => {
   const lt = html.slice(html.indexOf('async function loadThread(phone, silent) {'), html.indexOf('async function loadThread(phone, silent) {') + 2500);
-  assert.ok(lt.includes("window._fastNewest[phone] = rows.length ?") && lt.includes('timingNote(phone, rows)'));
+  assert.ok(lt.includes('window._fastNewest[phone] = holdCursorOfRows(rows)') && lt.includes('timingNote(phone, rows)'));
   assert.ok(html.includes('window._fastPollTimer = setInterval(fastPollOpenChat, FAST_POLL_MS)'));
   assert.ok(html.includes('pollTimer = setInterval(loadConversations, 8000)'), 'the 8 s poll is unchanged');
   { const m = sw.match(/CACHE_NAME = 'sparkly-shell-v(\d+)'/); assert.ok(m && Number(m[1]) >= 58); }

@@ -80,8 +80,14 @@ async function boot(browser, backend, base, opts = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message)));
   await page.goto(base + '/index.html');
+  await page.waitForLoadState('load');
   await page.waitForTimeout(300);
-  await page.evaluate(() => { SELLER_CHAT_ID = 'seller-test'; try { document.getElementById('app').style.display = 'flex'; document.querySelectorAll('[id*="land"], [class*="land-"]').forEach((el) => { el.style.display = 'none'; }); } catch (e) { /* show the app as it looks after a login */ } });
+  for (let attempt = 0; attempt < 6; attempt++) {   // on a slow machine the page may still be starting: retry if it reloads itself
+    try {
+    await page.evaluate(() => { SELLER_CHAT_ID = 'seller-test'; try { document.getElementById('app').style.display = 'flex'; document.querySelectorAll('[id*="land"], [class*="land-"]').forEach((el) => { el.style.display = 'none'; }); } catch (e) { /* show the app as it looks after a login */ } });
+      break;
+    } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
+  }
   return { page, errors };
 }
 async function openChat(page) {
