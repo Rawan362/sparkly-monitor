@@ -4980,6 +4980,7 @@
       </div>
       <div class="biz-fields">
         <div class="biz-field"><button type="button" id="wa-profile-sync" onclick="syncWaProfile(this)">Save to WhatsApp</button> <span id="wa-profile-status" style="font-size:12px;"></span></div>
+        <div class="biz-field" id="wa-profile-fields" style="font-size:12px;display:none;"></div>
         <div class="biz-field" style="font-size:12px;color:var(--text-muted);">Photo and text are sent to your WhatsApp Business profile when you press Save to WhatsApp.</div>
       </div>
     </div>
@@ -14560,6 +14561,32 @@ window.closeProfilePanel = function() {
   document.getElementById('settings-tab-content').style.display = 'block';
 };
 
+// Shows, per field, what WhatsApp did with the last save (only when the server sent a per-field result). Text is set with textContent.
+window.showWaFieldResults = function(fields) {
+  const box = document.getElementById('wa-profile-fields');
+  if (!box) return;
+  box.textContent = '';
+  if (!fields || typeof fields !== 'object') { box.style.display = 'none'; return; }
+  const labels = { about: 'About', address: 'Address', description: 'Description', email: 'Email', website1: 'Website 1', website2: 'Website 2', vertical: 'Category' };
+  const words = {
+    saved: ['Saved at Meta (read back)', '#2e7d32'],
+    refused: ['Not saved', '#c62828'],
+    unconfirmed: ['Accepted, but WhatsApp does not show it yet', '#b26a00'],
+    unchecked: ['Accepted, could not be checked', '#b26a00'],
+    not_changed: ['Left empty, nothing changed', '#777']
+  };
+  Object.keys(labels).forEach(function(k) {
+    const f = fields[k];
+    if (!f || !words[f.status]) return;
+    const row = document.createElement('div');
+    row.style.cssText = 'margin:2px 0;color:' + words[f.status][1] + ';';
+    row.textContent = labels[k] + ': ' + words[f.status][0] + (f.status === 'refused' && f.reason ? ' - ' + f.reason : '');
+    box.appendChild(row);
+  });
+  if (box.childNodes.length) { const note = document.createElement('div'); note.style.cssText = 'margin-top:6px;color:#777;'; note.textContent = 'Saved at Meta does not mean the customer view shows it: WhatsApp decides what customers see.'; box.appendChild(note); }
+  box.style.display = box.childNodes.length ? 'block' : 'none';
+};
+
 // Pushes the WhatsApp business profile text (about, address, ...) and the chosen photo to the WhatsApp account of this seller.
 window.syncWaProfile = async function(btn) {
   const status = document.getElementById('wa-profile-status');
@@ -14589,6 +14616,7 @@ window.syncWaProfile = async function(btn) {
     let data = null;
     try { const raw = JSON.parse(text); data = Array.isArray(raw) ? raw[0] : raw; } catch (e) {}
     if (!data) throw new Error('Server answered ' + res.status + (text ? ': ' + text.slice(0, 160) : ''));
+    showWaFieldResults(data && data.fields);
     if (data && data.success) {
       if (waPendingPhoto) {
         waPendingPhoto = null;
