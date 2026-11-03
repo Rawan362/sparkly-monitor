@@ -120,9 +120,10 @@ test('the per-field answer is shown: saved, refused with the reason, not shown y
   await page.waitForFunction(() => /Not updated/.test(document.getElementById('wa-profile-status').textContent));
   const rows = await page.$$eval('#wa-profile-fields div', (els) => els.map((e) => e.textContent));
   assert.deepEqual(rows, [
-    'About: Saved', 'Address: Left empty, nothing changed', 'Description: Accepted, but WhatsApp does not show it yet',
-    'Email: Not saved - The email address does not look valid.', 'Website 1: Saved', 'Website 2: Accepted, could not be checked',
-    'Category: Not saved - Not a category WhatsApp knows.'
+    'About: Saved at Meta (read back)', 'Address: Left empty, nothing changed', 'Description: Accepted, but WhatsApp does not show it yet',
+    'Email: Not saved - The email address does not look valid.', 'Website 1: Saved at Meta (read back)', 'Website 2: Accepted, could not be checked',
+    'Category: Not saved - Not a category WhatsApp knows.',
+    'Saved at Meta does not mean the customer view shows it: WhatsApp decides what customers see.'
   ]);
   assert.deepEqual(errors, []);
   await page.close();

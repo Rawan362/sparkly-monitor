@@ -14569,7 +14569,7 @@ window.showWaFieldResults = function(fields) {
   if (!fields || typeof fields !== 'object') { box.style.display = 'none'; return; }
   const labels = { about: 'About', address: 'Address', description: 'Description', email: 'Email', website1: 'Website 1', website2: 'Website 2', vertical: 'Category' };
   const words = {
-    saved: ['Saved', '#2e7d32'],
+    saved: ['Saved at Meta (read back)', '#2e7d32'],
     refused: ['Not saved', '#c62828'],
     unconfirmed: ['Accepted, but WhatsApp does not show it yet', '#b26a00'],
     unchecked: ['Accepted, could not be checked', '#b26a00'],
@@ -14583,6 +14583,7 @@ window.showWaFieldResults = function(fields) {
     row.textContent = labels[k] + ': ' + words[f.status][0] + (f.status === 'refused' && f.reason ? ' - ' + f.reason : '');
     box.appendChild(row);
   });
+  if (box.childNodes.length) { const note = document.createElement('div'); note.style.cssText = 'margin-top:6px;color:#777;'; note.textContent = 'Saved at Meta does not mean the customer view shows it: WhatsApp decides what customers see.'; box.appendChild(note); }
   box.style.display = box.childNodes.length ? 'block' : 'none';
 };
 
