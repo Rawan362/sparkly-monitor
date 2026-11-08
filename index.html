@@ -2021,6 +2021,20 @@
   .biz-field input:focus, .biz-field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .biz-save-hint { font-size: 11px; color: var(--accent-2); opacity: 0; transition: opacity 0.2s ease; padding: 0 20px 6px; margin-top: -8px; }
   .biz-save-hint.show { opacity: 1; }
+  /* Message templates (Settings) */
+  .tpl-intro { padding: 0 20px 8px; font-size: 12px; color: var(--text-muted); }
+  .tpl-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--panel-2); }
+  .tpl-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .tpl-lang { font-weight: 600; font-size: 14px; }
+  .tpl-badge { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
+  .tpl-badge.approved { color: var(--accent-2); border-color: var(--accent-2); }
+  .tpl-badge.rejected { color: var(--danger); border-color: var(--danger); }
+  .tpl-status-text, .tpl-reason, .tpl-blocked { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .tpl-reason { color: var(--danger); }
+  .tpl-body { font-size: 13px; margin-top: 6px; white-space: pre-wrap; word-break: break-word; }
+  .tpl-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .tpl-msg { font-size: 12.5px; margin-top: 8px; }
+  .tpl-msg.error { color: var(--danger); }
 
   /* ═══ PRODUCTS ═══ */
   #customers-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
@@ -4778,6 +4792,29 @@
         <input type="text" id="biz-pause-message" data-key="global_pause_message" placeholder="e.g. Thanks, we'll reply soon" onchange="saveBizField(this)">
       </div>
 
+      <div class="settings-section-label" id="settings-label-templates">Message templates</div>
+      <div class="tpl-intro">WhatsApp only lets you start a conversation with a customer who has not written to you in the last 24 hours by using a message template that WhatsApp has approved. Create yours here, in any language you choose. WhatsApp checks every template, which usually takes a few minutes and can take up to a day.</div>
+      <details class="biz-fields" id="tpl-box" ontoggle="tplToggled(this)">
+        <summary style="cursor:pointer;font-size:14px;padding:6px 0;">Show and manage my templates</summary>
+        <div id="tpl-list" style="margin-top:8px;"></div>
+        <div class="biz-field"><button type="button" id="tpl-refresh" onclick="tplRefresh()">Refresh</button></div>
+        <div class="biz-field">
+          <label for="tpl-language" id="tpl-form-title">New template: language</label>
+          <select id="tpl-language" onchange="tplLanguageChanged()"></select>
+        </div>
+        <div class="biz-field">
+          <label for="tpl-text">Message text</label>
+          <textarea id="tpl-text" rows="4" maxlength="1024" placeholder="Write a short, polite greeting" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea>
+          <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">Write {{1}} once, in the middle of the text (not at the very start or end). It is replaced with your business name when the message is sent. Keep it a simple greeting: no prices, offers, shortened links, or requests for passwords or ID numbers.</span>
+        </div>
+        <div class="biz-field" id="tpl-edit-warning" style="display:none;font-size:12px;color:var(--text-muted);"></div>
+        <div class="biz-field">
+          <button type="button" id="tpl-save" onclick="tplSave()">Create</button>
+          <button type="button" id="tpl-cancel" onclick="tplCancelEdit()" style="display:none;">Cancel</button>
+          <div class="tpl-msg" id="tpl-msg" role="status"></div>
+        </div>
+      </details>
+
       <div class="settings-section-label">Broadcast</div>
       <div class="biz-row">
         <div class="biz-row-label"><span class="biz-title">Recurring broadcast</span></div>
@@ -5481,6 +5518,202 @@ window.toggleCalling = async function(btn) {
   }
   btn.disabled = false;
 };
+
+// ---- Message templates (Settings): list, create, edit and delete the opening templates of the seller's OWN WhatsApp Business Account.
+// All the checking and the wording come from the server (the door answers in plain words); this code only shows them. The seller's own
+// Meta token never reaches the browser. Nothing here is fixed to one language or country: the languages and the default texts come from the server.
+const SELLER_TEMPLATES_URL = 'https://sparklly.site/webhook/seller-message-templates';
+const TPL_NOT_AVAILABLE = 'Message templates are not available yet. Please try again later.';
+const TPL_RELOGIN = 'Please sign out and sign in again, then try once more.';
+const TPL_NO_CONNECTION = 'Could not reach the server. Check your internet connection and try again.';
+let _tplBusy = false;
+let _tplLoaded = false;
+let _tplState = { templates: [], languages: [], editing: null, lastDefault: '' };
+
+async function callSellerTemplates(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, error: 'relogin', message: TPL_RELOGIN };
+  try {
+    const r = await fetch(SELLER_TEMPLATES_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token, action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available', message: TPL_NOT_AVAILABLE };
+    const j = await r.json();
+    if (j && (j.error === 'not_logged_in')) return { ok: false, error: 'relogin', message: TPL_RELOGIN };
+    return j;
+  } catch (e) { return { ok: false, error: 'network', message: TPL_NO_CONNECTION }; }
+}
+
+function tplSetMsg(text, isError) {
+  const el = document.getElementById('tpl-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('error', !!isError);
+}
+
+function tplRender() {
+  const list = document.getElementById('tpl-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const items = _tplState.templates;
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'tpl-status-text';
+    empty.textContent = 'You have no message templates yet. Pick a language below and press Create.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const t of items) {
+    const card = document.createElement('div');
+    card.className = 'tpl-card';
+    const head = document.createElement('div');
+    head.className = 'tpl-card-head';
+    const lang = document.createElement('span');
+    lang.className = 'tpl-lang';
+    lang.textContent = t.languageLabel || t.language;
+    const badge = document.createElement('span');
+    badge.className = 'tpl-badge ' + (t.status || '');
+    badge.textContent = t.status === 'approved' ? 'Approved' : t.status === 'pending' ? 'Waiting for approval' : t.status === 'rejected' ? 'Rejected' : 'Not available';
+    head.appendChild(lang); head.appendChild(badge);
+    card.appendChild(head);
+    const st = document.createElement('div'); st.className = 'tpl-status-text'; st.textContent = t.statusText || ''; card.appendChild(st);
+    if (t.reason) { const r = document.createElement('div'); r.className = 'tpl-reason'; r.textContent = t.reason; card.appendChild(r); }
+    if (t.text) { const b = document.createElement('div'); b.className = 'tpl-body'; b.textContent = t.text; card.appendChild(b); }
+    if (t.blockedText) { const bl = document.createElement('div'); bl.className = 'tpl-blocked'; bl.textContent = t.blockedText; card.appendChild(bl); }
+    if (t.ours && t.id) {
+      const actions = document.createElement('div');
+      actions.className = 'tpl-actions';
+      if (t.canEdit) { const e = document.createElement('button'); e.type = 'button'; e.textContent = 'Edit'; e.dataset.tplEdit = t.id; actions.appendChild(e); }
+      if (t.canDelete) { const d = document.createElement('button'); d.type = 'button'; d.textContent = 'Delete'; d.dataset.tplDelete = t.id; actions.appendChild(d); }
+      if (actions.childNodes.length) card.appendChild(actions);
+    }
+    list.appendChild(card);
+  }
+}
+
+function tplFillLanguages() {
+  const sel = document.getElementById('tpl-language');
+  if (!sel || sel.options.length) return;
+  for (const l of _tplState.languages) {
+    const o = document.createElement('option');
+    o.value = l.code; o.textContent = l.label;
+    sel.appendChild(o);
+  }
+  // Start on the language of the phone or browser when the list has it; any other language is one tap away.
+  const guess = (navigator.language || 'en').replace('-', '_').toLowerCase();
+  const pick = _tplState.languages.find((l) => l.code.toLowerCase() === guess) || _tplState.languages.find((l) => l.code.toLowerCase() === guess.split('_')[0]) || _tplState.languages.find((l) => l.code === 'en');
+  if (pick) sel.value = pick.code;
+  tplLanguageChanged(true);
+}
+
+// Puts the safe default greeting of the chosen language in the box, unless the seller has already written their own text.
+window.tplLanguageChanged = function(force) {
+  if (_tplState.editing) return;
+  const sel = document.getElementById('tpl-language');
+  const box = document.getElementById('tpl-text');
+  if (!sel || !box) return;
+  const lang = _tplState.languages.find((l) => l.code === sel.value);
+  const def = (lang && lang.defaultText) || '';
+  if (force === true || !box.value.trim() || box.value === _tplState.lastDefault) { box.value = def; }
+  _tplState.lastDefault = def;
+};
+
+window.tplRefresh = async function() {
+  if (_tplBusy) return;
+  _tplBusy = true;
+  const btn = document.getElementById('tpl-refresh');
+  if (btn) btn.disabled = true;
+  tplSetMsg('Loading...', false);
+  try {
+    const res = await callSellerTemplates('list');
+    if (!res.ok) { tplSetMsg(res.message || TPL_NOT_AVAILABLE, true); if (res.error !== 'not_available' && res.error !== 'relogin' && res.error !== 'network') logSystemError('templates-list', res.error || 'unknown', null); return; }
+    if (res.connected === false) { tplSetMsg(res.message || '', true); return; }
+    _tplState.templates = res.templates || [];
+    _tplState.languages = res.languages || [];
+    _tplLoaded = true;
+    tplFillLanguages();
+    tplRender();
+    tplSetMsg('', false);
+  } finally { _tplBusy = false; if (btn) btn.disabled = false; }
+};
+
+window.tplToggled = function(el) {
+  if (el.open && !_tplLoaded) window.tplRefresh();
+};
+
+function tplResetForm() {
+  _tplState.editing = null;
+  const title = document.getElementById('tpl-form-title'); if (title) title.textContent = 'New template: language';
+  const sel = document.getElementById('tpl-language'); if (sel) sel.disabled = false;
+  const save = document.getElementById('tpl-save'); if (save) save.textContent = 'Create';
+  const cancel = document.getElementById('tpl-cancel'); if (cancel) cancel.style.display = 'none';
+  const warn = document.getElementById('tpl-edit-warning'); if (warn) { warn.style.display = 'none'; warn.textContent = ''; }
+  tplLanguageChanged(true);
+}
+
+window.tplCancelEdit = function() { tplResetForm(); tplSetMsg('', false); };
+
+function tplStartEdit(id) {
+  const t = _tplState.templates.find((x) => String(x.id) === String(id));
+  if (!t) return;
+  _tplState.editing = String(t.id);
+  const title = document.getElementById('tpl-form-title'); if (title) title.textContent = 'Editing the ' + (t.languageLabel || t.language) + ' template';
+  const sel = document.getElementById('tpl-language'); if (sel) { sel.value = t.language; sel.disabled = true; }
+  const box = document.getElementById('tpl-text'); if (box) { box.value = t.text || ''; box.focus(); }
+  const save = document.getElementById('tpl-save'); if (save) save.textContent = 'Save change';
+  const cancel = document.getElementById('tpl-cancel'); if (cancel) cancel.style.display = '';
+  const warn = document.getElementById('tpl-edit-warning');
+  if (warn) { warn.style.display = ''; warn.textContent = 'WhatsApp checks every change again, and an approved template can be changed once every 24 hours and at most 10 times in 30 days. While it checks, the template may not be usable. The language and name cannot change: to use another language, create a new template.'; }
+  tplSetMsg('', false);
+}
+
+window.tplSave = async function() {
+  if (_tplBusy) return;
+  const box = document.getElementById('tpl-text');
+  const sel = document.getElementById('tpl-language');
+  if (!box || !sel) return;
+  _tplBusy = true;
+  const btn = document.getElementById('tpl-save');
+  if (btn) btn.disabled = true;
+  tplSetMsg('Sending to WhatsApp...', false);
+  try {
+    const editing = _tplState.editing;
+    const res = editing
+      ? await callSellerTemplates('edit', { templateId: editing, text: box.value })
+      : await callSellerTemplates('create', { language: sel.value, text: box.value });
+    if (!res.ok) { tplSetMsg(res.message || TPL_NOT_AVAILABLE, true); if (['meta_failed', 'bad_action'].includes(res.error)) logSystemError('templates-save', res.error, null); return; }
+    tplSetMsg(res.message || '', false);
+    if (editing) tplResetForm();
+    _tplBusy = false;
+    await window.tplRefresh();
+    if (res.message) tplSetMsg(res.message, false);
+  } finally { _tplBusy = false; if (btn) btn.disabled = false; }
+};
+
+async function tplDelete(id) {
+  const t = _tplState.templates.find((x) => String(x.id) === String(id));
+  if (!t || _tplBusy) return;
+  const warn = t.status === 'approved' ? ' WhatsApp will not allow the same name and language again for 30 days.' : '';
+  if (!window.confirm('Delete the ' + (t.languageLabel || t.language) + ' template?' + warn)) return;
+  _tplBusy = true;
+  tplSetMsg('Deleting...', false);
+  try {
+    const res = await callSellerTemplates('delete', { templateId: id });
+    if (!res.ok) { tplSetMsg(res.message || TPL_NOT_AVAILABLE, true); return; }
+    _tplBusy = false;
+    await window.tplRefresh();
+    tplSetMsg(res.message || 'Deleted.', false);
+  } finally { _tplBusy = false; }
+}
+
+document.addEventListener('click', function(ev) {
+  const el = ev.target && ev.target.closest ? ev.target.closest('[data-tpl-edit],[data-tpl-delete]') : null;
+  if (!el) return;
+  if (el.dataset.tplEdit) tplStartEdit(el.dataset.tplEdit);
+  else if (el.dataset.tplDelete) tplDelete(el.dataset.tplDelete);
+});
 
 // ---- The phone keeps its own copy of photos, videos, voice notes and call audio (WhatsApp style) ----
 // Files are saved in the browser's media cache; the service worker plays them from there. After a file is
