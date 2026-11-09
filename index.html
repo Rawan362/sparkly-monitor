@@ -4090,6 +4090,11 @@
         <label for="nct-select">Message template to use</label>
         <select id="nct-select"></select>
       </div>
+      <div id="nct-name-warning" style="display:none;" role="alert">
+        <p class="nct-reason" id="nct-name-warning-text"></p>
+        <div class="nct-actions"><button type="button" id="nct-name-fix" onclick="bnOpenField()">Set business name</button></div>
+        <label id="nct-name-confirm-row" style="display:block;margin:8px 0;font-size:12.5px;"><input type="checkbox" id="nct-name-confirm" onchange="nctGate()"> Create it anyway</label>
+      </div>
       <div class="nct-actions">
         <button type="button" id="nct-create" onclick="nctCreate()" style="display:none;"></button>
         <button type="button" id="nct-refresh" onclick="nctRefresh()" style="display:none;">Check again</button>
@@ -4836,6 +4841,15 @@
         <input type="text" id="biz-pause-message" data-key="global_pause_message" placeholder="e.g. Thanks, we'll reply soon" onchange="saveBizField(this)">
       </div>
 
+      <div class="settings-section-label" id="settings-label-bname">Business name</div>
+      <div class="biz-field" id="bn-box" style="padding:10px 20px 14px;border-bottom:1px solid var(--border);">
+        <label for="bn-input">Business name</label>
+        <input type="text" id="bn-input" autocomplete="off" placeholder="e.g. Corner Shop" oninput="bnTyped()">
+        <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);" id="bn-help">This short name replaces {{1}} in your message templates. Write only the name, without a comma. The rest of your business details is kept as it is.</span>
+        <div class="tpl-actions"><button type="button" id="bn-save" onclick="bnSave()">Save name</button></div>
+        <div class="tpl-msg" id="bn-msg" role="status"></div>
+      </div>
+
       <div class="settings-section-label" id="settings-label-templates">Message templates</div>
       <div class="tpl-intro">WhatsApp only lets you start a conversation with a customer who has not written to you in the last 24 hours by using a message template that WhatsApp has approved. Create yours here, in any language you choose. WhatsApp checks every template, which usually takes a few minutes and can take up to a day.</div>
       <details class="biz-fields" id="tpl-box" ontoggle="tplToggled(this)">
@@ -4853,6 +4867,11 @@
           <div class="tpl-preview" id="tpl-preview" style="display:none;"></div>
         </div>
         <div class="biz-field" id="tpl-edit-warning" style="display:none;font-size:12px;color:var(--text-muted);"></div>
+        <div class="biz-field" id="tpl-name-warning" style="display:none;" role="alert">
+          <div class="tpl-reason" id="tpl-name-warning-text"></div>
+          <div class="tpl-actions"><button type="button" id="tpl-name-fix" onclick="bnOpenField()">Set business name</button></div>
+          <label id="tpl-name-confirm-row" style="display:block;margin-top:8px;font-size:12.5px;"><input type="checkbox" id="tpl-name-confirm" onchange="tplGate()"> Create it anyway</label>
+        </div>
         <div class="biz-field">
           <button type="button" id="tpl-save" onclick="tplSave()">Create</button>
           <button type="button" id="tpl-cancel" onclick="tplCancelEdit()" style="display:none;">Cancel</button>
@@ -5586,6 +5605,129 @@ window.tplUpdatePreview = function() {
   const text = box.value.trim();
   out.style.display = text ? '' : 'none';
   out.textContent = text ? 'Preview: ' + messagePreview(text, _tplState.businessName, 'your business name') : '';
+  tplGate();
+};
+
+// ---- Business name (Settings): the short name that fills {{1}} in message templates.
+// It lives in sellers.business_name_location, the first onboarding answer ("name, location ..."). The template doors use the part before the
+// first comma, trimmed. Other parts (daily summary, calling settings, sales closer) read the whole text, so saving changes ONLY the part
+// before the first comma and keeps everything from the first comma onward exactly as stored. Saved the same way as the other seller fields
+// (the app's Supabase REST call on the sellers row); no security or database setting is touched here.
+const BN_MAX = 40; // the template door refuses {{1}} for a name longer than this
+const BN_WARN_LEN = 40;
+const BN_MSG_EMPTY = 'Please type your business name. It cannot be empty.';
+const BN_MSG_COMMA = 'The business name cannot contain a comma. Write only the short name, for example "Corner Shop". The rest of your business details is kept as it is.';
+const BN_MSG_LONG = 'The business name is too long. Please use ' + BN_MAX + ' characters or fewer.';
+const BN_WARN_EMPTY = 'You have not set a business name yet, so your message would read oddly. Set a short business name first.';
+const BN_WARN_ODD = 'Your business name looks too long or unclear, so your message would read oddly. Set a short business name first.';
+let _bnBusy = false;
+// { name, rest }: name = text before the first comma (trimmed, or the whole value when there is no comma); rest = from the first comma onward, untouched.
+function bnSplit(raw) {
+  const s = String(raw == null ? '' : raw);
+  const i = s.indexOf(',');
+  return i < 0 ? { name: s.trim(), rest: '' } : { name: s.slice(0, i).trim(), rest: s.slice(i) };
+}
+// '' when the new name can be saved, otherwise the plain-words reason.
+function bnValidate(name) {
+  const n = String(name == null ? '' : name).trim();
+  if (!n) return BN_MSG_EMPTY;
+  if (n.indexOf(',') >= 0) return BN_MSG_COMMA;
+  if (n.length > BN_MAX) return BN_MSG_LONG;
+  return '';
+}
+// '' when the name that will fill {{1}} is fine; otherwise the warning shown before a template is created.
+function bnWarning(name) {
+  const n = String(name == null ? '' : name).trim();
+  if (!n) return BN_WARN_EMPTY;
+  const words = n.split(/\s+/).filter(Boolean).length;
+  if (n.length > BN_WARN_LEN || words > 6 || (words >= 3 && /[.!?]$/.test(n))) return BN_WARN_ODD;
+  return '';
+}
+// True when the door would refuse {{1}} anyway (empty, or longer than the maximum): then Create stays disabled and there is no "Create it anyway".
+function bnBlocked(name) {
+  const n = String(name == null ? '' : name).trim();
+  return !n || n.length > BN_WARN_LEN;
+}
+function bnSetMsg(text, isError) {
+  const el = document.getElementById('bn-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('error', !!isError);
+}
+window.bnTyped = function() { bnSetMsg('', false); };
+async function bnLoad() {
+  const input = document.getElementById('bn-input');
+  if (!input || !SELLER_CHAT_ID) return;
+  const loadingFor = SELLER_CHAT_ID;
+  try {
+    const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name_location&limit=1');
+    if (loadingFor !== SELLER_CHAT_ID) return;
+    input.value = (rows && rows[0]) ? bnSplit(rows[0].business_name_location).name : '';
+  } catch (e) { debugLog('bnLoad failed: ' + (e && e.message)); }
+}
+window.bnSave = async function() {
+  if (_bnBusy) return;
+  const input = document.getElementById('bn-input');
+  const btn = document.getElementById('bn-save');
+  if (!input) return;
+  const name = input.value.trim();
+  const problem = bnValidate(name);
+  if (problem) { bnSetMsg(problem, true); return; }
+  if (!SELLER_CHAT_ID || (bizLoadedFor && bizLoadedFor !== SELLER_CHAT_ID)) { bnSetMsg('Account changed - please reload the app before saving.', true); return; }
+  _bnBusy = true;
+  if (btn) btn.disabled = true;
+  bnSetMsg('Saving...', false);
+  try {
+    // Read the stored text right before saving, so the part after the first comma is exactly what is stored now.
+    const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=business_name_location&limit=1');
+    if (!rows || !rows[0]) throw new Error('account not found');
+    const next = name + bnSplit(rows[0].business_name_location).rest;
+    const r = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_id', {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+      body: JSON.stringify({ business_name_location: next })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const done = await r.json();
+    if (!Array.isArray(done) || !done.length) throw new Error('not saved');
+    input.value = name;
+    _tplState.businessName = name;
+    if (typeof window.nctSetBusinessName === 'function') window.nctSetBusinessName(name);
+    tplUpdatePreview();
+    bnSetMsg('Saved. Your business name is now "' + name + '".', false);
+  } catch (e) {
+    debugLog('bnSave failed: ' + (e && e.message));
+    bnSetMsg('Could not save your business name. Check your internet connection and try again.', true);
+  } finally { _bnBusy = false; if (btn) btn.disabled = false; }
+};
+// From a warning: go to the Business name field (closing the Start a new conversation panel first when it is open).
+window.bnOpenField = function() {
+  const modal = document.getElementById('new-conversation-modal');
+  const open = modal && modal.style.display !== 'none' && modal.style.display !== '';
+  if (open && typeof window.closeNewConversationModal === 'function') window.closeNewConversationModal();
+  const go = function() {
+    const input = document.getElementById('bn-input');
+    if (input) { input.scrollIntoView(); input.focus(); }
+  };
+  if (open && typeof window.openBusinessPanel === 'function') Promise.resolve(window.openBusinessPanel()).then(go); else go();
+};
+// Warning above the Settings create button: shown when the text uses {{1}} and the business name is empty or odd; the button then waits for "Create it anyway".
+window.tplGate = function() {
+  const box = document.getElementById('tpl-text');
+  const save = document.getElementById('tpl-save');
+  const warn = document.getElementById('tpl-name-warning');
+  if (!box || !save || !warn) return;
+  const uses = box.value.indexOf('{{1}}') >= 0;
+  const w = (uses && _tplLoaded) ? bnWarning(_tplState.businessName) : '';
+  const confirmBox = document.getElementById('tpl-name-confirm');
+  if (!w && confirmBox) confirmBox.checked = false;
+  const blocked = !!w && bnBlocked(_tplState.businessName);
+  warn.style.display = w ? '' : 'none';
+  document.getElementById('tpl-name-warning-text').textContent = w;
+  const row = document.getElementById('tpl-name-confirm-row');
+  if (row) row.style.display = blocked ? 'none' : '';
+  if (blocked && confirmBox) confirmBox.checked = false;
+  save.disabled = !!w && (blocked || !(confirmBox && confirmBox.checked));
 };
 
 async function callSellerTemplates(action, extra) {
@@ -5695,6 +5837,7 @@ window.tplRefresh = async function() {
     _tplLoaded = true;
     tplFillLanguages();
     tplRender();
+    tplGate();
     tplSetMsg('', false);
   } finally { _tplBusy = false; if (btn) btn.disabled = false; }
 };
@@ -5735,6 +5878,8 @@ window.tplSave = async function() {
   const box = document.getElementById('tpl-text');
   const sel = document.getElementById('tpl-language');
   if (!box || !sel) return;
+  const saveBtn = document.getElementById('tpl-save');
+  if (saveBtn && saveBtn.disabled) return;
   _tplBusy = true;
   const btn = document.getElementById('tpl-save');
   if (btn) btn.disabled = true;
@@ -5750,7 +5895,7 @@ window.tplSave = async function() {
     _tplBusy = false;
     await window.tplRefresh();
     if (res.message) tplSetMsg(res.message, false);
-  } finally { _tplBusy = false; if (btn) btn.disabled = false; }
+  } finally { _tplBusy = false; if (btn) btn.disabled = false; tplGate(); }
 };
 
 async function tplDelete(id) {
@@ -14560,6 +14705,7 @@ async function loadBizSettings() {
   if (!SELLER_CHAT_ID) return;
   const loadingFor = SELLER_CHAT_ID;
   try {
+    bnLoad();
     fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name&limit=1', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     }).then(r => r.json()).then(rows => {
@@ -16890,6 +17036,31 @@ if ('serviceWorker' in navigator) {
   }
   window.nctChosen = nctChosen;
 
+  // Warning above the create button: shown when the ready-made text uses {{1}} and the business name is empty or odd; the button then waits for "Create it anyway".
+  function nctGate() {
+    const btn = nctEl('nct-create');
+    const warn = nctEl('nct-name-warning');
+    if (!btn || !warn) return;
+    const lang = _nct.languages.find(function(l) { return l.code === btn.dataset.language; });
+    const uses = !!(lang && lang.defaultText && lang.defaultText.indexOf('{{1}}') >= 0) && btn.style.display !== 'none';
+    const w = uses ? bnWarning(_nct.businessName) : '';
+    const confirmBox = nctEl('nct-name-confirm');
+    if (!w && confirmBox) confirmBox.checked = false;
+    warn.style.display = w ? '' : 'none';
+    nctEl('nct-name-warning-text').textContent = w;
+    const blocked = !!w && bnBlocked(_nct.businessName);
+    const row = nctEl('nct-name-confirm-row');
+    if (row) row.style.display = blocked ? 'none' : '';
+    if (blocked && confirmBox) confirmBox.checked = false;
+    btn.disabled = !!w && (blocked || !(confirmBox && confirmBox.checked));
+  }
+  window.nctGate = nctGate;
+  // After the seller saves a new business name in Settings.
+  window.nctSetBusinessName = function(name) {
+    _nct.businessName = name;
+    if (_nct.blocking) nctApply();
+  };
+
   function nctSellerLanguage() {
     // The seller's own default language (free text such as "English"), else the phone's language, else English.
     const words = [_nct.sellerLang, navigator.language || '', 'en'];
@@ -16912,7 +17083,7 @@ if ('serviceWorker' in navigator) {
     const rejected = _nct.templates.filter(function(t) { return t.status === 'rejected'; });
     const show = function(id, on) { const e = nctEl(id); if (e) e.style.display = on ? '' : 'none'; };
     const title = nctEl('nct-title'), text = nctEl('nct-text'), reason = nctEl('nct-reason'), preview = nctEl('nct-preview');
-    ['nct-preview', 'nct-reason', 'nct-picker', 'nct-create', 'nct-refresh', 'nct-settings'].forEach(function(id) { show(id, false); });
+    ['nct-preview', 'nct-reason', 'nct-picker', 'nct-create', 'nct-refresh', 'nct-settings', 'nct-name-warning'].forEach(function(id) { show(id, false); });
     if (!_nct.blocking) { box.style.display = 'none'; if (check) check.disabled = false; nctStopPolling(); return; }
     box.style.display = '';
 
@@ -16965,6 +17136,7 @@ if ('serviceWorker' in navigator) {
       const sample = messagePreview(lang.defaultText, _nct.businessName, '...');
       preview.textContent = sample; show('nct-preview', true);
       const c = nctEl('nct-create'); c.textContent = 'Create a ready-made message in ' + lang.label; c.dataset.language = lang.code; show('nct-create', true);
+      nctGate();
     } else {
       text.textContent = NCT_TEXT_NONE + ' ' + NCT_NO_DEFAULT;
       const b = nctEl('nct-settings'); b.textContent = NCT_BUTTON_SETTINGS; show('nct-settings', true);
@@ -17020,6 +17192,7 @@ if ('serviceWorker' in navigator) {
     const btn = nctEl('nct-create');
     const lang = _nct.languages.find(function(l) { return l.code === btn.dataset.language; });
     if (!lang || !lang.defaultText) return;
+    if (btn.disabled) return;
     _nct.loading = true;
     btn.disabled = true;
     nctSetMsg('Sending to WhatsApp...', false);
@@ -17029,7 +17202,7 @@ if ('serviceWorker' in navigator) {
       _nct.loading = false;
       await nctLoadList(true);
       nctSetMsg(res.message || '', false);
-    } finally { _nct.loading = false; btn.disabled = false; }
+    } finally { _nct.loading = false; btn.disabled = false; nctGate(); }
   };
 
   window.nctOpenSettings = function() {
