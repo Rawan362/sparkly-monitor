@@ -91,6 +91,8 @@ async function openSection(answer, calls) {
   });
   return { page, errors };
 }
+const text = (page, id) => page.$eval('#' + id, (e) => e.textContent);
+const shown = (page, id) => page.$eval('#' + id, (e) => e.style.display !== 'none');
 const listOk = () => ({ json: { ok: true, connected: true, templates: TEMPLATES, languages: LANGS, businessName: 'Shop', variable: '{{1}}' } });
 const openBox = async (page) => { await page.click('#tpl-box > summary'); await page.waitForSelector('.tpl-card'); };
 
@@ -172,6 +174,39 @@ test('a refusal is shown exactly as the server words it: no permission, text pro
     assert.ok(await page.$eval('#tpl-msg', (e) => e.classList.contains('error')));
     await page.close();
   }
+});
+
+test('the help line says {{1}} is optional, and the text is sent exactly as typed with or without the variable (the server applies the rules)', { skip }, async () => {
+  const calls = [];
+  const { page, errors } = await openSection((b) => (b.action === 'create' ? { json: { ok: true, created: true, message: 'Sent to WhatsApp for review.' } } : listOk()), calls);
+  await openBox(page);
+  assert.equal(
+    await page.$eval('#tpl-help', (e) => e.textContent),
+    'You can use {{1}} once; it is replaced by your business name when the message is sent. Or write the text without it. If you use it, put it in the middle of the text with a few words before and after it, not at the very start or end. Keep it a simple greeting: no prices, offers, shortened links, or requests for passwords or ID numbers.'
+  );
+  assert.doesNotMatch(await page.$eval('#tpl-help', (e) => e.textContent), /must contain|exactly once/);
+  for (const text of ['Hello! Thank you for contacting our shop. Just reply and we will chat.', 'Hello! This is {{1}}. We are happy to help with anything you need.']) {
+    await page.fill('#tpl-text', text);
+    await page.click('#tpl-save');
+    await page.waitForFunction(() => /Sent to WhatsApp for review/.test(document.getElementById('tpl-msg').textContent));
+    const sent = calls.filter((c) => c.action === 'create').pop();
+    assert.equal(sent.text, text, 'nothing is added or removed by the app');
+  }
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the preview shows the business name in place of {{1}}, and a text without it as it is', { skip }, async () => {
+  const calls = [];
+  const { page } = await openSection(() => listOk(), calls);
+  await openBox(page);
+  await page.fill('#tpl-text', 'Hello! This is {{1}}. Reply to chat with us.');
+  assert.equal(await text(page, 'tpl-preview'), 'Preview: Hello! This is Shop. Reply to chat with us.');
+  await page.fill('#tpl-text', 'Hello! Thank you for contacting our shop.');
+  assert.equal(await text(page, 'tpl-preview'), 'Preview: Hello! Thank you for contacting our shop.');
+  await page.fill('#tpl-text', '');
+  assert.equal(await shown(page, 'tpl-preview'), false);
+  await page.close();
 });
 
 test('Edit puts the saved text in the box with the warning, locks the language, and sends only the template id and the text', { skip }, async () => {
