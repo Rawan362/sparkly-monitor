@@ -20,7 +20,7 @@ const skip = chromium ? false : 'Playwright is not installed';
 const LANGS = [{ code: 'en', label: 'English', defaultText: 'Hello! This is {{1}}. We are happy to help you with anything you need.' }];
 const MSG_EMPTY = 'Please type your business name. It cannot be empty.';
 const MSG_COMMA = 'The business name cannot contain a comma. Write only the short name, for example "Corner Shop". The rest of your business details is kept as it is.';
-const MSG_LONG = 'The business name is too long. Please use 60 characters or fewer.';
+const MSG_LONG = 'The business name is too long. Please use 40 characters or fewer.';
 const WARN_EMPTY = 'You have not set a business name yet, so your message would read oddly. Set a short business name first.';
 const WARN_ODD = 'Your business name looks too long or unclear, so your message would read oddly. Set a short business name first.';
 
@@ -163,14 +163,14 @@ test('a name with a comma is refused in plain words and nothing is written', { s
   await page.close();
 });
 
-test('a name over 60 characters is refused, 60 is accepted', { skip }, async () => {
+test('a name over 40 characters is refused, 40 is accepted', { skip }, async () => {
   const store = newStore('Corner Shop');
   const { page } = await openSettings(store, 'Corner Shop');
-  await page.fill('#bn-input', 'A'.repeat(61));
+  await page.fill('#bn-input', 'A'.repeat(41));
   await page.click('#bn-save');
   assert.equal(await text(page, 'bn-msg'), MSG_LONG);
   assert.equal(store.patches.length, 0);
-  await page.fill('#bn-input', 'A'.repeat(60));
+  await page.fill('#bn-input', 'A'.repeat(40));
   await page.click('#bn-save');
   await page.waitForFunction(() => document.getElementById('bn-msg').textContent.startsWith('Saved.'));
   assert.equal(store.patches.length, 1);
@@ -188,7 +188,7 @@ test('if the save fails the seller is told in plain words and the stored text is
   await page.close();
 });
 
-test('Settings warning: empty business name warns, the create button waits for "Create it anyway"', { skip }, async () => {
+test('Settings warning: an empty business name warns with only the Set business name button and Create stays disabled', { skip }, async () => {
   const { page } = await openSettings(newStore(''), '');
   await page.click('#tpl-box > summary');
   await page.waitForFunction(() => document.getElementById('tpl-text').value !== '');
@@ -196,28 +196,31 @@ test('Settings warning: empty business name warns, the create button waits for "
   assert.equal(await text(page, 'tpl-name-warning-text'), WARN_EMPTY);
   assert.equal(await text(page, 'tpl-name-fix'), 'Set business name');
   assert.equal(await disabled(page, 'tpl-save'), true);
-  await page.check('#tpl-name-confirm');
-  assert.equal(await disabled(page, 'tpl-save'), false);
-  await page.uncheck('#tpl-name-confirm');
-  assert.equal(await disabled(page, 'tpl-save'), true);
+  assert.equal(await shown(page, 'tpl-name-confirm-row'), false, 'no "Create it anyway" for an empty name: the door would refuse it');
   await page.click('#tpl-name-fix');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'bn-input');
   await page.close();
 });
 
-test('Settings warning: a very long name and a whole sentence warn; a normal name does not; a text without {{1}} does not', { skip }, async () => {
+test('Settings warning: a name over 40 characters is blocked (no tick box); a sentence-like name can be confirmed; a normal name and a text without {{1}} do not warn', { skip }, async () => {
   const cases = [
-    ['A'.repeat(41), WARN_ODD],
-    ['We sell the best shoes in the whole town.', WARN_ODD],
+    ['A'.repeat(41), WARN_ODD, 'blocked'],
+    ['We sell the best shoes in town.', WARN_ODD, 'confirm'],
+    ['Shop A B C D E F G', WARN_ODD, 'confirm'],
     ['Corner Shop', null],
     ['A'.repeat(40), null]
   ];
-  for (const [name, expected] of cases) {
+  for (const [name, expected, kind] of cases) {
     const { page } = await openSettings(newStore(name), name);
     await page.click('#tpl-box > summary');
     await page.waitForFunction(() => document.getElementById('tpl-text').value !== '');
     assert.equal(await shown(page, 'tpl-name-warning'), expected !== null, name);
-    if (expected) { assert.equal(await text(page, 'tpl-name-warning-text'), expected); assert.equal(await disabled(page, 'tpl-save'), true); }
+    if (expected) {
+      assert.equal(await text(page, 'tpl-name-warning-text'), expected);
+      assert.equal(await disabled(page, 'tpl-save'), true);
+      assert.equal(await shown(page, 'tpl-name-confirm-row'), kind === 'confirm', name);
+      if (kind === 'confirm') { await page.check('#tpl-name-confirm'); assert.equal(await disabled(page, 'tpl-save'), false, 'a sentence-like name can be confirmed'); }
+    }
     else assert.equal(await disabled(page, 'tpl-save'), false, 'a normal name leaves the create button available');
     await page.close();
   }
@@ -250,8 +253,8 @@ async function openStartPanel(doorName) {
   return r;
 }
 
-test('Start a new conversation: empty, very long and sentence-like names warn and hold the create button; a normal name does not', { skip }, async () => {
-  for (const [name, expected] of [['', WARN_EMPTY], ['A'.repeat(45), WARN_ODD], ['We are a family shop that sells many things.', WARN_ODD], ['Corner Shop', null]]) {
+test('Start a new conversation: empty and over-40 names are blocked, a sentence-like name can be confirmed, a normal name does not warn', { skip }, async () => {
+  for (const [name, expected, kind] of [['', WARN_EMPTY, 'blocked'], ['A'.repeat(45), WARN_ODD, 'blocked'], ['We sell shoes and bags for all.', WARN_ODD, 'confirm'], ['Corner Shop', null]]) {
     const { page, errors } = await openStartPanel(name);
     assert.equal(await shown(page, 'nct-create'), true);
     assert.equal(await shown(page, 'nct-name-warning'), expected !== null, name);
@@ -259,8 +262,9 @@ test('Start a new conversation: empty, very long and sentence-like names warn an
       assert.equal(await text(page, 'nct-name-warning-text'), expected);
       assert.equal(await text(page, 'nct-name-fix'), 'Set business name');
       assert.equal(await disabled(page, 'nct-create'), true);
-      await page.check('#nct-name-confirm');
-      assert.equal(await disabled(page, 'nct-create'), false, 'available only after the seller confirms');
+      assert.equal(await shown(page, 'nct-name-confirm-row'), kind === 'confirm', name);
+      if (kind === 'confirm') { await page.check('#nct-name-confirm'); assert.equal(await disabled(page, 'nct-create'), false, 'available only after the seller confirms'); }
+      else assert.equal(await disabled(page, 'nct-create'), true, 'empty or over 40 characters: Create stays disabled');
     } else assert.equal(await disabled(page, 'nct-create'), false);
     assert.deepEqual(errors, []);
     await page.close();

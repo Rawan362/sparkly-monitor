@@ -4093,7 +4093,7 @@
       <div id="nct-name-warning" style="display:none;" role="alert">
         <p class="nct-reason" id="nct-name-warning-text"></p>
         <div class="nct-actions"><button type="button" id="nct-name-fix" onclick="bnOpenField()">Set business name</button></div>
-        <label style="display:block;margin:8px 0;font-size:12.5px;"><input type="checkbox" id="nct-name-confirm" onchange="nctGate()"> Create it anyway</label>
+        <label id="nct-name-confirm-row" style="display:block;margin:8px 0;font-size:12.5px;"><input type="checkbox" id="nct-name-confirm" onchange="nctGate()"> Create it anyway</label>
       </div>
       <div class="nct-actions">
         <button type="button" id="nct-create" onclick="nctCreate()" style="display:none;"></button>
@@ -4870,7 +4870,7 @@
         <div class="biz-field" id="tpl-name-warning" style="display:none;" role="alert">
           <div class="tpl-reason" id="tpl-name-warning-text"></div>
           <div class="tpl-actions"><button type="button" id="tpl-name-fix" onclick="bnOpenField()">Set business name</button></div>
-          <label style="display:block;margin-top:8px;font-size:12.5px;"><input type="checkbox" id="tpl-name-confirm" onchange="tplGate()"> Create it anyway</label>
+          <label id="tpl-name-confirm-row" style="display:block;margin-top:8px;font-size:12.5px;"><input type="checkbox" id="tpl-name-confirm" onchange="tplGate()"> Create it anyway</label>
         </div>
         <div class="biz-field">
           <button type="button" id="tpl-save" onclick="tplSave()">Create</button>
@@ -5613,7 +5613,7 @@ window.tplUpdatePreview = function() {
 // first comma, trimmed. Other parts (daily summary, calling settings, sales closer) read the whole text, so saving changes ONLY the part
 // before the first comma and keeps everything from the first comma onward exactly as stored. Saved the same way as the other seller fields
 // (the app's Supabase REST call on the sellers row); no security or database setting is touched here.
-const BN_MAX = 60;
+const BN_MAX = 40; // the template door refuses {{1}} for a name longer than this
 const BN_WARN_LEN = 40;
 const BN_MSG_EMPTY = 'Please type your business name. It cannot be empty.';
 const BN_MSG_COMMA = 'The business name cannot contain a comma. Write only the short name, for example "Corner Shop". The rest of your business details is kept as it is.';
@@ -5642,6 +5642,11 @@ function bnWarning(name) {
   const words = n.split(/\s+/).filter(Boolean).length;
   if (n.length > BN_WARN_LEN || words > 6 || (words >= 3 && /[.!?]$/.test(n))) return BN_WARN_ODD;
   return '';
+}
+// True when the door would refuse {{1}} anyway (empty, or longer than the maximum): then Create stays disabled and there is no "Create it anyway".
+function bnBlocked(name) {
+  const n = String(name == null ? '' : name).trim();
+  return !n || n.length > BN_WARN_LEN;
 }
 function bnSetMsg(text, isError) {
   const el = document.getElementById('bn-msg');
@@ -5716,9 +5721,13 @@ window.tplGate = function() {
   const w = (uses && _tplLoaded) ? bnWarning(_tplState.businessName) : '';
   const confirmBox = document.getElementById('tpl-name-confirm');
   if (!w && confirmBox) confirmBox.checked = false;
+  const blocked = !!w && bnBlocked(_tplState.businessName);
   warn.style.display = w ? '' : 'none';
   document.getElementById('tpl-name-warning-text').textContent = w;
-  save.disabled = !!w && !(confirmBox && confirmBox.checked);
+  const row = document.getElementById('tpl-name-confirm-row');
+  if (row) row.style.display = blocked ? 'none' : '';
+  if (blocked && confirmBox) confirmBox.checked = false;
+  save.disabled = !!w && (blocked || !(confirmBox && confirmBox.checked));
 };
 
 async function callSellerTemplates(action, extra) {
@@ -17039,7 +17048,11 @@ if ('serviceWorker' in navigator) {
     if (!w && confirmBox) confirmBox.checked = false;
     warn.style.display = w ? '' : 'none';
     nctEl('nct-name-warning-text').textContent = w;
-    btn.disabled = !!w && !(confirmBox && confirmBox.checked);
+    const blocked = !!w && bnBlocked(_nct.businessName);
+    const row = nctEl('nct-name-confirm-row');
+    if (row) row.style.display = blocked ? 'none' : '';
+    if (blocked && confirmBox) confirmBox.checked = false;
+    btn.disabled = !!w && (blocked || !(confirmBox && confirmBox.checked));
   }
   window.nctGate = nctGate;
   // After the seller saves a new business name in Settings.
