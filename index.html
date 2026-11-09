@@ -3255,6 +3255,17 @@
     line-height: 1.5;
     margin-bottom: 14px;
   }
+  /* Start a new conversation: message template panel */
+  #new-conversation-templates { padding: 0 0 10px; }
+  #new-conversation-templates .nct-title { font-weight: 600; font-size: 14px; margin: 0 0 4px; }
+  #new-conversation-templates .nct-text { font-size: 12.5px; color: var(--text-muted); margin: 0 0 8px; }
+  #new-conversation-templates .nct-preview { font-size: 12.5px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); margin: 0 0 8px; white-space: pre-wrap; word-break: break-word; }
+  #new-conversation-templates .nct-reason { font-size: 12.5px; color: var(--danger); margin: 0 0 8px; }
+  #new-conversation-templates .nct-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  #new-conversation-templates .nct-msg { font-size: 12.5px; margin-top: 6px; }
+  #new-conversation-templates .nct-msg.error { color: var(--danger); }
+  #new-conversation-templates label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  #new-conversation-templates select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font-family: inherit; }
   #new-conversation-phone-input {
     width: 100%;
     box-sizing: border-box;
@@ -4068,6 +4079,22 @@
       <button onclick="closeNewConversationModal()" title="Close">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
+    </div>
+    <div id="new-conversation-templates" style="display:none;" aria-live="polite">
+      <p class="nct-title" id="nct-title"></p>
+      <p class="nct-text" id="nct-text"></p>
+      <div class="nct-preview" id="nct-preview" style="display:none;"></div>
+      <p class="nct-reason" id="nct-reason" style="display:none;"></p>
+      <div id="nct-picker" style="display:none;">
+        <label for="nct-select">Message template to use</label>
+        <select id="nct-select"></select>
+      </div>
+      <div class="nct-actions">
+        <button type="button" id="nct-create" onclick="nctCreate()" style="display:none;"></button>
+        <button type="button" id="nct-refresh" onclick="nctRefresh()" style="display:none;">Check again</button>
+        <button type="button" id="nct-settings" onclick="nctOpenSettings()" style="display:none;"></button>
+      </div>
+      <div class="nct-msg" id="nct-msg" role="status"></div>
     </div>
     <div id="new-conversation-step-number">
       <p>Enter the customer's phone number to start the conversation.</p>
@@ -16810,7 +16837,195 @@ if ('serviceWorker' in navigator) {
 
   let newConversationVerifiedNumber = null;
 
+  // ---- Start a new conversation: the seller's message templates ----
+  // WhatsApp only lets a seller start a conversation with a message template it has approved. When the screen opens it asks the Message
+  // Templates door (the one behind Settings > Message templates) what the seller has, and: no template -> "You need a message template first"
+  // with a one-tap ready-made one in the seller's language; waiting -> says so and how long it usually takes, and checks again by itself;
+  // rejected -> shows WhatsApp's reason; one or several approved -> the seller can start (and chooses when there are several). If the door
+  // cannot be reached (not switched on yet, offline, signed out) nothing here blocks the screen: it works exactly as before.
+  const NCT_TITLE_NONE = 'You need a message template first';
+  const NCT_TEXT_NONE = 'WhatsApp only lets you start a conversation with a customer who has not written to you recently by using a message template that WhatsApp has approved. Create one now in one tap. WhatsApp checks it, which usually takes a few minutes and can take up to 24 hours.';
+  const NCT_TITLE_WAITING = 'Your message template is waiting for approval';
+  const NCT_TEXT_WAITING = 'WhatsApp usually approves a template within a few minutes, and it can take up to 24 hours. This screen checks again by itself, and you can start a conversation as soon as it is approved.';
+  const NCT_TITLE_REJECTED = 'WhatsApp rejected your message template';
+  const NCT_TEXT_REJECTED = 'Change the text in Message templates and send it again, or create one in another language.';
+  const NCT_NO_DEFAULT = 'We do not have a ready-made message in your language yet. Write your own in Message templates.';
+  const NCT_BUTTON_SETTINGS = 'Open message templates';
+  const NCT_POLL_MS = 20000;
+  let _nct = { templates: [], languages: [], businessName: '', blocking: false, loading: false, sellerLang: '' };
+  let _nctTimer = null;
+
+  function nctEl(id) { return document.getElementById(id); }
+  function nctSetMsg(text, isError) { const el = nctEl('nct-msg'); if (!el) return; el.textContent = text || ''; el.classList.toggle('error', !!isError); }
+  function nctStopPolling() { if (_nctTimer) { clearInterval(_nctTimer); _nctTimer = null; } }
+  // The templates a conversation can be started with: approved, and nothing to fill in but the business name.
+  function nctStartable() { return _nct.templates.filter(function(t) { return t.canStart; }); }
+  function nctOptionLabel(t) { return (t.languageLabel || t.language) + (t.ours ? '' : ' (' + t.name + ')'); }
+
+  // The template the next "send" asks for: the seller's choice, so the door never has to guess. Nothing when the list is unknown (old behaviour).
+  function nctChosen() {
+    if (!_nct.blocking) return {};
+    const sel = nctEl('nct-select');
+    const list = nctStartable();
+    const t = (sel && list.find(function(x) { return x.name + '|' + x.language === sel.value; })) || list[0];
+    return t ? { templateName: t.name, templateLanguage: t.language } : {};
+  }
+  window.nctChosen = nctChosen;
+
+  function nctSellerLanguage() {
+    // The seller's own default language (free text such as "English"), else the phone's language, else English.
+    const words = [_nct.sellerLang, navigator.language || '', 'en'];
+    for (const w of words) {
+      const x = String(w || '').trim().toLowerCase().replace('-', '_');
+      if (!x) continue;
+      const hit = _nct.languages.find(function(l) { return l.code.toLowerCase() === x || l.label.toLowerCase() === x; })
+        || _nct.languages.find(function(l) { return l.label.toLowerCase().split(' ')[0] === x; })
+        || _nct.languages.find(function(l) { return l.code.toLowerCase() === x.split('_')[0]; });
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  function nctApply() {
+    const box = nctEl('nct-box') || nctEl('new-conversation-templates');
+    const check = nctEl('new-conversation-check-btn');
+    const startable = nctStartable();
+    const waiting = _nct.templates.filter(function(t) { return t.status === 'pending'; });
+    const rejected = _nct.templates.filter(function(t) { return t.status === 'rejected'; });
+    const show = function(id, on) { const e = nctEl(id); if (e) e.style.display = on ? '' : 'none'; };
+    const title = nctEl('nct-title'), text = nctEl('nct-text'), reason = nctEl('nct-reason'), preview = nctEl('nct-preview');
+    ['nct-preview', 'nct-reason', 'nct-picker', 'nct-create', 'nct-refresh', 'nct-settings'].forEach(function(id) { show(id, false); });
+    if (!_nct.blocking) { box.style.display = 'none'; if (check) check.disabled = false; nctStopPolling(); return; }
+    box.style.display = '';
+
+    if (startable.length) {
+      // Ready. One template needs no words; several: the seller chooses.
+      nctStopPolling();
+      if (check) check.disabled = false;
+      if (startable.length === 1) { box.style.display = 'none'; return; }
+      title.textContent = 'Choose your message template';
+      text.textContent = 'You have more than one approved message template. The customer receives the one you choose.';
+      const sel = nctEl('nct-select');
+      const keep = sel.value;
+      sel.innerHTML = '';
+      const pref = nctSellerLanguage();
+      let preferred = null;
+      startable.forEach(function(t) {
+        const o = document.createElement('option');
+        o.value = t.name + '|' + t.language; o.textContent = nctOptionLabel(t);
+        sel.appendChild(o);
+        if (!preferred && pref && t.language.toLowerCase().split('_')[0] === pref.code.toLowerCase().split('_')[0]) preferred = o.value;
+      });
+      sel.value = Array.from(sel.options).some(function(o) { return o.value === keep; }) ? keep : (preferred || sel.options[0].value);
+      show('nct-picker', true);
+      return;
+    }
+
+    // Nothing to start with yet.
+    if (check) check.disabled = true;
+    if (waiting.length) {
+      title.textContent = NCT_TITLE_WAITING;
+      text.textContent = NCT_TEXT_WAITING;
+      show('nct-refresh', true);
+      if (!_nctTimer) _nctTimer = setInterval(function() { nctRefresh(true); }, window._nctPollMs || NCT_POLL_MS);
+      return;
+    }
+    nctStopPolling();
+    if (rejected.length) {
+      title.textContent = NCT_TITLE_REJECTED;
+      text.textContent = NCT_TEXT_REJECTED;
+      reason.textContent = rejected[0].reason || '';
+      show('nct-reason', !!rejected[0].reason);
+      const b = nctEl('nct-settings'); b.textContent = NCT_BUTTON_SETTINGS; show('nct-settings', true);
+      show('nct-refresh', true);
+      return;
+    }
+    title.textContent = NCT_TITLE_NONE;
+    text.textContent = NCT_TEXT_NONE;
+    const lang = nctSellerLanguage();
+    if (lang && lang.defaultText) {
+      const sample = lang.defaultText.replace('{{1}}', _nct.businessName || '...');
+      preview.textContent = sample; show('nct-preview', true);
+      const c = nctEl('nct-create'); c.textContent = 'Create a ready-made message in ' + lang.label; c.dataset.language = lang.code; show('nct-create', true);
+    } else {
+      text.textContent = NCT_TEXT_NONE + ' ' + NCT_NO_DEFAULT;
+      const b = nctEl('nct-settings'); b.textContent = NCT_BUTTON_SETTINGS; show('nct-settings', true);
+    }
+  }
+
+  async function nctLoadList(quiet) {
+    const res = await callSellerTemplates('list');
+    // Anything but a clear answer must not block the screen: it then works as it always did.
+    if (!res || res.ok !== true || res.connected === false || !Array.isArray(res.templates)) {
+      if (!quiet) { _nct.blocking = false; nctApply(); }
+      return false;
+    }
+    _nct.templates = res.templates;
+    _nct.languages = res.languages || [];
+    _nct.businessName = res.businessName || '';
+    _nct.blocking = true;
+    nctApply();
+    return true;
+  }
+
+  async function nctLoad() {
+    nctStopPolling();
+    _nct = { templates: [], languages: [], businessName: '', blocking: false, loading: true, sellerLang: '' };
+    nctSetMsg('', false);
+    const box = nctEl('new-conversation-templates');
+    box.style.display = '';
+    nctEl('nct-title').textContent = 'Checking your message templates...';
+    nctEl('nct-text').textContent = '';
+    ['nct-preview', 'nct-reason', 'nct-picker', 'nct-create', 'nct-refresh', 'nct-settings'].forEach(function(id) { nctEl(id).style.display = 'none'; });
+    const check = nctEl('new-conversation-check-btn');
+    if (check) check.disabled = true;
+    try {
+      try {
+        const rows = await sb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=default_language&limit=1');
+        _nct.sellerLang = (rows && rows[0] && rows[0].default_language) || '';
+      } catch (e) { _nct.sellerLang = ''; }
+      await nctLoadList(false);
+    } catch (e) {
+      _nct.blocking = false; nctApply();
+    } finally { _nct.loading = false; }
+  }
+
+  window.nctRefresh = async function(quiet) {
+    if (_nct.loading) return;
+    _nct.loading = true;
+    if (quiet !== true) nctSetMsg('Checking...', false);
+    try { await nctLoadList(true); if (quiet !== true) nctSetMsg('', false); } finally { _nct.loading = false; }
+  };
+
+  window.nctCreate = async function() {
+    if (_nct.loading) return;
+    const btn = nctEl('nct-create');
+    const lang = _nct.languages.find(function(l) { return l.code === btn.dataset.language; });
+    if (!lang || !lang.defaultText) return;
+    _nct.loading = true;
+    btn.disabled = true;
+    nctSetMsg('Sending to WhatsApp...', false);
+    try {
+      const res = await callSellerTemplates('create', { language: lang.code, text: lang.defaultText });
+      if (!res.ok) { nctSetMsg(res.message || 'Message templates are not available yet. Please try again later.', true); return; }
+      _nct.loading = false;
+      await nctLoadList(true);
+      nctSetMsg(res.message || '', false);
+    } finally { _nct.loading = false; btn.disabled = false; }
+  };
+
+  window.nctOpenSettings = function() {
+    closeNewConversationModal();
+    if (typeof window.openBusinessPanel === 'function') {
+      Promise.resolve(window.openBusinessPanel()).then(function() {
+        const box = document.getElementById('tpl-box');
+        if (box) { box.open = true; box.scrollIntoView(); if (typeof window.tplToggled === 'function') window.tplToggled(box); }
+      });
+    }
+  };
+
   window.openNewConversationModal = function() {
+    nctLoad();
     document.getElementById('new-conversation-phone-input').value = '';
     document.getElementById('new-conversation-check-status').textContent = '';
     document.getElementById('new-conversation-step-number').style.display = 'block';
@@ -16819,6 +17034,7 @@ if ('serviceWorker' in navigator) {
   };
 
   window.closeNewConversationModal = function() {
+    nctStopPolling();
     document.getElementById('new-conversation-modal').style.display = 'none';
   };
 
@@ -16956,7 +17172,7 @@ if ('serviceWorker' in navigator) {
       const res = await fetch(START_NEW_CONVERSATION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sellerChatId: SELLER_CHAT_ID, phoneNumber: phone, action: 'send' })
+        body: JSON.stringify(Object.assign({ sellerChatId: SELLER_CHAT_ID, phoneNumber: phone, action: 'send' }, nctChosen()))
       });
       const data = await res.json();
 
