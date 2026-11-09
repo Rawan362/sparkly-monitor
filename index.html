@@ -9188,6 +9188,14 @@ window.doSignUp = async function() {
       showSignUpScreen(realReason);
       return;
     }
+    // Supabase hides whether an email is already registered. For an email that already has a confirmed account it answers
+    // 200 with a MADE-UP user: its list of identities is empty and its id is not in the login system. That id must never be
+    // used: the profile row would point at nobody and the database refuses it (error 23503). Say it plainly instead.
+    if (Array.isArray(user.identities) && user.identities.length === 0) {
+      logSystemError(null, 'doSignUp', 'Sign-up with an email that already has an account (no profile created)');
+      showLoginScreen('This email already has an account. Sign in below instead of creating a new one.');
+      return;
+    }
     const newChatId = 'web_' + user.id;
     const sellerRes = await fetch(SUPABASE_URL + '/rest/v1/sellers', {
       method: 'POST',
@@ -9197,7 +9205,10 @@ window.doSignUp = async function() {
     if (!sellerRes.ok) {
       const sellerErrText = await sellerRes.text().catch(() => '');
       logSystemError(newChatId, 'doSignUp', 'Failed to create sellers row: HTTP ' + sellerRes.status + ' - ' + sellerErrText.slice(0, 300));
-      showSignUpScreen('Account created, but profile setup failed: ' + sellerErrText.slice(0, 150));
+      const linkBroken = /23503/.test(sellerErrText);
+      showSignUpScreen(linkBroken
+        ? 'We could not finish setting up this account (the login was not found). Try signing in, or use a different email.'
+        : 'Account created, but profile setup failed: ' + sellerErrText.slice(0, 150));
       return;
     }
     if (!authData.access_token) {
