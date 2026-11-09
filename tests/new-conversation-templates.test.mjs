@@ -20,6 +20,7 @@ const skip = chromium ? false : 'Playwright is not installed';
 const LANGS = [
   { code: 'en', label: 'English', defaultText: 'Hello! This is {{1}}. We are happy to help you with anything you need.' },
   { code: 'es', label: 'Spanish', defaultText: 'Hola! Te escribimos de {{1}}. Con gusto te ayudamos con lo que necesites.' },
+  { code: 'fr', label: 'French', defaultText: 'Bonjour ! Merci de nous contacter. Répondez à ce message et nous discuterons.' },
   { code: 'xx', label: 'No default language', defaultText: null }
 ];
 const tpl = (o) => Object.assign({ ours: true, canStart: false, canEdit: true, canDelete: true, name: 'sparkly_welcome_en', language: 'en', languageLabel: 'English', status: 'approved' }, o);
@@ -115,6 +116,17 @@ test('no template: "You need a message template first", one-tap ready-made messa
   assert.deepEqual(calls.map((c) => c.action), ['list']);
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('the preview fills in the business name when the ready-made text has {{1}}, and shows a text without it as it is', { skip }, async () => {
+  const { page } = await openScreen(() => listOf([]), [], [], { defaultLanguage: 'French' });
+  await settled(page);
+  assert.equal(await text(page, 'nct-preview'), 'Bonjour ! Merci de nous contacter. Répondez à ce message et nous discuterons.');
+  await page.close();
+  const { page: p2 } = await openScreen(() => listOf([]), [], [], { defaultLanguage: 'English' });
+  await settled(p2);
+  assert.equal(await text(p2, 'nct-preview'), 'Hello! This is Corner Shop. We are happy to help you with anything you need.');
+  await p2.close();
 });
 
 test('the phone language is used when the seller has set none; a language with no ready-made text sends the seller to Message templates', { skip }, async () => {

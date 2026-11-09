@@ -2048,6 +2048,7 @@
   .tpl-reason { color: var(--danger); }
   .tpl-body { font-size: 13px; margin-top: 6px; white-space: pre-wrap; word-break: break-word; }
   .tpl-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .tpl-preview { font-size: 12.5px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg, transparent); margin-top: 8px; white-space: pre-wrap; word-break: break-word; }
   .tpl-msg { font-size: 12.5px; margin-top: 8px; }
   .tpl-msg.error { color: var(--danger); }
 
@@ -4847,8 +4848,9 @@
         </div>
         <div class="biz-field">
           <label for="tpl-text">Message text</label>
-          <textarea id="tpl-text" rows="4" maxlength="1024" placeholder="Write a short, polite greeting" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea>
-          <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);">Write {{1}} once, in the middle of the text (not at the very start or end). It is replaced with your business name when the message is sent. Keep it a simple greeting: no prices, offers, shortened links, or requests for passwords or ID numbers.</span>
+          <textarea id="tpl-text" rows="4" maxlength="1024" oninput="tplUpdatePreview()" placeholder="Write a short, polite greeting" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);"></textarea>
+          <span style="display:block;margin-top:4px;font-size:12px;color:var(--text-muted);" id="tpl-help">You can use {{1}} once; it is replaced by your business name when the message is sent. Or write the text without it. If you use it, put it in the middle of the text with a few words before and after it, not at the very start or end. Keep it a simple greeting: no prices, offers, shortened links, or requests for passwords or ID numbers.</span>
+          <div class="tpl-preview" id="tpl-preview" style="display:none;"></div>
         </div>
         <div class="biz-field" id="tpl-edit-warning" style="display:none;font-size:12px;color:var(--text-muted);"></div>
         <div class="biz-field">
@@ -5571,7 +5573,20 @@ const TPL_RELOGIN = 'Please sign out and sign in again, then try once more.';
 const TPL_NO_CONNECTION = 'Could not reach the server. Check your internet connection and try again.';
 let _tplBusy = false;
 let _tplLoaded = false;
-let _tplState = { templates: [], languages: [], editing: null, lastDefault: '' };
+let _tplState = { templates: [], languages: [], editing: null, lastDefault: '', businessName: '' };
+
+// How a template text will look to the customer: {{1}} (the business name) is filled in when the text has it; a text without it is shown as it is.
+function messagePreview(text, name, fallbackName) {
+  return String(text || '').split('{{1}}').join(name || fallbackName || '');
+}
+window.tplUpdatePreview = function() {
+  const box = document.getElementById('tpl-text');
+  const out = document.getElementById('tpl-preview');
+  if (!box || !out) return;
+  const text = box.value.trim();
+  out.style.display = text ? '' : 'none';
+  out.textContent = text ? 'Preview: ' + messagePreview(text, _tplState.businessName, 'your business name') : '';
+};
 
 async function callSellerTemplates(action, extra) {
   const token = await getValidAuthToken();
@@ -5661,6 +5676,7 @@ window.tplLanguageChanged = function(force) {
   const def = (lang && lang.defaultText) || '';
   if (force === true || !box.value.trim() || box.value === _tplState.lastDefault) { box.value = def; }
   _tplState.lastDefault = def;
+  tplUpdatePreview();
 };
 
 window.tplRefresh = async function() {
@@ -5675,6 +5691,7 @@ window.tplRefresh = async function() {
     if (res.connected === false) { tplSetMsg(res.message || '', true); return; }
     _tplState.templates = res.templates || [];
     _tplState.languages = res.languages || [];
+    _tplState.businessName = res.businessName || '';
     _tplLoaded = true;
     tplFillLanguages();
     tplRender();
@@ -5705,6 +5722,7 @@ function tplStartEdit(id) {
   const title = document.getElementById('tpl-form-title'); if (title) title.textContent = 'Editing the ' + (t.languageLabel || t.language) + ' template';
   const sel = document.getElementById('tpl-language'); if (sel) { sel.value = t.language; sel.disabled = true; }
   const box = document.getElementById('tpl-text'); if (box) { box.value = t.text || ''; box.focus(); }
+  tplUpdatePreview();
   const save = document.getElementById('tpl-save'); if (save) save.textContent = 'Save change';
   const cancel = document.getElementById('tpl-cancel'); if (cancel) cancel.style.display = '';
   const warn = document.getElementById('tpl-edit-warning');
@@ -16944,7 +16962,7 @@ if ('serviceWorker' in navigator) {
     text.textContent = NCT_TEXT_NONE;
     const lang = nctSellerLanguage();
     if (lang && lang.defaultText) {
-      const sample = lang.defaultText.replace('{{1}}', _nct.businessName || '...');
+      const sample = messagePreview(lang.defaultText, _nct.businessName, '...');
       preview.textContent = sample; show('nct-preview', true);
       const c = nctEl('nct-create'); c.textContent = 'Create a ready-made message in ' + lang.label; c.dataset.language = lang.code; show('nct-create', true);
     } else {
