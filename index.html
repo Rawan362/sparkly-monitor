@@ -2046,6 +2046,10 @@
   .tpl-badge.rejected { color: var(--danger); border-color: var(--danger); }
   .tpl-status-text, .tpl-reason, .tpl-blocked { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
   .tpl-reason { color: var(--danger); }
+  /* The account cannot start conversations: no currency / payment method (WhatsApp error 131042 or 141006). Shown above the create and send buttons. */
+  .payment-block { background: var(--danger-soft); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+  .payment-block p { font-size: 12.5px; font-weight: 500; color: var(--danger); margin: 0; line-height: 1.45; }
+  .payment-block button { margin-top: 8px; }
   .tpl-body { font-size: 13px; margin-top: 6px; white-space: pre-wrap; word-break: break-word; }
   .tpl-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
   .tpl-preview { font-size: 12.5px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg, transparent); margin-top: 8px; white-space: pre-wrap; word-break: break-word; }
@@ -4081,6 +4085,10 @@
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
+    <div class="payment-block" id="new-conversation-payment-block" style="display:none;" role="alert">
+      <p id="new-conversation-payment-text"></p>
+      <button type="button" id="new-conversation-payment-recheck" onclick="ncPaymentRecheck()">Check again</button>
+    </div>
     <div id="new-conversation-templates" style="display:none;" aria-live="polite">
       <p class="nct-title" id="nct-title"></p>
       <p class="nct-text" id="nct-text"></p>
@@ -4856,6 +4864,9 @@
         <summary style="cursor:pointer;font-size:14px;padding:6px 0;">Show and manage my templates</summary>
         <div id="tpl-list" style="margin-top:8px;"></div>
         <div class="biz-field"><button type="button" id="tpl-refresh" onclick="tplRefresh()">Refresh</button></div>
+        <div class="payment-block" id="tpl-payment-block" style="display:none;" role="alert">
+          <p id="tpl-payment-text"></p>
+        </div>
         <div class="biz-field">
           <label for="tpl-language" id="tpl-form-title">New template: language</label>
           <select id="tpl-language" onchange="tplLanguageChanged()"></select>
@@ -5589,6 +5600,20 @@ window.toggleCalling = async function(btn) {
 const SELLER_TEMPLATES_URL = 'https://sparklly.site/webhook/seller-message-templates';
 const TPL_NOT_AVAILABLE = 'Message templates are not available yet. Please try again later.';
 const TPL_RELOGIN = 'Please sign out and sign in again, then try once more.';
+// A WhatsApp Business Account without a currency and a payment method cannot start conversations with templates: WhatsApp accepts the
+// send, then reports a failed delivery with error 131042, and the account status is BLOCKED with error 141006. Neutral wording: no country is named.
+// The words are the same ones the door sends (backend: src/shared/payment-block). Nothing is retried automatically.
+const PAYMENT_BLOCK_MESSAGE = 'Your WhatsApp Business account has no payment method or currency set up, so WhatsApp refuses to deliver business-started messages. Open Meta Business Manager, then WhatsApp Accounts, then Billing and payments, set your currency and add a payment method, then try again.';
+const PAYMENT_BLOCK_CODES = ['131042', '141006'];
+function isPaymentBlockCode(code) { return PAYMENT_BLOCK_CODES.indexOf(String(code)) >= 0; }
+// Read-only question to the Message Templates door: can this account start conversations? Anything but a clear "blocked for payment" is "not blocked".
+async function fetchPaymentBlock() {
+  try {
+    const r = await callSellerTemplates('sending_status');
+    if (r && r.ok === true && r.sendingStatus === 'blocked_payment') return PAYMENT_BLOCK_MESSAGE;
+  } catch (e) { /* unknown = nothing is blocked because of it */ }
+  return '';
+}
 const TPL_NO_CONNECTION = 'Could not reach the server. Check your internet connection and try again.';
 let _tplBusy = false;
 let _tplLoaded = false;
@@ -5821,9 +5846,19 @@ window.tplLanguageChanged = function(force) {
   tplUpdatePreview();
 };
 
+// Shows (or hides) the payment message above the create button. Read-only; a failed check shows nothing.
+window.tplCheckPayment = async function() {
+  const box = document.getElementById('tpl-payment-block');
+  if (!box) return;
+  const text = await fetchPaymentBlock();
+  document.getElementById('tpl-payment-text').textContent = text;
+  box.style.display = text ? '' : 'none';
+};
+
 window.tplRefresh = async function() {
   if (_tplBusy) return;
   _tplBusy = true;
+  window.tplCheckPayment();
   const btn = document.getElementById('tpl-refresh');
   if (btn) btn.disabled = true;
   tplSetMsg('Loading...', false);
@@ -5889,7 +5924,7 @@ window.tplSave = async function() {
     const res = editing
       ? await callSellerTemplates('edit', { templateId: editing, text: box.value })
       : await callSellerTemplates('create', { language: sel.value, text: box.value });
-    if (!res.ok) { tplSetMsg(res.message || TPL_NOT_AVAILABLE, true); if (['meta_failed', 'bad_action'].includes(res.error)) logSystemError('templates-save', res.error, null); return; }
+    if (!res.ok) { tplSetMsg(res.message || TPL_NOT_AVAILABLE, true); if (res.error === 'payment_method_missing') window.tplCheckPayment(); if (['meta_failed', 'bad_action'].includes(res.error)) logSystemError('templates-save', res.error, null); return; }
     tplSetMsg(res.message || '', false);
     if (editing) tplResetForm();
     _tplBusy = false;
@@ -17018,6 +17053,27 @@ if ('serviceWorker' in navigator) {
   const NCT_POLL_MS = 20000;
   let _nct = { templates: [], languages: [], businessName: '', blocking: false, loading: false, sellerLang: '' };
   let _nctTimer = null;
+  let _ncPaymentBlocked = false;   // the account has no payment method / currency: the seller is told and nothing is sent
+
+  // Shows (or hides) the payment message at the top of the panel, above the buttons. Blocked: the number step waits; nothing is sent or retried.
+  function ncShowPayment(on) {
+    _ncPaymentBlocked = !!on;
+    const box = document.getElementById('new-conversation-payment-block');
+    if (box) { document.getElementById('new-conversation-payment-text').textContent = on ? PAYMENT_BLOCK_MESSAGE : ''; box.style.display = on ? '' : 'none'; }
+    const check = document.getElementById('new-conversation-check-btn');
+    if (on && check) check.disabled = true;
+  }
+  window.ncPaymentRecheck = async function() {
+    const btn = document.getElementById('new-conversation-payment-recheck');
+    if (btn) btn.disabled = true;
+    try {
+      ncShowPayment(!!(await fetchPaymentBlock()));
+      if (!_ncPaymentBlocked) {
+        const check = document.getElementById('new-conversation-check-btn'); if (check) check.disabled = false;
+        const send = document.getElementById('new-conversation-send-btn'); if (send) send.disabled = false;
+      }
+    } finally { if (btn) btn.disabled = false; }
+  };
 
   function nctEl(id) { return document.getElementById(id); }
   function nctSetMsg(text, isError) { const el = nctEl('nct-msg'); if (!el) return; el.textContent = text || ''; el.classList.toggle('error', !!isError); }
@@ -17178,6 +17234,7 @@ if ('serviceWorker' in navigator) {
     } catch (e) {
       _nct.blocking = false; nctApply();
     } finally { _nct.loading = false; }
+    ncShowPayment(!!(await fetchPaymentBlock()));
   }
 
   window.nctRefresh = async function(quiet) {
@@ -17216,6 +17273,7 @@ if ('serviceWorker' in navigator) {
   };
 
   window.openNewConversationModal = function() {
+    ncShowPayment(false);
     nctLoad();
     document.getElementById('new-conversation-phone-input').value = '';
     document.getElementById('new-conversation-check-status').textContent = '';
@@ -17240,6 +17298,7 @@ if ('serviceWorker' in navigator) {
     const btn = document.getElementById('new-conversation-check-btn');
     const phoneNumber = input.value.replace(/[^0-9]/g, '');
 
+    if (_ncPaymentBlocked) return;   // the message above the buttons says what to do; nothing is checked or sent meanwhile
     if (!phoneNumber) {
       statusEl.textContent = 'Please enter a phone number.';
       return;
@@ -17321,7 +17380,7 @@ if ('serviceWorker' in navigator) {
   }
   function newConvVerdict(s) {
     if (!s) return 'pending';
-    if (s.status === 'failed') return String(s.error_code) === NEWCONV_NOT_ON_WHATSAPP_CODE ? 'not_on_whatsapp' : 'failed';
+    if (s.status === 'failed') return String(s.error_code) === NEWCONV_NOT_ON_WHATSAPP_CODE ? 'not_on_whatsapp' : isPaymentBlockCode(s.error_code) ? 'payment_block' : 'failed';
     if (s.status === 'sent' || s.status === 'delivered' || s.status === 'read' || s.status === 'played') return 'ok';
     return 'pending';
   }
@@ -17336,6 +17395,7 @@ if ('serviceWorker' in navigator) {
       const s = await newConvLook(phone, waId, before, 8000);
       const v = newConvVerdict(s);
       if (v === 'not_on_whatsapp') { setNewConvBanner(phone, { kind: 'error', text: NEWCONV_NOT_ON_WHATSAPP }); return; }
+      if (v === 'payment_block') { setNewConvBanner(phone, { kind: 'error', text: PAYMENT_BLOCK_MESSAGE }); return; }
       if (v === 'failed') { setNewConvBanner(phone, { kind: 'error', text: NEWCONV_NOT_DELIVERED }); return; }
       if (v === 'ok') {
         const b = _newConvBanners[phone];
@@ -17369,6 +17429,7 @@ if ('serviceWorker' in navigator) {
 
       if (!data.success) {
         if (data.notOnWhatsApp) { statusEl.textContent = NEWCONV_NOT_ON_WHATSAPP; keepDisabled = true; return; }
+        if (data.reason === 'payment_method_missing') { statusEl.textContent = ''; ncShowPayment(true); keepDisabled = true; return; }
         statusEl.textContent = data.error || 'Failed to send — please try again.';
         return;
       }
@@ -17383,6 +17444,7 @@ if ('serviceWorker' in navigator) {
       }
 
       if (verdict === 'not_on_whatsapp') { statusEl.textContent = NEWCONV_NOT_ON_WHATSAPP; keepDisabled = true; return; }
+      if (verdict === 'payment_block') { statusEl.textContent = ''; ncShowPayment(true); keepDisabled = true; return; }
       if (verdict === 'failed') { statusEl.textContent = NEWCONV_NOT_DELIVERED; keepDisabled = true; return; }
 
       if (verdict === 'pending') setNewConvBanner(phone, { kind: 'info', text: NEWCONV_WAITING });
