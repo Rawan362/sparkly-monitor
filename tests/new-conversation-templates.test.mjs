@@ -67,7 +67,7 @@ async function openScreen(door, calls, starts, o = {}) {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: h });
     if (/\/webhook\/seller-message-templates$/.test(u)) {
       const body = JSON.parse(route.request().postData() || '{}');
-      calls.push(body);
+      if (body.action !== 'sending_status') calls.push(body);   // the read-only payment status check is covered by tests/payment-block.test.mjs
       const a = door(body);
       return route.fulfill({ status: a.status || 200, contentType: 'application/json', headers: h, body: JSON.stringify(a.json || {}) });
     }
