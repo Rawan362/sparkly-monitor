@@ -61,8 +61,13 @@ class World {
     if (method === 'POST' && url.endsWith(DOOR)) {
       const action = JSON.parse(postData || '{}').action;
       if (action === 'check') { this.checks++; return { success: true, isValidWhatsApp: true, wa_id: PHONE, verified: false }; }
+      if (action === 'cleanup') return { success: true, removed: false, reason: 'kept_history' };   // the backup removal is not a send (tests/new-conversation-removal.test.mjs covers it)
       this.sends++;
       return this.doorSend;
+    }
+    // the chat the send created exists (one note), like in the real database; removal is covered in new-conversation-removal.test.mjs
+    if (url.includes('/rest/v1/conversations?seller_id=') || url.includes('/rest/v1/conversations?phone_number=')) {
+      return [{ id: 1, phone_number: PHONE, message: 'note', role: 'assistant', timestamp: '2026-11-12T10:00:00Z', channel: 'whatsapp', wa_message_id: WA_ID }];
     }
     if (url.includes('/rest/v1/message_status')) {
       return this.report && this.now() >= this.report.at ? [this.report.row] : [];
@@ -247,7 +252,7 @@ test('another refusal keeps the door\'s own sentence and can be tried again', { 
 test('c) nothing within the time: "Sent. Waiting for WhatsApp to confirm.", the chat opens anyway, and a LATER failure shows a banner in that chat', { skip }, async () => {
   const w = new World();
   const { page, errors } = await boot(browser, w, base);
-  await page.evaluate(() => { window._newConvWaitMs = 2000; window._newConvPollMs = 300; window._newConvWatchPollMs = 300; });
+  await page.evaluate(() => { window._newConvWaitMs = 2000; window._newConvPollMs = 300; window._newConvWatchPollMs = 300; window._ncDropGapMs = 300; });
   await toConfirm(page);
   w.t0 = Date.now();
   w.report = { at: 4500, row: { wa_message_id: WA_ID, status: 'failed', error_code: 131026 } };   // arrives well after the wait
@@ -267,7 +272,7 @@ test('c) nothing within the time: "Sent. Waiting for WhatsApp to confirm.", the 
 test('c) nothing within the time, then WhatsApp confirms: the waiting banner goes away, no failure shown', { skip }, async () => {
   const w = new World();
   const { page } = await boot(browser, w, base);
-  await page.evaluate(() => { window._newConvWaitMs = 1500; window._newConvPollMs = 300; window._newConvWatchPollMs = 300; });
+  await page.evaluate(() => { window._newConvWaitMs = 1500; window._newConvPollMs = 300; window._newConvWatchPollMs = 300; window._ncDropGapMs = 300; });
   await toConfirm(page);
   w.t0 = Date.now();
   w.report = { at: 3500, row: { wa_message_id: WA_ID, status: 'delivered', error_code: null } };
@@ -280,7 +285,7 @@ test('c) nothing within the time, then WhatsApp confirms: the waiting banner goe
 test('c) a failure that arrives while the seller is in another chat is shown when that chat is opened', { skip }, async () => {
   const w = new World();
   const { page } = await boot(browser, w, base);
-  await page.evaluate(() => { window._newConvWaitMs = 1000; window._newConvPollMs = 300; window._newConvWatchPollMs = 300; });
+  await page.evaluate(() => { window._newConvWaitMs = 1000; window._newConvPollMs = 300; window._newConvWatchPollMs = 300; window._ncDropGapMs = 300; });
   await toConfirm(page);
   w.t0 = Date.now();
   w.report = { at: 3000, row: { wa_message_id: WA_ID, status: 'failed', error_code: 131026 } };

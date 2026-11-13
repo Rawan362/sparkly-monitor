@@ -6581,6 +6581,7 @@ async function loadConversations() {
 
   renderChannelPills();
   renderConvoList();
+  try { if (window.ncAfterListLoad) window.ncAfterListLoad(); } catch (e) {}
   if (activePhone) await loadThread(activePhone, true);
   debugLog('poll tick: ahmadChatOpen=' + ahmadChatOpen);
   if (ahmadChatOpen) await renderAhmadChatPanel(true);
@@ -17371,6 +17372,53 @@ if ('serviceWorker' in navigator) {
   }
   window.dismissNewConvBanner = function(phone) { setNewConvBanner(phone, null); };
 
+  // A number that is not on WhatsApp must leave no chat. The backend door removes the chat it created (only when it is that one note and nothing else);
+  // this asks it again (backup, the door checks everything itself; the old n8n answers "Invalid action", which is ignored), refreshes the list, and
+  // closes the chat if it is open and gone. A chat that is still there (an existing customer) is kept, with the banner as before.
+  const _newConvWatch = {};   // phone -> { waId, before } while that new chat is being watched
+  function ncToast(text) {
+    const toast = document.createElement('div');
+    toast.className = 'nc-toast'; toast.setAttribute('role', 'status');
+    toast.textContent = text;
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--panel-2);color:var(--text);padding:8px 16px;border-radius:20px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,0.15);z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 4000);
+  }
+  function ncChatInList(phone) { return (typeof conversations !== 'undefined' ? conversations : []).some(function(c) { return c.phone_number === phone; }); }
+  function ncLeaveIfGone(phone) {
+    if (ncChatInList(phone)) return false;
+    setNewConvBanner(phone, null);
+    if (activePhone === phone) { activePhone = null; goToChats(); ncToast(NEWCONV_NOT_ON_WHATSAPP); }
+    return true;
+  }
+  async function ncDropFailedChat(phone, waId) {
+    // The backend removes the chat a few seconds after WhatsApp's report, so look a few times before deciding the chat is an existing one.
+    const tries = window._ncDropTries || 3, gap = window._ncDropGapMs || 1500;
+    for (let i = 0; i < tries; i++) {
+      if (waId) {
+        try {
+          await ncLimit(fetch(START_NEW_CONVERSATION_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sellerChatId: SELLER_CHAT_ID, phoneNumber: phone, action: 'cleanup', waMessageId: waId })
+          }).then(function(r) { return r.json(); }), 8000);
+        } catch (e) { /* the door removes it by itself too */ }
+      }
+      try { await loadConversations(); } catch (e) {}
+      if (ncLeaveIfGone(phone)) return true;
+      if (i < tries - 1) await ncSleep(gap);
+    }
+    return false;
+  }
+  // Called after every list load: a watched new chat that disappeared from the list is closed, but only once WhatsApp's report says "not on WhatsApp".
+  window.ncAfterListLoad = function() {
+    Object.keys(_newConvWatch).forEach(async function(phone) {
+      if (activePhone !== phone || ncChatInList(phone)) return;
+      const w = _newConvWatch[phone];
+      const s = await newConvLook(phone, w.waId, w.before, 8000);
+      if (newConvVerdict(s) === 'not_on_whatsapp' && !ncChatInList(phone)) { delete _newConvWatch[phone]; ncLeaveIfGone(phone); }
+    });
+  };
+
   // The delivery report of the message just sent: by its WhatsApp id when the door gave one, otherwise the first report that did not exist before sending.
   function newConvReport(ctx, waId, before) {
     if (!ctx) return null;
@@ -17389,12 +17437,20 @@ if ('serviceWorker' in navigator) {
   }
   // After the chat is open: keep watching (quietly) so a late failure still reaches the seller.
   async function watchNewConversation(phone, waId, before) {
+    _newConvWatch[phone] = { waId: waId, before: before };
+    try { await watchNewConversationLoop(phone, waId, before); } finally { delete _newConvWatch[phone]; }
+  }
+  async function watchNewConversationLoop(phone, waId, before) {
     const t0 = Date.now(), max = window._newConvWatchMs || NEWCONV_WATCH_MS, poll = window._newConvWatchPollMs || NEWCONV_WATCH_POLL_MS;
     while (Date.now() - t0 < max) {
       await ncSleep(poll);
       const s = await newConvLook(phone, waId, before, 8000);
       const v = newConvVerdict(s);
-      if (v === 'not_on_whatsapp') { setNewConvBanner(phone, { kind: 'error', text: NEWCONV_NOT_ON_WHATSAPP }); return; }
+      if (v === 'not_on_whatsapp') {
+        if (await ncDropFailedChat(phone, waId)) return;   // the chat was created by this send and is gone: nothing left to warn about
+        setNewConvBanner(phone, { kind: 'error', text: NEWCONV_NOT_ON_WHATSAPP });   // an existing chat stays, with the same words as before
+        return;
+      }
       if (v === 'payment_block') { setNewConvBanner(phone, { kind: 'error', text: PAYMENT_BLOCK_MESSAGE }); return; }
       if (v === 'failed') { setNewConvBanner(phone, { kind: 'error', text: NEWCONV_NOT_DELIVERED }); return; }
       if (v === 'ok') {
@@ -17443,7 +17499,7 @@ if ('serviceWorker' in navigator) {
         await ncSleep(Math.min(poll, Math.max(0, waitMs - (Date.now() - t0))));
       }
 
-      if (verdict === 'not_on_whatsapp') { statusEl.textContent = NEWCONV_NOT_ON_WHATSAPP; keepDisabled = true; return; }
+      if (verdict === 'not_on_whatsapp') { statusEl.textContent = NEWCONV_NOT_ON_WHATSAPP; keepDisabled = true; ncDropFailedChat(phone, waId); return; }
       if (verdict === 'payment_block') { statusEl.textContent = ''; ncShowPayment(true); keepDisabled = true; return; }
       if (verdict === 'failed') { statusEl.textContent = NEWCONV_NOT_DELIVERED; keepDisabled = true; return; }
 
