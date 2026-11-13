@@ -2,6 +2,7 @@ name: tests
 # Runs the web app's own tests (no network, no secrets). The browser tests use Playwright with Chromium, installed here for the run only.
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
