@@ -13,9 +13,10 @@ This folder is a **version history backup** of the n8n workflows that power Spar
 
 ## Workflows tracked
 
+> The Sales Closer snapshot (`whatsapp-sales-closer.json`) was removed on 2026-11-13: it held one live token in plain text (the Chatwoot access token, in the Queue Message node). The current version is kept privately by the backend team. The token is on the rotation list; removing the file does not remove it from this repository's history.
+
 | File | Workflow | What it does |
 |---|---|---|
-| `whatsapp-sales-closer.json` | whatsapp sales closer | The core customer-facing AI — receives WhatsApp messages, builds the sales prompt, calls Claude, sends replies |
 | `sparkly-telegram-control-panel.json` | sparkly telegram control panel | The seller-side Telegram bot (being migrated to the web app) |
 | `sparkly-followup-and-broadcast.json` | Sparkly Follow-up & Broadcast | Runs every 10 min — sends follow-up messages and scheduled broadcasts |
 | `sparkly-auto-trigger-messages.json` | Sparkly Auto-Trigger Messages | Runs hourly — near-duplicate logic to Follow-up & Broadcast (flagged as a possible cleanup item) |
