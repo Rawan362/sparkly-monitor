@@ -123,7 +123,8 @@ function standard(extra) {
     return { json: { ok: false, code: 'bad_action', message: 'x' } };
   };
 }
-const open = async (page) => { await page.click('#ax-menu-row'); await page.waitForSelector('#ax-summary, .ax-status'); };
+// Waits until the first load is finished (the "Loading" line is replaced by the list, or by a plain-words problem).
+const open = async (page) => { await page.click('#ax-menu-row'); await page.waitForFunction(() => { const c = document.getElementById('ax-content'); return c && c.textContent !== '' && !/^Loading your ads/.test(c.textContent); }); };
 const text = (page, sel) => page.$eval(sel, (e) => e.textContent);
 const actionsOf = (calls) => calls.map((c) => c.action);
 
