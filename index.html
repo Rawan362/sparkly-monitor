@@ -4119,6 +4119,20 @@
   .dx-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 14px; }
   .dx-table th, .dx-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
 /* w1-delete-screen:css:end */
+/* w1-alert-check:css:start */
+  #ac-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #ac-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #ac-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #ac-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #ac-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .ac-card { background: var(--panel-2); border-radius: 10px; padding: 14px; }
+  .ac-go { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 14px; cursor: pointer; }
+  .ac-go:disabled { opacity: 0.5; cursor: wait; }
+  .ac-result { margin-top: 14px; }
+  .ac-status { color: var(--text-muted); font-size: 13.5px; padding: 6px 0; }
+  .ac-status.error { color: var(--danger); }
+  .ac-ok { font-size: 14px; padding: 6px 0; }
+/* w1-alert-check:css:end */
 </style>
 </head>
 <body>
@@ -4602,6 +4616,21 @@
       <div id="dx-content"></div>
     </div>
     <!-- w1-delete-screen:html:end -->
+    <!-- w1-alert-check:html:start -->
+    <div id="ac-tab-content" style="display:none;">
+      <div id="ac-header-row">
+        <button type="button" onclick="closeAlertCheck()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="ac-title">Alert check</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="ac-content">
+        <div class="ac-card">
+          <button type="button" class="ac-go" id="ac-go" onclick="acCheckNow()">Check now</button>
+          <div class="ac-result" id="ac-result"></div>
+        </div>
+      </div>
+    </div>
+    <!-- w1-alert-check:html:end -->
     <div id="debts-tab-content" style="display:none;">
       <div id="debts-list-view">
         <div id="debts-header-row">
@@ -4890,6 +4919,12 @@
         <span id="ax-menu-label">Ads</span>
       </div>
       <!-- w1-ads-screen:row:end -->
+      <!-- w1-alert-check:row:start -->
+      <div class="settings-row" id="ac-menu-row" onclick="openAlertCheck()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <span id="ac-menu-label">Alert check</span>
+      </div>
+      <!-- w1-alert-check:row:end -->
       <div class="settings-row" onclick="openDebtsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span id="settings-label-debts-row">Customer Debts</span>
@@ -18794,5 +18829,137 @@ window.closeDeleteScreen = function() {
 };
 </script>
 <!-- w1-delete-screen:js:end -->
+<!-- w1-alert-check:js:start -->
+<script>
+// Alert check screen (build chat W1). READ ONLY: one button, "Check now", asks the Seller Alerts door for the numbers behind the old
+// panel's alerts command. Door: POST /webhook/seller-alerts with { token, action: 'scan' }. The door counts at most 10 overdue orders and
+// at most 5 silent customers and 5 uncollected cash-on-delivery orders, so a count at its limit is shown as "N or more".
+// Words are in AC_TEXT. The money label comes from the door (the seller's own); nothing assumes a currency, language or country.
+const SELLER_ALERTS_URL = 'https://sparklly.site/webhook/seller-alerts';
+const AC_LIMITS = { overdueOrders: 10, silentCustomers: 5, codCount: 5 };
+const AC_TEXT = {
+  checking: 'Checking...',
+  allGood: 'All good, no alerts right now',
+  overdue: 'Overdue orders',
+  silent: 'Silent customers',
+  cod: 'Cash on delivery not collected',
+  orMore: ' or more',
+  learned: 'The AI learned from ',
+  conversations: ' conversations',
+  closeRate: 'Close rate',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not read your numbers right now. Please try again.'
+};
+const AC_DOOR_MESSAGE_CODES = ['lookup_failed', 'no_seller', 'read_failed'];
+let _acBusy = false;
+
+function acNum(n) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: 2 }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+function acCount(n, limit) { return acNum(n) + (Number(n) >= limit ? AC_TEXT.orMore : ''); }
+
+async function callSellerAlerts(action) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, error: 'not_logged_in' };
+  try {
+    const r = await fetch(SELLER_ALERTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, action: action })
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+
+function acErrorText(r) {
+  const code = r && (r.error || r.code);
+  if (code === 'not_logged_in' || code === 'relogin') return AC_TEXT.relogin;
+  if (code === 'not_available') return AC_TEXT.notAvailable;
+  if (code === 'network') return AC_TEXT.noConnection;
+  if (AC_DOOR_MESSAGE_CODES.indexOf(code) >= 0 && typeof r.message === 'string' && r.message) return r.message;
+  return AC_TEXT.failed;
+}
+
+function acLine(label, value) {
+  const row = document.createElement('div');
+  row.className = 'report-list-row';
+  const a = document.createElement('span'); a.className = 'label'; a.textContent = label;
+  const b = document.createElement('span'); b.className = 'value'; b.textContent = value;
+  row.appendChild(a); row.appendChild(b);
+  return row;
+}
+
+function acShow(text, cls) {
+  const box = document.getElementById('ac-result');
+  if (!box) return null;
+  box.textContent = '';
+  const d = document.createElement('div');
+  d.className = cls; d.textContent = text;
+  box.appendChild(d);
+  return box;
+}
+
+function acRender(r) {
+  const s = r.scan || {};
+  const cur = r.currency ? ' ' + r.currency : '';
+  const box = document.getElementById('ac-result');
+  if (!box) return;
+  box.textContent = '';
+  const overdue = Number(s.overdueOrders) || 0;
+  const silent = Number(s.silentCustomers) || 0;
+  const cod = s.codNotCollected || { count: 0, total: 0 };
+  const codCount = Number(cod.count) || 0;
+  const learning = s.salesIntelligence || null;
+  if (overdue > 0) box.appendChild(acLine(AC_TEXT.overdue, acCount(overdue, AC_LIMITS.overdueOrders)));
+  if (silent > 0) box.appendChild(acLine(AC_TEXT.silent, acCount(silent, AC_LIMITS.silentCustomers)));
+  if (codCount > 0) box.appendChild(acLine(AC_TEXT.cod, acCount(codCount, AC_LIMITS.codCount) + ' (' + acNum(cod.total) + cur + ')'));
+  if (overdue === 0 && silent === 0 && codCount === 0) {
+    const ok = document.createElement('div'); ok.className = 'ac-ok'; ok.textContent = AC_TEXT.allGood;
+    box.appendChild(ok);
+  }
+  if (learning) {
+    box.appendChild(acLine(AC_TEXT.learned + acNum(learning.conversations) + AC_TEXT.conversations, ''));
+    box.appendChild(acLine(AC_TEXT.closeRate, acNum(learning.closeRatePercent) + '%'));
+  }
+}
+
+window.acCheckNow = async function() {
+  if (_acBusy) return;
+  _acBusy = true;
+  const go = document.getElementById('ac-go');
+  if (go) go.disabled = true;
+  acShow(AC_TEXT.checking, 'ac-status');
+  try {
+    const r = await callSellerAlerts('scan');
+    if (!r || r.ok !== true || !r.scan) { acShow(acErrorText(r), 'ac-status error'); return; }
+    acRender(r);
+  } finally {
+    _acBusy = false;
+    if (go) go.disabled = false;
+  }
+};
+
+window.openAlertCheck = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('ac-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  const box = document.getElementById('ac-result');
+  if (box) box.textContent = '';
+};
+
+window.closeAlertCheck = function() {
+  document.getElementById('ac-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-alert-check:js:end -->
 </body>
 </html>
