@@ -12938,6 +12938,53 @@ const NOTIFICATION_TYPE_LABELS = {
   customer_question: 'Needs your answer'
 };
 
+// w1-notice-types:js:start
+// The eight notice types the Seller Alerts door writes into seller_notifications (title and message come in English from the door).
+// They get a label and a small icon. Tapping "customer needs you" or "not a customer" opens the chats list. The older types are not
+// listed here, so they look and behave exactly as before (no icon, same tap action).
+Object.assign(NOTIFICATION_TYPE_LABELS, {
+  order_confirmed: 'Order confirmed',
+  customer_needs_you: 'Customer needs you',
+  new_vip_customer: 'New VIP customer',
+  not_a_customer: 'Not a customer',
+  whatsapp_not_connected: 'WhatsApp not connected',
+  overdue_orders: 'Overdue orders',
+  silent_customers: 'Silent customers',
+  cod_not_collected: 'Cash on delivery not collected'
+});
+const W1_NOTICE_ICON_PATHS = {
+  order_confirmed: '<polyline points="20 6 9 17 4 12"/>',
+  customer_needs_you: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  new_vip_customer: '<polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/>',
+  not_a_customer: '<circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>',
+  whatsapp_not_connected: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.7 11.1A9 9 0 0 0 9.2 5.4"/><path d="M5 12.6a9 9 0 0 0 4.2 2.4"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+  overdue_orders: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  silent_customers: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+  cod_not_collected: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'
+};
+const W1_NOTICE_OPENS_CHATS = ['customer_needs_you', 'not_a_customer'];
+// The icon in front of the type label; an empty string for every older type.
+function w1NoticeIcon(type) {
+  const path = Object.prototype.hasOwnProperty.call(W1_NOTICE_ICON_PATHS, type) ? W1_NOTICE_ICON_PATHS[type] : '';
+  if (!path) return '';
+  return '<svg class="w1-notice-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;">' + path + '</svg>';
+}
+// The tap action for a new type that opens the chats list; an empty string for everything else (the older rules then decide).
+function w1NoticeTap(n) {
+  return W1_NOTICE_OPENS_CHATS.indexOf(n && n.type) >= 0 ? 'w1OpenChatsFromNotice(' + Number(n.id) + ')' : '';
+}
+// Marks the notice as read (as the other notice taps do), then shows the chats list.
+window.w1OpenChatsFromNotice = async function(id) {
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+  } catch (e) { /* the list still opens */ }
+  try { checkNotificationsDot(); } catch (e) { /* not important */ }
+  closeNotificationsPanel();
+  goToChats();
+};
+// w1-notice-types:js:end
+
 function formatNotificationTime(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
@@ -12987,9 +13034,9 @@ function renderNotificationItem(n) {
     <div class="notification-item${unreadClass}" data-id="${n.id}">
       <div class="notification-item-row">
         <input type="checkbox" class="notification-item-checkbox" data-id="${n.id}" onclick="event.stopPropagation(); onNotificationCheckboxChange()">
-        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : ((n.type === 'customer_question' && n.question_id) ? `openQuestionFromNotification(${n.id}, ${Number(n.question_id)})` : `discussNotification(${n.id})`)}">
+        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : ((n.type === 'customer_question' && n.question_id) ? `openQuestionFromNotification(${n.id}, ${Number(n.question_id)})` : (w1NoticeTap(n) || `discussNotification(${n.id})`))}">
           <div class="notification-item-top">
-            <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
+            <span class="notification-item-type">${w1NoticeIcon(n.type)}${escapeHtml(typeLabel)}</span>
             <span class="notification-item-title">${escapeHtml(n.title)}</span>
           </div>
           <div class="notification-item-message">${escapeHtml(n.message)}</div>
