@@ -4133,6 +4133,16 @@
   .ac-status.error { color: var(--danger); }
   .ac-ok { font-size: 14px; padding: 6px 0; }
 /* w1-alert-check:css:end */
+/* w1-roas:css:start */
+  .rs-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .rs-form select, .rs-form input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 13px; }
+  .rs-form label { font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+  .rs-net { font-size: 24px; font-weight: 700; font-family: var(--font-display); margin: 6px 0 10px; }
+  .rs-net.positive { color: var(--accent-2); }
+  .rs-net.negative { color: var(--danger); }
+  .rs-note { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+  .rs-names { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* w1-roas:css:end */
 </style>
 </head>
 <body>
@@ -18218,6 +18228,7 @@ function axRender() {
   box.appendChild(axReportButtons());
   const rep = axEl('div'); rep.id = 'ax-report';
   box.appendChild(rep);
+  if (typeof w1RoasSection === 'function') box.appendChild(w1RoasSection());
 }
 
 function axObjectCard(o, child) {
@@ -19008,5 +19019,200 @@ window.closeAlertCheck = function() {
 };
 </script>
 <!-- w1-alert-check:js:end -->
+<!-- w1-roas:js:start -->
+<script>
+// Real profit (ROAS) section of the Ads screen (build chat W1). READ ONLY: no confirm panel, nothing can change.
+// Door: POST /webhook/seller-ads with { token, action: 'roas', roas: { range, since, until, nameHint, level } }. The login decides the seller.
+// The door answers numbers; the words are here (RS_TEXT). The currency word comes from the answer and is never assumed: when the door
+// sends none, only the number is shown. The Ads screen calls w1RoasSection() once when it draws itself.
+const RS_TEXT = {
+  title: 'Real profit',
+  period: 'Period',
+  ranges: { today: 'Today', yesterday: 'Yesterday', last_7d: 'Last 7 days', last_30d: 'Last 30 days', last_90d: 'Last 90 days', this_year: 'This year', last_year: 'Last year', custom: 'Choose two dates' },
+  from: 'From', to: 'To',
+  adLabel: 'One ad (optional)',
+  adPlaceholder: 'All my ads',
+  adHelp: 'Leave empty for all your ads, or type the name or the number of one ad.',
+  show: 'Show real profit',
+  loading: 'Working it out...',
+  revenue: 'Revenue', knownCosts: 'Known product costs', adSpend: 'Ad spend', netProfit: 'Net profit',
+  trueRoas: 'True ROAS (after real costs)', standardRoas: 'Standard ROAS (like Meta shows, before costs)',
+  unknownCost1: ' of ', unknownCost2: ' orders have no cost price set, so this is an approximation. Set the cost price on each product in Products.',
+  precise1: ' of these orders used the exact items; the rest used a simpler estimate.',
+  mapped: 'This matches orders to the product the ad is linked to. It is not exact per-click tracking.',
+  badRange: 'Choose a period, or two dates.',
+  notConnected: 'Your ads account is not connected yet.',
+  notFound: 'We could not find that ad.',
+  ambiguous1: 'More than one ad matches: ', ambiguous2: '. Pick one.',
+  notAnAd: 'Real profit works for one ad at a time. Pick an ad, not a campaign.',
+  notLinked1: '', notLinked2: ' is not linked to a product yet, so real profit cannot be worked out for it.',
+  noSpend: 'No ad spend in this period.',
+  noOrders: 'No completed orders in this period to work out real profit.',
+  unavailable: 'We could not read your data. Try again in a moment.',
+  tryAgain: 'Try again',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Please try again.'
+};
+let _rsBusy = false;
+
+function rsNum(n, digits) {
+  const v = Number(n);
+  const d = digits === undefined ? 2 : digits;
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { minimumFractionDigits: d, maximumFractionDigits: d }); } catch (e) { return (isFinite(v) ? v : 0).toFixed(d); }
+}
+// Money with the currency word from the answer only. Never falls back to another currency.
+function rsMoney(n, currency) { return rsNum(n, 2) + (currency ? ' ' + currency : ''); }
+function rsRatio(n) { return n === null || n === undefined || !isFinite(Number(n)) ? '-' : rsNum(n, 2) + 'x'; }
+function rsEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function rsMessage(text, isError, retry) {
+  const box = document.getElementById('rs-result');
+  if (!box) return;
+  box.textContent = '';
+  box.appendChild(rsEl('div', 'ax-status' + (isError ? ' error' : ''), text));
+  if (retry) { const b = rsEl('button', 'ax-btn', RS_TEXT.tryAgain); b.type = 'button'; b.id = 'rs-retry'; b.onclick = retry; box.appendChild(b); }
+}
+function rsErrorText(r) {
+  const code = r && r.code;
+  if (code === 'relogin' || code === 'not_logged_in') return RS_TEXT.relogin;
+  if (code === 'not_available') return RS_TEXT.notAvailable;
+  if (code === 'network') return RS_TEXT.noConnection;
+  if (code === 'ads_not_connected') return RS_TEXT.notConnected;
+  if (code === 'bad_range') return RS_TEXT.badRange;
+  if (code === 'not_found') return RS_TEXT.notFound;
+  if (code === 'not_an_ad') return RS_TEXT.notAnAd;
+  if (code === 'not_linked') return RS_TEXT.notLinked1 + String((r && r.adName) || '') + RS_TEXT.notLinked2;
+  if (code === 'no_spend') return RS_TEXT.noSpend;
+  if (code === 'no_orders') return RS_TEXT.noOrders;
+  if (code === 'unavailable' || code === 'meta_unavailable') return RS_TEXT.unavailable;
+  if ((code === 'wrong_seller' || code === 'bad_level') && typeof r.message === 'string' && r.message) return r.message;
+  return RS_TEXT.failed;
+}
+
+function w1RoasSection() {
+  const wrap = rsEl('div');
+  wrap.id = 'rs-section';
+  wrap.appendChild(rsEl('div', 'ax-section-title', RS_TEXT.title));
+  const form = rsEl('div', 'rs-form');
+  const periodLabel = rsEl('label', '', RS_TEXT.period);
+  const sel = document.createElement('select'); sel.id = 'rs-range';
+  Object.keys(RS_TEXT.ranges).forEach(function(k) { sel.appendChild(new Option(RS_TEXT.ranges[k], k)); });
+  sel.value = 'last_7d';
+  periodLabel.appendChild(sel);
+  form.appendChild(periodLabel);
+  const dates = rsEl('div', 'rs-form'); dates.id = 'rs-dates'; dates.style.display = 'none';
+  const fromLabel = rsEl('label', '', RS_TEXT.from); const since = document.createElement('input'); since.type = 'date'; since.id = 'rs-since'; fromLabel.appendChild(since);
+  const toLabel = rsEl('label', '', RS_TEXT.to); const until = document.createElement('input'); until.type = 'date'; until.id = 'rs-until'; toLabel.appendChild(until);
+  dates.appendChild(fromLabel); dates.appendChild(toLabel);
+  sel.onchange = function() { dates.style.display = sel.value === 'custom' ? 'flex' : 'none'; };
+  form.appendChild(dates);
+  const adLabel = rsEl('label', '', RS_TEXT.adLabel);
+  const ad = document.createElement('input'); ad.type = 'text'; ad.id = 'rs-ad'; ad.placeholder = RS_TEXT.adPlaceholder; ad.maxLength = 120;
+  adLabel.appendChild(ad);
+  form.appendChild(adLabel);
+  wrap.appendChild(form);
+  wrap.appendChild(rsEl('div', 'ax-msg', RS_TEXT.adHelp));
+  const go = rsEl('button', 'ax-btn', RS_TEXT.show); go.type = 'button'; go.id = 'rs-go';
+  go.onclick = function() { rsRun(); };
+  wrap.appendChild(go);
+  const result = rsEl('div'); result.id = 'rs-result';
+  wrap.appendChild(result);
+  return wrap;
+}
+
+// Builds the request from the form. Returns null (and says so) when the period is not valid. Never contains a seller id.
+function rsRequest(nameOverride) {
+  const range = document.getElementById('rs-range').value;
+  const roas = { range: range };
+  if (range === 'custom') {
+    const since = document.getElementById('rs-since').value;
+    const until = document.getElementById('rs-until').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(since) || !/^\d{4}-\d{2}-\d{2}$/.test(until) || since > until) return null;
+    roas.since = since; roas.until = until;
+  }
+  const name = String(nameOverride !== undefined ? nameOverride : document.getElementById('rs-ad').value).trim();
+  if (name) { roas.nameHint = name; roas.level = 'ad'; }
+  return roas;
+}
+
+async function rsRun(nameOverride) {
+  if (_rsBusy) return;
+  const roas = rsRequest(nameOverride);
+  if (!roas) { rsMessage(RS_TEXT.badRange, true); return; }
+  _rsBusy = true;
+  const go = document.getElementById('rs-go');
+  if (go) go.disabled = true;
+  rsMessage(RS_TEXT.loading, false);
+  try {
+    const r = await callSellerAds('roas', { roas: roas });
+    if (!r || r.ok !== true) { rsFail(r, roas); return; }
+    rsShow(r);
+  } finally {
+    _rsBusy = false;
+    if (go) go.disabled = false;
+  }
+}
+
+function rsFail(r, roas) {
+  const code = r && r.code;
+  if (code === 'ambiguous' && Array.isArray(r.names) && r.names.length) {
+    rsMessage(RS_TEXT.ambiguous1 + r.names.join(', ') + RS_TEXT.ambiguous2, true);
+    const box = document.getElementById('rs-result');
+    const names = rsEl('div', 'rs-names');
+    r.names.forEach(function(nm) {
+      const b = rsEl('button', 'ax-btn', String(nm)); b.type = 'button'; b.className = 'ax-btn rs-name';
+      b.onclick = function() { document.getElementById('rs-ad').value = String(nm); rsRun(String(nm)); };
+      names.appendChild(b);
+    });
+    box.appendChild(names);
+    return;
+  }
+  const retriable = code === 'unavailable' || code === 'meta_unavailable';
+  rsMessage(rsErrorText(r), true, retriable ? function() { rsRun(); } : null);
+}
+
+function rsLine(label, value) {
+  const row = rsEl('div', 'report-list-row');
+  row.appendChild(rsEl('span', 'label', label));
+  row.appendChild(rsEl('span', 'value', value));
+  return row;
+}
+
+function rsShow(r) {
+  const box = document.getElementById('rs-result');
+  if (!box) return;
+  box.textContent = '';
+  const cur = r.currency || '';
+  const card = rsEl('div', 'ax-card');
+  card.id = 'rs-card';
+  card.appendChild(rsEl('div', 'ax-name', RS_TEXT.title + (r.label ? ' - ' + r.label : '')));
+  if (r.adName) card.appendChild(rsEl('div', 'ax-sub', String(r.adName)));
+  card.appendChild(rsLine(RS_TEXT.revenue, rsMoney(r.revenue, cur)));
+  card.appendChild(rsLine(RS_TEXT.knownCosts, rsMoney(r.knownCosts, cur)));
+  card.appendChild(rsLine(RS_TEXT.adSpend, rsMoney(r.adSpend, cur)));
+  const net = Number(r.netProfit) || 0;
+  const netRow = rsEl('div');
+  netRow.appendChild(rsEl('div', 'ax-sub', RS_TEXT.netProfit));
+  netRow.appendChild(rsEl('div', 'rs-net' + (net > 0 ? ' positive' : (net < 0 ? ' negative' : '')), rsMoney(net, cur)));
+  netRow.id = 'rs-net';
+  card.appendChild(netRow);
+  card.appendChild(rsLine(RS_TEXT.trueRoas, rsRatio(r.trueRoas)));
+  card.appendChild(rsLine(RS_TEXT.standardRoas, rsRatio(r.standardRoas)));
+  box.appendChild(card);
+  const orders = Number(r.orders) || 0;
+  const unknown = Number(r.ordersWithUnknownCost) || 0;
+  const precise = Number(r.ordersWithPreciseCost) || 0;
+  if (unknown > 0) box.appendChild(rsEl('div', 'rs-note', rsNum(unknown, 0) + RS_TEXT.unknownCost1 + rsNum(orders, 0) + RS_TEXT.unknownCost2));
+  if (precise > 0 && precise < orders) box.appendChild(rsEl('div', 'rs-note', rsNum(precise, 0) + RS_TEXT.precise1));
+  if (r.mappedToProduct === true) box.appendChild(rsEl('div', 'rs-note', RS_TEXT.mapped));
+}
+</script>
+<!-- w1-roas:js:end -->
 </body>
 </html>
