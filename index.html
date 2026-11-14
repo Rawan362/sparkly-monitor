@@ -18381,7 +18381,12 @@ const DX_TEXT = {
   notAvailable: 'This screen is not available yet. Please try again later.',
   noConnection: 'Could not reach the server. Check your internet connection and try again.',
   failed: 'Something went wrong. Open this screen again to see where your request stands before you try again.',
-  explain: 'This permanently deletes your business data: products, customers, orders and chats. First we save a copy for you. You then wait 24 hours before anything is deleted, and for 7 days after that you can undo it.',
+  explainStart: 'This permanently deletes your business data: products, customers, orders and chats. First we save a copy for you.',
+  waitKnown: ' You then wait ', waitKnownEnd: ' before anything is deleted',
+  waitUnknown: ' You then wait before anything is deleted',
+  undoKnown: ', and for ', undoKnownEnd: ' after that you can undo it.',
+  undoUnknown: ', and after that you can undo it for a limited time.',
+  hour: 'hour', hours: 'hours', day: 'day', days: 'days',
   typeToStart: 'To start, type: ',
   start: 'Start deletion request',
   typeAgain: 'Type the words again to confirm',
@@ -18449,6 +18454,29 @@ function dxDate(iso) {
   const ms = Date.parse(iso);
   if (!isFinite(ms)) return '';
   try { return new Date(ms).toLocaleString(currentLang, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return new Date(ms).toISOString(); }
+}
+// The waiting time and the undo period come from the door, never from fixed text. coolingHours and undoDays are read from the answer when the
+// door sends them; the waiting time can also be worked out from the saved request (requestedAt to executeAfter). When neither is known the
+// sentence says so without a number.
+function dxPositive(n) { const v = Number(n); return isFinite(v) && v > 0 ? v : null; }
+function dxCoolingHours(v) {
+  const direct = dxPositive(v && v.coolingHours);
+  if (direct !== null) return direct;
+  const a = Date.parse(v && v.requestedAt); const b = Date.parse(v && v.executeAfter);
+  if (isFinite(a) && isFinite(b) && b > a) return Math.round((b - a) / 3600000);
+  return null;
+}
+function dxUndoDays(v) { return dxPositive(v && v.undoDays); }
+function dxHoursText(h) {
+  if (h >= 48 && h % 24 === 0) { const d = h / 24; return dxCount(d) + ' ' + (d === 1 ? DX_TEXT.day : DX_TEXT.days); }
+  return dxCount(h) + ' ' + (h === 1 ? DX_TEXT.hour : DX_TEXT.hours);
+}
+function dxDaysText(d) { return dxCount(d) + ' ' + (d === 1 ? DX_TEXT.day : DX_TEXT.days); }
+function dxExplain(v) {
+  const h = dxCoolingHours(v); const d = dxUndoDays(v);
+  return DX_TEXT.explainStart
+    + (h === null ? DX_TEXT.waitUnknown : DX_TEXT.waitKnown + dxHoursText(h) + DX_TEXT.waitKnownEnd)
+    + (d === null ? DX_TEXT.undoUnknown : DX_TEXT.undoKnown + dxDaysText(d) + DX_TEXT.undoKnownEnd);
 }
 function dxCount(n) {
   const v = Number(n);
@@ -18549,7 +18577,7 @@ function dxRenderStart(box, v) {
     const t = dxCountsTable(v);
     if (t) box.appendChild(t);
   }
-  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.explain));
+  box.appendChild(dxEl('p', 'dx-p', dxExplain(v)));
   const typed = dxTypedBox('dx-type-start', DX_TEXT.typeToStart);
   const words = dxEl('span', 'dx-words', DX.phrase);
   typed.wrap.firstChild.appendChild(words);

@@ -369,3 +369,24 @@ test('the back arrow returns to Settings and stops the timers', { skip }, async 
   assert.equal(await page.$eval('#settings-tab-content', (e) => e.style.display), 'block');
   assert.equal(await page.evaluate(() => DX.poll), null);
 });
+
+test('the waiting time and the undo period come from the door answer, not from fixed text', { skip }, async () => {
+  const none = { ok: true, status: 'none' };
+  const cases = [
+    [none, /You then wait before anything is deleted, and after that you can undo it for a limited time\./],
+    [Object.assign({}, none, { coolingHours: 24, undoDays: 7 }), /You then wait 24 hours before anything is deleted, and for 7 days after that you can undo it\./],
+    [Object.assign({}, none, { coolingHours: 72, undoDays: 1 }), /You then wait 3 days before anything is deleted, and for 1 day after that you can undo it\./],
+    [Object.assign({}, none, { coolingHours: 1 }), /You then wait 1 hour before anything is deleted, and after that you can undo it for a limited time\./],
+    // No field for the waiting time, but a saved earlier request shows it (requestedAt to executeAfter).
+    [{ ok: true, status: 'cancelled', requestedAt: '2026-01-01T00:00:00Z', executeAfter: '2026-01-01T12:00:00Z' }, /You then wait 12 hours before anything is deleted, and after that/]
+  ];
+  for (const [answer, pattern] of cases) {
+    const { page } = await openScreen(door(answer).answer, [], 'test-token');
+    await open(page);
+    assert.match(await text(page), pattern);
+    await page.close();
+  }
+  const { page } = await openScreen(door(none).answer, [], 'test-token');
+  await open(page);
+  assert.ok(!/\b24\b|\b7 days\b/.test(await text(page)), 'no fixed numbers when the door sends none');
+});
