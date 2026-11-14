@@ -4096,6 +4096,29 @@
   #ax-confirm .ax-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
   #ax-confirm-go { background: var(--accent); color: #fff; border-color: var(--accent); }
 /* w1-ads-screen:css:end */
+/* w1-delete-screen:css:start */
+  .dx-zone { margin: 14px 16px 24px; border: 1px solid var(--danger); border-radius: 12px; overflow: hidden; }
+  .dx-zone-label { font-size: 11.5px; font-weight: 600; color: var(--danger); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 14px 0; }
+  .dx-zone .settings-row { margin: 0; }
+  #dx-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #dx-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #dx-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #dx-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #dx-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .dx-status { padding: 24px 4px; color: var(--text-muted); font-size: 13.5px; }
+  .dx-status.error, .dx-msg.error { color: var(--danger); }
+  .dx-p { font-size: 14px; line-height: 1.5; margin: 0 0 12px; }
+  .dx-msg { font-size: 12.5px; margin: 8px 0; color: var(--text-muted); }
+  .dx-small { font-size: 12px; color: var(--text-muted); margin: 6px 0 12px; }
+  .dx-field { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font-size: 14px; margin: 6px 0 12px; }
+  .dx-words { font-weight: 700; }
+  .dx-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .dx-buttons button { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 14px; cursor: pointer; }
+  .dx-buttons button.dx-danger { border-color: var(--danger); color: var(--danger); }
+  .dx-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .dx-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 14px; }
+  .dx-table th, .dx-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+/* w1-delete-screen:css:end */
 </style>
 </head>
 <body>
@@ -4569,6 +4592,16 @@
       </div>
     </div>
     <!-- w1-ads-screen:html:end -->
+    <!-- w1-delete-screen:html:start -->
+    <div id="dx-tab-content" style="display:none;">
+      <div id="dx-header-row">
+        <button type="button" onclick="closeDeleteScreen()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="dx-title">Delete my business</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="dx-content"></div>
+    </div>
+    <!-- w1-delete-screen:html:end -->
     <div id="debts-tab-content" style="display:none;">
       <div id="debts-list-view">
         <div id="debts-header-row">
@@ -4874,6 +4907,15 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         <span id="settings-label-delete">Delete my account</span>
       </div>
+      <!-- w1-delete-screen:row:start -->
+      <div class="dx-zone">
+        <div class="dx-zone-label" id="dx-zone-label">Danger zone</div>
+        <div class="settings-row danger" id="dx-menu-row" onclick="openDeleteScreen()">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          <span id="dx-menu-label">Delete my business</span>
+        </div>
+      </div>
+      <!-- w1-delete-screen:row:end -->
     </div>
     <div id="business-tab-content" style="display:none;">
       <div id="business-back-row">
@@ -18326,5 +18368,403 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-delete-screen:js:start -->
+<script>
+// Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
+// The login decides the seller; a seller id is never sent. Flow: request (typed name, copy saved, waiting time), then execute
+// (typed again, after the waiting time), then an undo window. Counts only are shown, never rows. All words are in DX_TEXT.
+const SELLER_DELETE_URL = 'https://sparklly.site/webhook/seller-delete-business';
+const DX_TEXT = {
+  title: 'Delete my business',
+  loading: 'Loading...',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Open this screen again to see where your request stands before you try again.',
+  explain: 'This permanently deletes your business data: products, customers, orders and chats. First we save a copy for you. You then wait 24 hours before anything is deleted, and for 7 days after that you can undo it.',
+  typeToStart: 'To start, type: ',
+  start: 'Start deletion request',
+  typeAgain: 'Type the words again to confirm',
+  copySaved: 'Your copy is saved. Nothing has been deleted.',
+  canDeleteAfter: 'You can delete after ',
+  waitOver: 'The waiting time is over.',
+  waitLeft: ' left to wait',
+  download: 'Download my data',
+  cancel: 'Cancel the request',
+  deleteNow: 'Delete now',
+  deleted: 'Your business data was deleted.',
+  undoUntil: 'You can undo this until ',
+  undo: 'Undo the deletion',
+  partial: 'Not everything could be deleted yet.',
+  remaining: 'Rows still to delete: ',
+  tryAgain: 'Try again',
+  alarm: 'Stopped for safety. Nothing more will be deleted. Please contact support.',
+  deleting: 'Deleting is running.',
+  restored: 'Your data was put back.',
+  noTakeBack: 'This cannot be taken back after the undo time has passed.',
+  noTakeBackUntil: 'This cannot be taken back after ',
+  downloadNote: 'Secret values such as tokens are hidden in this file.',
+  mismatch: 'The words you typed do not match.',
+  typeThis: 'Type exactly: ',
+  coolingOff: 'The waiting time is not over yet.',
+  exportFailed: 'We could not save a safe copy of your data, so nothing was started. Try again.',
+  tooLate: 'It can no longer be cancelled here.',
+  undoFailed: 'Not everything could be put back. Your saved copy is kept. Try again, or contact support.',
+  countFailed: 'Nothing was deleted: a safety check failed. Try again.',
+  tooLarge: 'Your export is too large to download here. Contact support for the file.',
+  colTable: 'Kind of data', colSaved: 'Saved', colDeleted: 'Deleted', colRestored: 'Put back',
+  tables: { orders: 'Orders', conversations: 'Chat messages', customers: 'Customers', seller_products: 'Products', sellers: 'Your business profile' },
+  defaultWord: 'DELETE'
+};
+const DX_CODE_TEXT = {
+  relogin: DX_TEXT.relogin,
+  not_logged_in: DX_TEXT.relogin,
+  confirm_text: DX_TEXT.mismatch,
+  cooling_off: DX_TEXT.coolingOff,
+  export_failed: DX_TEXT.exportFailed,
+  too_late: DX_TEXT.tooLate,
+  undo_failed: DX_TEXT.undoFailed,
+  export_missing: DX_TEXT.undoFailed,
+  count_failed: DX_TEXT.countFailed,
+  too_large: DX_TEXT.tooLarge,
+  failed: DX_TEXT.failed
+};
+const DX_GO_TO_STATUS = ['no_request', 'not_pending', 'nothing_to_undo', 'nothing_to_cancel', 'no_export'];
+const DX_START_STATES = ['none', 'cancelled', 'expired', 'final', 'restored'];
+
+const DX = { view: null, phrase: DX_TEXT.defaultWord, busy: false, tick: null, poll: null, msg: '', msgError: false, loadedFor: 0 };
+
+function dxEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function dxBtn(label, id, onclick, danger) {
+  const b = dxEl('button', danger ? 'dx-danger' : '', label);
+  b.type = 'button'; b.id = id; b.onclick = onclick;
+  return b;
+}
+function dxDate(iso) {
+  const ms = Date.parse(iso);
+  if (!isFinite(ms)) return '';
+  try { return new Date(ms).toLocaleString(currentLang, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return new Date(ms).toISOString(); }
+}
+function dxCount(n) {
+  const v = Number(n);
+  try { return v.toLocaleString(currentLang); } catch (e) { return String(v); }
+}
+
+async function callSellerDelete(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, code: 'relogin' };
+  try {
+    const r = await fetch(SELLER_DELETE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, code: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, code: 'failed' };
+  } catch (e) { return { ok: false, code: 'network' }; }
+}
+
+function dxErrorText(r) {
+  const code = r && r.code;
+  if (code === 'not_available') return DX_TEXT.notAvailable;
+  if (code === 'network') return DX_TEXT.noConnection;
+  if (code === 'confirm_text') return DX_TEXT.mismatch + ' ' + DX_TEXT.typeThis + String(r.typeThis || DX.phrase);
+  if (code === 'cooling_off' && r.executeAfter) return DX_TEXT.coolingOff + ' ' + dxDate(r.executeAfter);
+  if (DX_CODE_TEXT[code]) return DX_CODE_TEXT[code];
+  // wrong_seller and bad_action should never happen; the door's own words are plain.
+  if ((code === 'wrong_seller' || code === 'bad_action') && typeof r.message === 'string' && r.message) return r.message;
+  return DX_TEXT.failed;
+}
+
+function dxStopTimers() {
+  if (DX.tick) { clearInterval(DX.tick); DX.tick = null; }
+  if (DX.poll) { clearTimeout(DX.poll); DX.poll = null; }
+}
+
+function dxCountsTable(view) {
+  const tables = Array.isArray(view && view.tables) ? view.tables : [];
+  if (!tables.length) return null;
+  const has = function(k) { return tables.some(function(t) { return t[k] !== null && t[k] !== undefined; }); };
+  const cols = [['table', DX_TEXT.colTable]];
+  if (has('exported')) cols.push(['exported', DX_TEXT.colSaved]);
+  if (has('deleted')) cols.push(['deleted', DX_TEXT.colDeleted]);
+  if (has('restored')) cols.push(['restored', DX_TEXT.colRestored]);
+  const table = dxEl('table', 'dx-table');
+  const head = document.createElement('tr');
+  cols.forEach(function(c) { head.appendChild(dxEl('th', '', c[1])); });
+  table.appendChild(head);
+  tables.forEach(function(t) {
+    const tr = document.createElement('tr');
+    cols.forEach(function(c) {
+      if (c[0] === 'table') tr.appendChild(dxEl('td', '', DX_TEXT.tables[t.table] || String(t.table)));
+      else tr.appendChild(dxEl('td', '', t[c[0]] === null || t[c[0]] === undefined ? '-' : dxCount(t[c[0]])));
+    });
+    table.appendChild(tr);
+  });
+  return table;
+}
+
+function dxTypedBox(id, labelText) {
+  const wrap = document.createElement('div');
+  wrap.appendChild(dxEl('div', 'dx-p', labelText));
+  const input = document.createElement('input');
+  input.type = 'text'; input.id = id; input.className = 'dx-field';
+  input.autocomplete = 'off'; input.setAttribute('autocapitalize', 'off'); input.spellcheck = false;
+  wrap.appendChild(input);
+  return { wrap: wrap, input: input };
+}
+
+function dxMessageLine() {
+  const m = dxEl('div', 'dx-msg' + (DX.msgError ? ' error' : ''), DX.msg);
+  m.id = 'dx-msg';
+  return m;
+}
+
+function dxRender() {
+  const box = document.getElementById('dx-content');
+  if (!box) return;
+  dxStopTimers();
+  box.textContent = '';
+  const v = DX.view;
+  if (!v) return;
+  const s = v.status;
+  if (DX_START_STATES.indexOf(s) >= 0) dxRenderStart(box, v);
+  else if (s === 'cooling') dxRenderCooling(box, v);
+  else if (s === 'deleted') dxRenderDeleted(box, v);
+  else if (s === 'partial') dxRenderPartial(box, v);
+  else if (s === 'alarm') dxRenderAlarm(box, v);
+  else if (s === 'deleting') dxRenderDeleting(box);
+  else box.appendChild(dxEl('div', 'dx-status error', DX_TEXT.failed));
+}
+
+function dxRenderStart(box, v) {
+  if (v.status === 'restored') {
+    box.appendChild(dxEl('p', 'dx-p', DX_TEXT.restored));
+    const t = dxCountsTable(v);
+    if (t) box.appendChild(t);
+  }
+  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.explain));
+  const typed = dxTypedBox('dx-type-start', DX_TEXT.typeToStart);
+  const words = dxEl('span', 'dx-words', DX.phrase);
+  typed.wrap.firstChild.appendChild(words);
+  box.appendChild(typed.wrap);
+  const go = dxBtn(DX_TEXT.start, 'dx-start', function() { dxDo('request', { confirmText: typed.input.value.trim() }); }, true);
+  go.disabled = true;
+  typed.input.oninput = function() { go.disabled = !typed.input.value.trim(); };
+  const row = dxEl('div', 'dx-buttons'); row.appendChild(go);
+  box.appendChild(row);
+  box.appendChild(dxEl('div', 'dx-small', DX_TEXT.noTakeBack));
+  box.appendChild(dxMessageLine());
+}
+
+function dxRenderCooling(box, v) {
+  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.copySaved));
+  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.canDeleteAfter + dxDate(v.executeAfter) + '.'));
+  const t = dxCountsTable(v);
+  if (t) box.appendChild(t);
+  const countdown = dxEl('div', 'dx-small'); countdown.id = 'dx-countdown';
+  box.appendChild(countdown);
+  const after = document.createElement('div'); after.id = 'dx-after';
+  box.appendChild(after);
+  const exec = Date.parse(v.executeAfter) || 0;
+  let typed = null; let del = null;
+  const showSecond = function() {
+    if (typed) return;
+    after.appendChild(dxEl('p', 'dx-p', DX_TEXT.waitOver));
+    typed = dxTypedBox('dx-type-again', DX_TEXT.typeAgain);
+    after.appendChild(typed.wrap);
+    del = dxBtn(DX_TEXT.deleteNow, 'dx-delete', function() { dxDo('execute', { confirmText: typed.input.value.trim() }); }, true);
+    del.disabled = true;
+    typed.input.oninput = function() { del.disabled = !typed.input.value.trim(); };
+    const r = dxEl('div', 'dx-buttons'); r.appendChild(del);
+    after.appendChild(r);
+    after.appendChild(dxEl('div', 'dx-small', DX_TEXT.noTakeBack));
+  };
+  const tick = function() {
+    const left = Math.ceil((exec - Date.now()) / 1000);
+    if (left <= 0) {
+      countdown.textContent = '';
+      showSecond();
+      if (DX.tick) { clearInterval(DX.tick); DX.tick = null; }
+      return;
+    }
+    const h = Math.floor(left / 3600); const m = Math.floor((left % 3600) / 60); const sec = left % 60;
+    countdown.textContent = h + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + DX_TEXT.waitLeft;
+  };
+  tick();
+  if (Date.now() < exec) DX.tick = setInterval(tick, 1000);
+  const row = dxEl('div', 'dx-buttons');
+  row.appendChild(dxBtn(DX_TEXT.download, 'dx-download', function() { dxDownload(); }));
+  row.appendChild(dxBtn(DX_TEXT.cancel, 'dx-cancel', function() { dxDo('cancel'); }));
+  box.appendChild(row);
+  box.appendChild(dxMessageLine());
+}
+
+function dxRenderDeleted(box, v) {
+  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.deleted));
+  const t = dxCountsTable(v);
+  if (t) box.appendChild(t);
+  if (v.undoUntil) box.appendChild(dxEl('p', 'dx-p', DX_TEXT.undoUntil + dxDate(v.undoUntil) + '.'));
+  const row = dxEl('div', 'dx-buttons');
+  row.appendChild(dxBtn(DX_TEXT.undo, 'dx-undo', function() { dxDo('undo'); }));
+  row.appendChild(dxBtn(DX_TEXT.download, 'dx-download', function() { dxDownload(); }));
+  box.appendChild(row);
+  box.appendChild(dxMessageLine());
+}
+
+function dxRenderPartial(box, v) {
+  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.partial));
+  const t = dxCountsTable(v);
+  if (t) box.appendChild(t);
+  if (v.remaining !== undefined && v.remaining !== null) box.appendChild(dxEl('p', 'dx-p', DX_TEXT.remaining + dxCount(v.remaining)));
+  const typed = dxTypedBox('dx-type-again', DX_TEXT.typeAgain);
+  box.appendChild(typed.wrap);
+  const again = dxBtn(DX_TEXT.tryAgain, 'dx-retry-delete', function() { dxDo('execute', { confirmText: typed.input.value.trim() }); }, true);
+  again.disabled = true;
+  typed.input.oninput = function() { again.disabled = !typed.input.value.trim(); };
+  const row = dxEl('div', 'dx-buttons');
+  row.appendChild(again);
+  row.appendChild(dxBtn(DX_TEXT.undo, 'dx-undo', function() { dxDo('undo'); }));
+  box.appendChild(row);
+  box.appendChild(dxMessageLine());
+}
+
+function dxRenderAlarm(box, v) {
+  box.appendChild(dxEl('p', 'dx-p', DX_TEXT.alarm));
+  const t = dxCountsTable(v);
+  if (t) box.appendChild(t);
+  const row = dxEl('div', 'dx-buttons');
+  row.appendChild(dxBtn(DX_TEXT.undo, 'dx-undo', function() { dxDo('undo'); }));
+  box.appendChild(row);
+  box.appendChild(dxMessageLine());
+}
+
+function dxRenderDeleting(box) {
+  box.appendChild(dxEl('div', 'dx-status', DX_TEXT.deleting));
+  DX.poll = setTimeout(function() { dxLoadStatus(); }, 10000);
+}
+
+// The seller's short business name (the part before the first comma), read the same way the Business name field reads it.
+// Nothing is guessed: when there is no name the typed word is DELETE.
+async function dxLoadPhrase() {
+  let word = DX_TEXT.defaultWord;
+  try {
+    if (SELLER_CHAT_ID) {
+      const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=business_name_location&limit=1');
+      const name = (rows && rows[0]) ? bnSplit(rows[0].business_name_location).name : '';
+      if (name) word = name;
+    }
+  } catch (e) { /* keep the default word */ }
+  DX.phrase = word;
+}
+
+function dxShowTop(text, isError) {
+  const box = document.getElementById('dx-content');
+  if (!box) return;
+  dxStopTimers();
+  box.textContent = '';
+  box.appendChild(dxEl('div', 'dx-status' + (isError ? ' error' : ''), text));
+}
+
+async function dxLoadStatus() {
+  const r = await callSellerDelete('status');
+  if (!r || r.ok !== true || typeof r.status !== 'string') { DX.view = null; dxShowTop(dxErrorText(r), true); return; }
+  DX.view = r;
+  dxRender();
+}
+
+function dxSetMsg(text, isError) {
+  DX.msg = text; DX.msgError = !!isError;
+  const m = document.getElementById('dx-msg');
+  if (m) { m.textContent = text; m.className = 'dx-msg' + (isError ? ' error' : ''); }
+}
+
+function dxSetBusy(on) {
+  DX.busy = on;
+  document.querySelectorAll('#dx-content button').forEach(function(b) {
+    if (on) { b.setAttribute('data-was-disabled', b.disabled ? '1' : '0'); b.disabled = true; }
+    else if (b.hasAttribute('data-was-disabled')) { b.disabled = b.getAttribute('data-was-disabled') === '1'; b.removeAttribute('data-was-disabled'); }
+  });
+}
+
+// One door action. The typed words are sent as typed; the door decides if they match. Never retried by the screen.
+async function dxDo(action, extra) {
+  if (DX.busy) return;
+  dxSetMsg('', false);
+  dxSetBusy(true);
+  let r;
+  try { r = await callSellerDelete(action, extra); } finally { dxSetBusy(false); }
+  if (r && r.ok === true) {
+    if (action === 'undo') {
+      DX.view = Object.assign({}, r, { status: 'restored' });
+      dxRender();
+      dxSetMsg(DX_TEXT.restored, false);
+      if (typeof window.dxReloadApp === 'function') setTimeout(function() { window.dxReloadApp(); }, 2500);
+      return;
+    }
+    if (typeof r.status === 'string') { DX.view = r; dxRender(); return; }
+    await dxLoadStatus();
+    return;
+  }
+  const code = r && r.code;
+  if (DX_GO_TO_STATUS.indexOf(code) >= 0) { await dxLoadStatus(); return; }
+  // partial, alarm, in_progress and too_late carry the current state: show that state, with the door's words kept out of the way.
+  if (r && typeof r.status === 'string' && (code === 'partial' || code === 'alarm' || code === 'in_progress' || code === 'too_late')) {
+    DX.view = r; dxRender();
+    if (code === 'too_late') dxSetMsg(DX_TEXT.tooLate, true);
+    return;
+  }
+  dxSetMsg(dxErrorText(r), true);
+}
+
+async function dxDownload() {
+  if (DX.busy) return;
+  dxSetMsg('', false);
+  dxSetBusy(true);
+  let r;
+  try { r = await callSellerDelete('download'); } finally { dxSetBusy(false); }
+  if (!r || r.ok !== true || !r.export) {
+    if (r && r.code && DX_GO_TO_STATUS.indexOf(r.code) >= 0) { await dxLoadStatus(); return; }
+    dxSetMsg(dxErrorText(r), true);
+    return;
+  }
+  try {
+    const blob = new Blob([JSON.stringify(r.export)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sparkly-export-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function() { URL.revokeObjectURL(a.href); }, 5000);
+    dxSetMsg(DX_TEXT.downloadNote, false);
+  } catch (e) { dxSetMsg(DX_TEXT.failed, true); }
+}
+
+window.openDeleteScreen = async function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('dx-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  DX.msg = ''; DX.msgError = false; DX.view = null;
+  dxShowTop(DX_TEXT.loading, false);
+  await dxLoadPhrase();
+  await dxLoadStatus();
+};
+
+window.closeDeleteScreen = function() {
+  dxStopTimers();
+  DX.view = null;
+  document.getElementById('dx-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-delete-screen:js:end -->
 </body>
 </html>
