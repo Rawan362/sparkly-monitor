@@ -4046,6 +4046,25 @@
     .invoice-doc { box-shadow: none; margin: 0; }
     body.print-customer .invoice-seller-only { display: none !important; }
   }
+/* w1-sales-screen:css:start */
+  #sr-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #sr-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #sr-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #sr-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #sr-tabs { display: flex; gap: 6px; padding: 10px 14px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+  #sr-tabs button { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 16px; padding: 6px 12px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  #sr-tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #sr-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .sr-status { padding: 24px 4px; color: var(--text-muted); font-size: 13.5px; }
+  .sr-status.error { color: var(--danger); }
+  .sr-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .sr-filters select, .sr-filters button { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 13px; }
+  .sr-filters label { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  .sr-order { border-bottom: 1px solid var(--border); padding: 10px 0; font-size: 13px; }
+  .sr-order .sr-line { display: flex; justify-content: space-between; gap: 10px; }
+  .sr-order .sr-sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .sr-note { color: var(--text-muted); font-size: 12px; margin-top: 10px; }
+/* w1-sales-screen:css:end */
 </style>
 </head>
 <body>
@@ -4487,6 +4506,17 @@
       </div>
       <div id="reports-content"><div id="reports-loading"><div class="spinner"></div>Crunching the numbers...</div></div>
     </div>
+    <!-- w1-sales-screen:html:start -->
+    <div id="sr-tab-content" style="display:none;">
+      <div id="sr-header-row">
+        <button type="button" onclick="closeSalesScreen()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="sr-title">Sales and stock</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="sr-tabs"></div>
+      <div id="sr-content"></div>
+    </div>
+    <!-- w1-sales-screen:html:end -->
     <div id="debts-tab-content" style="display:none;">
       <div id="debts-list-view">
         <div id="debts-header-row">
@@ -4763,6 +4793,12 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
         <span id="settings-label-reports-row">Reports</span>
       </div>
+      <!-- w1-sales-screen:row:start -->
+      <div class="settings-row" id="sr-menu-row" onclick="openSalesScreen()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        <span id="sr-menu-label">Sales and stock</span>
+      </div>
+      <!-- w1-sales-screen:row:end -->
       <div class="settings-row" onclick="openDebtsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span id="settings-label-debts-row">Customer Debts</span>
@@ -17516,5 +17552,324 @@ if ('serviceWorker' in navigator) {
     }
   };
 </script>
+<!-- w1-sales-screen:js:start -->
+<script>
+// Sales and stock screen (build chat W1, screen 1). READ ONLY: it calls the Seller Reports door and writes nothing.
+// Door: POST /webhook/seller-reports with { token, action, ...filters }. The door answers numbers only; the words are here.
+// Every seller-facing text of this screen is in SR_TEXT. Money is shown with the seller's own currency label from the door
+// (null when the seller has not set one, then only the number is shown). No country, language or currency is assumed.
+const SELLER_REPORTS_URL = 'https://sparklly.site/webhook/seller-reports';
+const SR_TEXT = {
+  title: 'Sales and stock',
+  tabs: { weekly: 'This week', orders: 'Orders', analytics: 'Sales', stock: 'Stock', customers: 'Customers' },
+  loading: 'Loading your numbers...',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not read your numbers right now. Please try again.',
+  refresh: 'Refresh',
+  apply: 'Show',
+  allStatuses: 'Any status',
+  allDates: 'Any date',
+  codPending: 'Cash on delivery not collected',
+  status: { PENDING: 'Pending', SHIPPED: 'Shipped', DELIVERED: 'Delivered', CANCELLED: 'Cancelled' },
+  ranges: { today: 'Today', week: 'Last 7 days', month: 'Last 30 days' },
+  orders: 'Orders', revenue: 'Revenue', changeVsLast: 'Change vs last week', delivered: 'Delivered', pending: 'Pending',
+  shipped: 'Shipped', cancelled: 'Cancelled', todayLabel: 'Today', todayRevenue: 'Revenue today', average: 'Average order',
+  topProduct: 'Top product', topProducts: 'Top products', bump: 'Bump offers accepted', upsell: 'Upsell offers accepted',
+  silent: 'Customers silent for 14 days or more', learning: 'AI conversations', closeRate: 'Close rate',
+  noOrders: 'No orders match these filters.', more: 'more not shown', ordersFound: 'orders found',
+  noStock: 'No products with stock tracking yet.', stockLow: 'Low stock', stockOk: 'In stock', stockNone: 'No number set',
+  activeProducts: 'Active products', trackedProducts: 'Products with stock tracking',
+  total: 'Customers', wholesale: 'Wholesale', vip: 'VIP', warm: 'Warm', silentShort: 'Silent 14+ days',
+  accepted: 'accepted', of: 'of'
+};
+
+let _srTab = 'weekly';
+let _srBusy = false;
+let _srFilters = { status: '', dateRange: '', codPending: false };
+const SR_TABS = ['weekly', 'orders', 'analytics', 'stock', 'customers'];
+
+function srErrorText(r) {
+  if (!r) return SR_TEXT.failed;
+  if (r.error === 'relogin' || r.error === 'not_logged_in') return SR_TEXT.relogin;
+  if (r.error === 'not_available') return SR_TEXT.notAvailable;
+  if (r.error === 'network') return SR_TEXT.noConnection;
+  // The door words its own refusals in plain language (for example a bad filter); show them as they are.
+  return (typeof r.message === 'string' && r.message) ? r.message : SR_TEXT.failed;
+}
+
+async function callSellerReports(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, error: 'relogin' };
+  try {
+    const r = await fetch(SELLER_REPORTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+
+function srNum(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return '0';
+  try { return v.toLocaleString(currentLang, { maximumFractionDigits: 2 }); } catch (e) { return String(v); }
+}
+function srMoney(n, currency) { return srNum(n) + (currency ? ' ' + currency : ''); }
+function srPercent(n) { return srNum(n) + '%'; }
+
+function srEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function srCard(value, label, tone) {
+  const c = srEl('div', 'report-stat-card');
+  c.appendChild(srEl('div', 'report-stat-value' + (tone ? ' ' + tone : ''), value));
+  c.appendChild(srEl('div', 'report-stat-label', label));
+  return c;
+}
+function srGrid(cards) {
+  const g = srEl('div', 'report-stat-grid');
+  cards.forEach(function(c) { g.appendChild(c); });
+  return g;
+}
+function srRow(label, value) {
+  const r = srEl('div', 'report-list-row');
+  r.appendChild(srEl('span', 'label', label));
+  r.appendChild(srEl('span', 'value', value));
+  return r;
+}
+function srSection(title, child) {
+  const s = srEl('div', 'report-section');
+  if (title) s.appendChild(srEl('div', 'report-section-title', title));
+  s.appendChild(child);
+  return s;
+}
+
+function srSetStatus(text, isError) {
+  const box = document.getElementById('sr-content');
+  if (!box) return;
+  box.textContent = '';
+  box.appendChild(srEl('div', 'sr-status' + (isError ? ' error' : ''), text));
+}
+
+function srRenderTabs() {
+  const bar = document.getElementById('sr-tabs');
+  if (!bar) return;
+  bar.textContent = '';
+  SR_TABS.forEach(function(name) {
+    const b = srEl('button', name === _srTab ? 'on' : '', SR_TEXT.tabs[name]);
+    b.type = 'button';
+    b.dataset.srTab = name;
+    b.onclick = function() { srShowTab(name); };
+    bar.appendChild(b);
+  });
+}
+
+function srRenderWeekly(r) {
+  const w = r.weekly || {};
+  const cur = r.currency;
+  const frag = document.createElement('div');
+  const change = Number(w.revenueChangePercent) || 0;
+  frag.appendChild(srSection(r.date || '', srGrid([
+    srCard(srNum(w.orders), SR_TEXT.orders),
+    srCard(srMoney(w.revenue, cur), SR_TEXT.revenue),
+    srCard((change > 0 ? '+' : '') + srPercent(change), SR_TEXT.changeVsLast, change > 0 ? 'positive' : (change < 0 ? 'negative' : '')),
+    srCard(srNum(w.delivered), SR_TEXT.delivered),
+    srCard(srNum(w.pending), SR_TEXT.pending),
+    srCard(srNum(r.silentCustomers), SR_TEXT.silent)
+  ])));
+  const list = document.createElement('div');
+  if (w.topProduct) list.appendChild(srRow(SR_TEXT.topProduct, String(w.topProduct.name) + ' (' + srNum(w.topProduct.orders) + ')'));
+  list.appendChild(srRow(SR_TEXT.bump, srNum(w.bumpAccepted) + ' / ' + srMoney(w.bumpRevenue, cur)));
+  list.appendChild(srRow(SR_TEXT.upsell, srNum(w.upsellAccepted) + ' / ' + srMoney(w.upsellRevenue, cur)));
+  if (r.learning) {
+    list.appendChild(srRow(SR_TEXT.learning, srNum(r.learning.conversations)));
+    list.appendChild(srRow(SR_TEXT.closeRate, srPercent(r.learning.closeRatePercent)));
+  }
+  frag.appendChild(srSection('', list));
+  return frag;
+}
+
+function srRenderAnalytics(r) {
+  const a = r.analytics || {};
+  const cur = r.currency;
+  const frag = document.createElement('div');
+  frag.appendChild(srSection('', srGrid([
+    srCard(srNum(a.total), SR_TEXT.orders),
+    srCard(srMoney(a.revenue, cur), SR_TEXT.revenue),
+    srCard(srNum(a.today), SR_TEXT.todayLabel),
+    srCard(srMoney(a.todayRevenue, cur), SR_TEXT.todayRevenue),
+    srCard(srMoney(a.averageOrder, cur), SR_TEXT.average),
+    srCard(srNum(a.codPending), SR_TEXT.codPending)
+  ])));
+  const st = document.createElement('div');
+  st.appendChild(srRow(SR_TEXT.pending, srNum(a.pending)));
+  st.appendChild(srRow(SR_TEXT.shipped, srNum(a.shipped)));
+  st.appendChild(srRow(SR_TEXT.delivered, srNum(a.delivered)));
+  st.appendChild(srRow(SR_TEXT.cancelled, srNum(a.cancelled)));
+  frag.appendChild(srSection('', st));
+  if (a.topProducts && a.topProducts.length) {
+    const tp = document.createElement('div');
+    a.topProducts.forEach(function(p) { tp.appendChild(srRow(String(p.name), srNum(p.orders))); });
+    frag.appendChild(srSection(SR_TEXT.topProducts, tp));
+  }
+  const offers = document.createElement('div');
+  [['bump', SR_TEXT.bump], ['upsell', SR_TEXT.upsell]].forEach(function(pair) {
+    const o = a[pair[0]];
+    if (o) offers.appendChild(srRow(pair[1], srNum(o.accepted) + ' ' + SR_TEXT.of + ' ' + srNum(o.offered) + ' (' + srPercent(o.percent) + ') / ' + srMoney(o.revenue, cur)));
+  });
+  frag.appendChild(srSection('', offers));
+  return frag;
+}
+
+function srRenderStock(r) {
+  const s = r.stock || {};
+  const frag = document.createElement('div');
+  frag.appendChild(srSection('', srGrid([
+    srCard(srNum(s.activeProducts), SR_TEXT.activeProducts),
+    srCard(srNum(s.trackedProducts), SR_TEXT.trackedProducts)
+  ])));
+  const list = document.createElement('div');
+  const items = s.items || [];
+  if (!items.length) list.appendChild(srEl('div', 'sr-status', SR_TEXT.noStock));
+  items.forEach(function(it) {
+    const value = it.stock === null || it.stock === undefined ? SR_TEXT.stockNone : srNum(it.stock) + ' - ' + (it.low ? SR_TEXT.stockLow : SR_TEXT.stockOk);
+    const row = srRow(String(it.name), value);
+    if (it.low) row.querySelector('.value').classList.add('negative');
+    list.appendChild(row);
+  });
+  frag.appendChild(srSection('', list));
+  return frag;
+}
+
+function srRenderCustomers(r) {
+  const c = r.customers || {};
+  return srSection('', srGrid([
+    srCard(srNum(c.total), SR_TEXT.total),
+    srCard(srNum(c.wholesale), SR_TEXT.wholesale),
+    srCard(srNum(c.vip), SR_TEXT.vip),
+    srCard(srNum(c.warm), SR_TEXT.warm),
+    srCard(srNum(c.silent), SR_TEXT.silentShort)
+  ]));
+}
+
+function srOrderFilters() {
+  const bar = srEl('div', 'sr-filters');
+  const st = document.createElement('select');
+  st.id = 'sr-f-status';
+  st.appendChild(new Option(SR_TEXT.allStatuses, ''));
+  Object.keys(SR_TEXT.status).forEach(function(k) { st.appendChild(new Option(SR_TEXT.status[k], k)); });
+  st.value = _srFilters.status;
+  const dr = document.createElement('select');
+  dr.id = 'sr-f-date';
+  dr.appendChild(new Option(SR_TEXT.allDates, ''));
+  Object.keys(SR_TEXT.ranges).forEach(function(k) { dr.appendChild(new Option(SR_TEXT.ranges[k], k)); });
+  dr.value = _srFilters.dateRange;
+  const lab = document.createElement('label');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.id = 'sr-f-cod'; cb.checked = _srFilters.codPending;
+  lab.appendChild(cb); lab.appendChild(document.createTextNode(SR_TEXT.codPending));
+  const go = srEl('button', '', SR_TEXT.apply);
+  go.type = 'button'; go.id = 'sr-f-apply';
+  go.onclick = function() {
+    _srFilters = { status: st.value, dateRange: dr.value, codPending: cb.checked };
+    srLoad();
+  };
+  [st, dr, lab, go].forEach(function(e) { bar.appendChild(e); });
+  return bar;
+}
+
+function srRenderOrders(r) {
+  const frag = document.createElement('div');
+  frag.appendChild(srOrderFilters());
+  const cur = r.currency;
+  frag.appendChild(srSection('', srGrid([
+    srCard(srNum(r.total), SR_TEXT.ordersFound),
+    srCard(srMoney(r.revenue, cur), SR_TEXT.revenue)
+  ])));
+  const list = document.createElement('div');
+  const shown = r.shown || [];
+  if (!shown.length) list.appendChild(srEl('div', 'sr-status', SR_TEXT.noOrders));
+  shown.forEach(function(o) {
+    const row = srEl('div', 'sr-order');
+    const line = srEl('div', 'sr-line');
+    line.appendChild(srEl('span', '', o.product || '-'));
+    line.appendChild(srEl('span', '', srMoney(o.total, cur)));
+    row.appendChild(line);
+    const parts = [SR_TEXT.status[o.status] || o.status || '', o.phone || '', o.createdAt ? String(o.createdAt).slice(0, 10) : ''];
+    row.appendChild(srEl('div', 'sr-sub', parts.filter(Boolean).join(' - ')));
+    list.appendChild(row);
+  });
+  if (r.more > 0) list.appendChild(srEl('div', 'sr-note', srNum(r.more) + ' ' + SR_TEXT.more));
+  frag.appendChild(list);
+  return frag;
+}
+
+function srRender(r) {
+  const box = document.getElementById('sr-content');
+  if (!box) return;
+  box.textContent = '';
+  let view;
+  if (_srTab === 'weekly') view = srRenderWeekly(r);
+  else if (_srTab === 'orders') view = srRenderOrders(r);
+  else if (_srTab === 'analytics') view = srRenderAnalytics(r);
+  else if (_srTab === 'stock') view = srRenderStock(r);
+  else view = srRenderCustomers(r);
+  box.appendChild(view);
+  const again = srEl('button', '', SR_TEXT.refresh);
+  again.type = 'button'; again.id = 'sr-refresh';
+  again.onclick = function() { srLoad(); };
+  box.appendChild(again);
+}
+
+async function srLoad() {
+  if (_srBusy) return;
+  _srBusy = true;
+  const tab = _srTab;
+  try {
+    srSetStatus(SR_TEXT.loading, false);
+    const extra = {};
+    if (tab === 'orders') {
+      if (_srFilters.status) extra.status = _srFilters.status;
+      if (_srFilters.dateRange) extra.dateRange = _srFilters.dateRange;
+      if (_srFilters.codPending) extra.codPending = true;
+    }
+    const r = await callSellerReports(tab, extra);
+    if (tab !== _srTab) return;
+    if (!r || r.ok !== true) { srSetStatus(srErrorText(r), true); return; }
+    srRender(r);
+  } finally { _srBusy = false; }
+}
+
+function srShowTab(name) {
+  _srTab = SR_TABS.indexOf(name) >= 0 ? name : 'weekly';
+  srRenderTabs();
+  _srBusy = false;
+  srLoad();
+}
+
+window.openSalesScreen = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('sr-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  srShowTab(_srTab);
+};
+
+window.closeSalesScreen = function() {
+  document.getElementById('sr-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-sales-screen:js:end -->
 </body>
 </html>
