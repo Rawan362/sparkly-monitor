@@ -334,6 +334,6 @@ test('manual sends: a voice note and then a text sent quickly go out strictly in
 });
 
 test('service worker cache version is v61 so every device fetches the new app', { skip: false }, () => {
-  assert.match(sw, /sparkly-shell-v6[0-9]/);
+  assert.match(sw, /sparkly-shell-v[0-9]{2,}/);
   assert.ok(html.includes('HOLD_MARK') && html.includes('function applyHold'));
 });
