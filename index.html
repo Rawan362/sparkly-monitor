@@ -4065,6 +4065,37 @@
   .sr-order .sr-sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
   .sr-note { color: var(--text-muted); font-size: 12px; margin-top: 10px; }
 /* w1-sales-screen:css:end */
+/* w1-ads-screen:css:start */
+  #ax-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; position: relative; }
+  #ax-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #ax-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #ax-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #ax-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .ax-summary { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+  .ax-status { padding: 24px 4px; color: var(--text-muted); font-size: 13.5px; }
+  .ax-status.error, .ax-msg.error { color: var(--danger); }
+  .ax-msg { font-size: 12.5px; margin-top: 6px; color: var(--text-muted); }
+  .ax-card { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .ax-card.child { margin-left: 18px; }
+  .ax-name { font-weight: 600; font-size: 14px; }
+  .ax-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+  .ax-badge { font-size: 11.5px; border-radius: 10px; padding: 2px 8px; margin-left: 6px; background: var(--panel); border: 1px solid var(--border); }
+  .ax-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+  .ax-actions button, .ax-btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer; }
+  .ax-actions input { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; width: 110px; }
+  .ax-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 20px 0 10px; }
+  .ax-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
+  .ax-table th, .ax-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  #ax-confirm { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 5; }
+  #ax-confirm .ax-box { background: var(--panel); border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; }
+  #ax-confirm-summary { font-size: 17px; line-height: 1.4; margin-bottom: 12px; }
+  #ax-confirm-count { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+  #ax-confirm-count.error { color: var(--danger); }
+  #ax-confirm .ax-buttons { display: flex; gap: 10px; margin-top: 12px; }
+  #ax-confirm .ax-buttons button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 14px; cursor: pointer; }
+  #ax-confirm .ax-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #ax-confirm-go { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* w1-ads-screen:css:end */
 </style>
 </head>
 <body>
@@ -4517,6 +4548,27 @@
       <div id="sr-content"></div>
     </div>
     <!-- w1-sales-screen:html:end -->
+    <!-- w1-ads-screen:html:start -->
+    <div id="ax-tab-content" style="display:none;">
+      <div id="ax-header-row">
+        <button type="button" onclick="closeAdsScreen()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="ax-title">Ads</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="ax-content"></div>
+      <div id="ax-confirm" role="dialog" aria-modal="true">
+        <div class="ax-box">
+          <div id="ax-confirm-summary"></div>
+          <div id="ax-confirm-count"></div>
+          <div class="ax-msg">Nothing changes until you press Confirm.</div>
+          <div class="ax-buttons">
+            <button type="button" id="ax-confirm-cancel" onclick="axCancelConfirm()">Cancel</button>
+            <button type="button" id="ax-confirm-go" onclick="axPressConfirm()">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- w1-ads-screen:html:end -->
     <div id="debts-tab-content" style="display:none;">
       <div id="debts-list-view">
         <div id="debts-header-row">
@@ -4799,6 +4851,12 @@
         <span id="sr-menu-label">Sales and stock</span>
       </div>
       <!-- w1-sales-screen:row:end -->
+      <!-- w1-ads-screen:row:start -->
+      <div class="settings-row" id="ax-menu-row" onclick="openAdsScreen()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 8a5 5 0 0 1 0 8"/></svg>
+        <span id="ax-menu-label">Ads</span>
+      </div>
+      <!-- w1-ads-screen:row:end -->
       <div class="settings-row" onclick="openDebtsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span id="settings-label-debts-row">Customer Debts</span>
@@ -17871,5 +17929,402 @@ window.closeSalesScreen = function() {
 };
 </script>
 <!-- w1-sales-screen:js:end -->
+<!-- w1-ads-screen:js:start -->
+<script>
+// Ads screen (build chat W1, screen 2). Door: POST /webhook/seller-ads with { token, action, ... }. The login decides the seller.
+// Every write is two steps: "prepare" shows exactly what will happen, then the seller presses Confirm, which calls "confirm" once.
+// The confirm token lives only in AX_state.pending (memory) until it is used or dropped. Never stored, never shown, never retried.
+// All seller-facing words are in AX_TEXT. Amounts and the currency name come from the door; nothing here assumes a currency or country.
+const SELLER_ADS_URL = 'https://sparklly.site/webhook/seller-ads';
+const AX_TEXT = {
+  title: 'Ads',
+  loading: 'Loading your ads...',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  notConnected: 'Your ads account is not connected yet.',
+  metaDown: 'Meta did not answer. Nothing was changed.',
+  tryAgain: 'Try again',
+  noCap: 'Set a daily limit first',
+  unconfirmed: 'Meta did not confirm. Check the ad in Meta Ads Manager before you try again.',
+  notSaved: 'The limit could not be saved. Nothing was changed.',
+  failed: 'Something went wrong. Check your ads in Meta Ads Manager before you try again.',
+  expiredPanel: 'This ran out of time. Look at the change again.',
+  lookAgain: 'Look at the change again.',
+  done: 'Done.',
+  notSeen: 'Sent, but not yet seen in Meta: check again in a minute.',
+  badNumber: 'Enter a number above zero.',
+  summaryTotal: 'Total daily budget of your running ads: ',
+  summaryCap: '. Your daily limit: ',
+  summaryNoCap: '. No daily limit set',
+  running: 'Running', paused: 'Paused',
+  budgetPerDay: 'Budget: ', perDay: ' per day',
+  budgetElsewhere: 'Budget is set on its ad sets',
+  lifetime: 'Lifetime budget (change it in Meta Ads Manager)',
+  campaign: 'Campaign', adset: 'Ad set',
+  pause: 'Pause', resume: 'Resume', changeBudget: 'Change budget', review: 'Review change',
+  limitTitle: 'Daily limit', noLimit: 'No daily limit set', changeLimit: 'Change limit',
+  reportTitle: 'Report',
+  ranges: { today: 'Today', yesterday: 'Yesterday', last_7d: 'Last 7 days', last_30d: 'Last 30 days' },
+  cols: { name: 'Campaign', spend: 'Spent', impressions: 'Shown', clicks: 'Clicks', ctr: 'Click rate', conversations: 'Conversations' },
+  noRows: 'No numbers for this period.',
+  noAds: 'You have no campaigns yet.',
+  secondsLeft: ' left to confirm'
+};
+const AX_CODE_TEXT = {
+  relogin: AX_TEXT.relogin,
+  not_logged_in: AX_TEXT.relogin,
+  unconfirmed: AX_TEXT.unconfirmed,
+  not_saved: AX_TEXT.notSaved,
+  failed: AX_TEXT.failed,
+  not_configured: AX_TEXT.failed
+};
+const AX_SHOW_DOOR_MESSAGE = ['over_cap', 'unbounded_budget', 'bad_amount', 'no_change', 'budget_elsewhere', 'lifetime_budget', 'not_found', 'not_resumable', 'bad_change', 'meta_refused', 'bad_range', 'invalid_token', 'already_used', 'wrong_seller'];
+const AX_REFRESH_CODES = ['expired', 'changed_since_preview', 'invalid_token', 'already_used', 'wrong_seller'];
+
+const AX_state = { overview: null, currency: '', pending: null, timer: null, confirming: false, lastReport: '', busy: false, editing: null };
+
+function axEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function axBtn(label, onclick, id) {
+  const b = axEl('button', '', label);
+  b.type = 'button';
+  if (id) b.id = id;
+  b.onclick = onclick;
+  return b;
+}
+function axMoney(n, currency) {
+  const v = Number(n);
+  const cur = currency || AX_state.currency;
+  let s;
+  try { s = (isFinite(v) ? v : 0).toLocaleString(currentLang, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } catch (e) { s = (isFinite(v) ? v : 0).toFixed(2); }
+  return s + (cur ? ' ' + cur : '');
+}
+function axInt(n) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: 2 }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+// A typed amount: comma or dot as the decimal mark. Returns null when it is not a number above zero.
+function axParseAmount(text) {
+  const t = String(text || '').trim().replace(',', '.');
+  if (!/^[0-9]+(\.[0-9]+)?$/.test(t)) return null;
+  const v = Number(t);
+  return isFinite(v) && v > 0 ? v : null;
+}
+
+async function callSellerAds(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, code: 'relogin' };
+  try {
+    const r = await fetch(SELLER_ADS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, code: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, code: 'failed' };
+  } catch (e) { return { ok: false, code: 'network' }; }
+}
+
+// Plain words for a refusal. The door's own message is shown only for the codes where it is already plain and exact.
+function axErrorText(r) {
+  const code = r && r.code;
+  if (code === 'not_available') return AX_TEXT.notAvailable;
+  if (code === 'network') return AX_TEXT.noConnection;
+  if (code === 'ads_not_connected') return AX_TEXT.notConnected;
+  if (code === 'meta_unavailable' || code === 'unavailable') return AX_TEXT.metaDown;
+  if (code === 'no_cap') return AX_TEXT.noCap;
+  if (code === 'expired' || code === 'changed_since_preview') return AX_TEXT.lookAgain;
+  if (AX_CODE_TEXT[code]) return AX_CODE_TEXT[code];
+  if (AX_SHOW_DOOR_MESSAGE.indexOf(code) >= 0 && typeof r.message === 'string' && r.message) return r.message;
+  return AX_TEXT.failed;
+}
+
+function axTopMessage(text, isError, retry) {
+  const box = document.getElementById('ax-content');
+  if (!box) return;
+  box.textContent = '';
+  box.appendChild(axEl('div', 'ax-status' + (isError ? ' error' : ''), text));
+  if (retry) box.appendChild(axBtn(AX_TEXT.tryAgain, retry, 'ax-retry'));
+}
+
+// A message next to the button that was pressed (a campaign row, or the limit card); the top of the screen when there is none.
+function axRowMessage(key, text, isError) {
+  const nodes = document.querySelectorAll('#ax-content [data-ax-msg]');
+  let found = null;
+  nodes.forEach(function(n) { if (n.getAttribute('data-ax-msg') === key) found = n; });
+  if (!found) { found = document.querySelector('#ax-content [data-ax-msg="top"]'); }
+  if (found) { found.textContent = text; found.className = 'ax-msg' + (isError ? ' error' : ''); }
+}
+
+function axRender() {
+  const o = AX_state.overview;
+  const box = document.getElementById('ax-content');
+  if (!box || !o) return;
+  box.textContent = '';
+  AX_state.currency = o.currency || '';
+  const cur = AX_state.currency;
+  const hasCap = o.dailyCap !== null && o.dailyCap !== undefined;
+  const sum = axEl('div', 'ax-summary', AX_TEXT.summaryTotal + axMoney(o.totalActiveDailyBudget, cur) + (hasCap ? AX_TEXT.summaryCap + axMoney(o.dailyCap, cur) : AX_TEXT.summaryNoCap));
+  sum.id = 'ax-summary';
+  box.appendChild(sum);
+  const top = axEl('div', 'ax-msg'); top.setAttribute('data-ax-msg', 'top');
+  box.appendChild(top);
+
+  const objects = Array.isArray(o.objects) ? o.objects : [];
+  const campaigns = objects.filter(function(x) { return x.level === 'campaign'; });
+  const campaignIds = campaigns.map(function(c) { return String(c.id); });
+  const kids = function(id) { return objects.filter(function(x) { return x.level === 'adset' && String(x.campaignId) === String(id); }); };
+  const loose = objects.filter(function(x) { return x.level === 'adset' && campaignIds.indexOf(String(x.campaignId)) < 0; });
+  if (!objects.length) box.appendChild(axEl('div', 'ax-status', AX_TEXT.noAds));
+  campaigns.forEach(function(c) {
+    box.appendChild(axObjectCard(c, false));
+    kids(c.id).forEach(function(k) { box.appendChild(axObjectCard(k, true)); });
+  });
+  loose.forEach(function(k) { box.appendChild(axObjectCard(k, false)); });
+
+  box.appendChild(axEl('div', 'ax-section-title', AX_TEXT.limitTitle));
+  box.appendChild(axLimitCard(o));
+  box.appendChild(axEl('div', 'ax-section-title', AX_TEXT.reportTitle));
+  box.appendChild(axReportButtons());
+  const rep = axEl('div'); rep.id = 'ax-report';
+  box.appendChild(rep);
+}
+
+function axObjectCard(o, child) {
+  const card = axEl('div', 'ax-card' + (child ? ' child' : ''));
+  card.setAttribute('data-ax-id', String(o.id));
+  const head = axEl('div', 'ax-name', o.name || '');
+  const running = o.status === 'ACTIVE';
+  const paused = o.status === 'PAUSED';
+  head.appendChild(axEl('span', 'ax-badge', running ? AX_TEXT.running : (paused ? AX_TEXT.paused : String(o.status || ''))));
+  card.appendChild(head);
+  let line;
+  if (o.lifetimeBudget === true) line = AX_TEXT.lifetime;
+  else if (o.dailyBudget === null || o.dailyBudget === undefined) line = AX_TEXT.budgetElsewhere;
+  else line = AX_TEXT.budgetPerDay + axMoney(o.dailyBudget) + AX_TEXT.perDay;
+  card.appendChild(axEl('div', 'ax-sub', (o.level === 'campaign' ? AX_TEXT.campaign : AX_TEXT.adset) + ' - ' + line));
+  const actions = axEl('div', 'ax-actions');
+  if (running) actions.appendChild(axBtn(AX_TEXT.pause, function() { axPrepare({ type: 'pause', targetId: String(o.id) }, String(o.id)); }));
+  if (paused) actions.appendChild(axBtn(AX_TEXT.resume, function() { axPrepare({ type: 'resume', targetId: String(o.id) }, String(o.id)); }));
+  const hasOwn = o.dailyBudget !== null && o.dailyBudget !== undefined && o.lifetimeBudget !== true;
+  if (hasOwn) {
+    const b = axBtn(AX_TEXT.changeBudget, function() {
+      b.style.display = 'none';
+      const input = document.createElement('input');
+      input.type = 'text'; input.inputMode = 'decimal'; input.className = 'ax-budget-input';
+      const go = axBtn(AX_TEXT.review, function() {
+        const v = axParseAmount(input.value);
+        if (v === null) { axRowMessage(String(o.id), AX_TEXT.badNumber, true); return; }
+        axPrepare({ type: 'set_budget', targetId: String(o.id), newBudget: v }, String(o.id));
+      });
+      go.className = 'ax-review';
+      actions.appendChild(input); actions.appendChild(go);
+      input.focus();
+    });
+    b.className = 'ax-change-budget';
+    actions.appendChild(b);
+  }
+  if (actions.childNodes.length) card.appendChild(actions);
+  const msg = axEl('div', 'ax-msg'); msg.setAttribute('data-ax-msg', String(o.id));
+  card.appendChild(msg);
+  return card;
+}
+
+function axLimitCard(o) {
+  const hasCap = o.dailyCap !== null && o.dailyCap !== undefined;
+  const card = axEl('div', 'ax-card');
+  card.id = 'ax-limit-card';
+  card.appendChild(axEl('div', 'ax-name', hasCap ? axMoney(o.dailyCap) : AX_TEXT.noLimit));
+  const actions = axEl('div', 'ax-actions');
+  const input = document.createElement('input');
+  input.type = 'text'; input.inputMode = 'decimal'; input.id = 'ax-limit-input';
+  const go = axBtn(AX_TEXT.changeLimit, function() {
+    const v = axParseAmount(input.value);
+    if (v === null) { axRowMessage('cap', AX_TEXT.badNumber, true); return; }
+    axPrepare({ type: 'set_cap', newCap: v }, 'cap');
+  }, 'ax-limit-go');
+  actions.appendChild(input); actions.appendChild(go);
+  card.appendChild(actions);
+  const msg = axEl('div', 'ax-msg'); msg.setAttribute('data-ax-msg', 'cap');
+  card.appendChild(msg);
+  return card;
+}
+
+function axReportButtons() {
+  const row = axEl('div', 'ax-actions');
+  Object.keys(AX_TEXT.ranges).forEach(function(k) {
+    const b = axBtn(AX_TEXT.ranges[k], function() { axReport(k); });
+    b.setAttribute('data-ax-range', k);
+    row.appendChild(b);
+  });
+  return row;
+}
+
+async function axReport(range) {
+  const host = document.getElementById('ax-report');
+  if (host) { host.textContent = ''; host.appendChild(axEl('div', 'ax-status', AX_TEXT.loading)); }
+  AX_state.lastReport = range;
+  const r = await callSellerAds('report', { range: range });
+  const el = document.getElementById('ax-report');
+  if (!el) return;
+  el.textContent = '';
+  if (!r || r.ok !== true) {
+    const retry = (r && (r.code === 'meta_unavailable' || r.code === 'unavailable')) ? axBtn(AX_TEXT.tryAgain, function() { axReport(range); }, 'ax-report-retry') : null;
+    el.appendChild(axEl('div', 'ax-status error', axErrorText(r)));
+    if (retry) el.appendChild(retry);
+    return;
+  }
+  const rows = Array.isArray(r.rows) ? r.rows : [];
+  if (!rows.length) { el.appendChild(axEl('div', 'ax-status', AX_TEXT.noRows)); return; }
+  const table = axEl('table', 'ax-table');
+  const head = document.createElement('tr');
+  ['name', 'spend', 'impressions', 'clicks', 'ctr', 'conversations'].forEach(function(c) { head.appendChild(axEl('th', '', AX_TEXT.cols[c])); });
+  table.appendChild(head);
+  rows.forEach(function(x) {
+    const tr = document.createElement('tr');
+    tr.appendChild(axEl('td', '', String(x.name || '')));
+    tr.appendChild(axEl('td', '', axMoney(x.spend)));
+    tr.appendChild(axEl('td', '', axInt(x.impressions)));
+    tr.appendChild(axEl('td', '', axInt(x.clicks)));
+    tr.appendChild(axEl('td', '', axInt(x.ctr) + '%'));
+    tr.appendChild(axEl('td', '', axInt(x.conversations)));
+    table.appendChild(tr);
+  });
+  el.appendChild(table);
+}
+
+async function axLoad() {
+  axTopMessage(AX_TEXT.loading, false);
+  const r = await callSellerAds('overview');
+  if (!r || r.ok !== true) {
+    AX_state.overview = null;
+    const retriable = r && (r.code === 'meta_unavailable' || r.code === 'unavailable');
+    axTopMessage(axErrorText(r), true, retriable ? axLoad : null);
+    return;
+  }
+  AX_state.overview = r;
+  axRender();
+}
+
+// ---- Step 1: prepare. Nothing changes in Meta. The answer carries the sentence to show and a one-use token.
+async function axPrepare(change, key) {
+  if (AX_state.busy) return;
+  AX_state.busy = true;
+  try {
+    axRowMessage(key, '', false);
+    const r = await callSellerAds('prepare', { change: change });
+    if (!r || r.ok !== true || r.needsConfirm !== true || !r.confirmToken) {
+      if (r && r.code === 'no_cap') {
+        axRowMessage('cap', AX_TEXT.noCap, true);
+        const inp = document.getElementById('ax-limit-input');
+        if (inp) inp.focus();
+        return;
+      }
+      if (r && (r.code === 'meta_unavailable' || r.code === 'unavailable')) {
+        axRowMessage(key, AX_TEXT.metaDown + ' ' + AX_TEXT.tryAgain + '.', true);
+        return;
+      }
+      if (r && AX_REFRESH_CODES.indexOf(r.code) >= 0) { axRowMessage(key, axErrorText(r), true); axLoad(); return; }
+      axRowMessage(key, axErrorText(r), true);
+      return;
+    }
+    axOpenConfirm(r);
+  } finally { AX_state.busy = false; }
+}
+
+function axOpenConfirm(r) {
+  axClosePanel();
+  const p = r.preview || {};
+  AX_state.pending = { token: String(r.confirmToken), expiresAt: Date.parse(r.expiresAt) || 0 };
+  AX_state.confirming = false;
+  document.getElementById('ax-confirm-summary').textContent = String(p.summary || '');
+  document.getElementById('ax-confirm').style.display = 'flex';
+  const go = document.getElementById('ax-confirm-go');
+  go.disabled = false;
+  axTick();
+  AX_state.timer = setInterval(axTick, 500);
+}
+
+function axTick() {
+  const p = AX_state.pending;
+  const count = document.getElementById('ax-confirm-count');
+  const go = document.getElementById('ax-confirm-go');
+  if (!p || !count || !go) return;
+  const left = Math.max(0, Math.ceil((p.expiresAt - Date.now()) / 1000));
+  if (left <= 0) {
+    count.textContent = AX_TEXT.expiredPanel;
+    count.className = 'error';
+    go.disabled = true;
+    if (AX_state.timer) { clearInterval(AX_state.timer); AX_state.timer = null; }
+    return;
+  }
+  count.className = '';
+  count.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + AX_TEXT.secondsLeft;
+}
+
+// Closes the panel and forgets the token. Sends nothing.
+function axClosePanel() {
+  if (AX_state.timer) { clearInterval(AX_state.timer); AX_state.timer = null; }
+  AX_state.pending = null;
+  AX_state.confirming = false;
+  const panel = document.getElementById('ax-confirm');
+  if (panel) panel.style.display = 'none';
+}
+window.axCancelConfirm = function() { axClosePanel(); };
+
+// ---- Step 2: confirm. Works once: the button is disabled the moment it is pressed and the token is dropped. Never retried.
+window.axPressConfirm = async function() {
+  const p = AX_state.pending;
+  if (!p || AX_state.confirming) return;
+  if (Date.now() >= p.expiresAt) { axTick(); return; }
+  AX_state.confirming = true;
+  document.getElementById('ax-confirm-go').disabled = true;
+  const token = p.token;
+  AX_state.pending = null;
+  const r = await callSellerAds('confirm', { confirmToken: token });
+  axClosePanel();
+  if (r && r.ok === true) {
+    axTopMessageAfter(r.verified === false ? AX_TEXT.notSeen : AX_TEXT.done, false);
+    axLoad().then(function() { axTopMessageAfter(r.verified === false ? AX_TEXT.notSeen : AX_TEXT.done, false); });
+    return;
+  }
+  const text = axErrorText(r);
+  if (r && AX_REFRESH_CODES.indexOf(r.code) >= 0) {
+    axLoad().then(function() { axTopMessageAfter(text, true); });
+    return;
+  }
+  axTopMessageAfter(text, true);
+};
+
+// The line under the summary (the top message slot), set after the list is drawn.
+function axTopMessageAfter(text, isError) {
+  const top = document.querySelector('#ax-content [data-ax-msg="top"]');
+  if (top) { top.textContent = text; top.className = 'ax-msg' + (isError ? ' error' : ''); }
+}
+
+window.openAdsScreen = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('ax-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  axClosePanel();
+  axLoad();
+};
+
+window.closeAdsScreen = function() {
+  axClosePanel();
+  document.getElementById('ax-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-ads-screen:js:end -->
 </body>
 </html>
