@@ -17518,11 +17518,12 @@ if ('serviceWorker' in navigator) {
 // WhatsApp signup: the signup call now also sends the seller's login token and the two ids the seller picked in Meta's popup (the phone
 // number id and the account id), as the Signup Callback door needs (docs/signup-callback-plan.md, fixes 1 and 3 in the backend repository).
 // The older progress handler of the connect flow is not changed: this code listens to the same Meta finish message on its own.
-// Ids are used only when both look like Meta ids (digits); otherwise they are left out and the door decides (it never guesses).
+// Ids are used only when both look like Meta ids (digits). Without them the door is not called (plan section 8.1), the seller is told to finish the popup.
 const W1_SIGNUP_ID = /^[0-9]{5,32}$/;
 const W1_SIGNUP_WAIT_MS = 1500;
 const W1_SIGNUP_LIFETIME_MS = 15 * 60 * 1000;
 const W1_SIGNUP_RELOGIN = 'Please sign out and sign in again, then try once more.';
+const W1_SIGNUP_FINISH = 'Please finish the WhatsApp setup in the popup, then try again.';
 
 function w1SignupHost(origin) {
   try { return new URL(String(origin)).hostname; } catch (e) { return ''; }
@@ -17561,7 +17562,7 @@ function w1SignupListen() {
 }
 
 // The signup call. Returns what fetch returns, so the older code that reads the answer is unchanged. Without a login it returns the
-// door-style refusal instead of sending anything (the one-time code stays unused).
+// door-style refusal instead of sending anything (the one-time code stays unused); the same when the popup gave no ids.
 async function w1SignupPost(url, code, sellerId, picked) {
   try {
     const token = await picked.token;
@@ -17570,8 +17571,9 @@ async function w1SignupPost(url, code, sellerId, picked) {
       // Meta's finish message normally arrives just before the code; give a late one a moment, then go on without it.
       await Promise.race([picked.ready, new Promise(function(resolve) { setTimeout(resolve, W1_SIGNUP_WAIT_MS); })]);
     }
-    const body = { code: code, seller_id: sellerId, token: token };
-    if (picked.phoneNumberId && picked.wabaId) { body.phone_number_id = picked.phoneNumberId; body.waba_id = picked.wabaId; }
+    // The door needs the picked number: without both ids it is not called at all (docs/signup-callback-plan.md, section 8.1).
+    if (!picked.phoneNumberId || !picked.wabaId) return { json: async function() { return { success: false, error: W1_SIGNUP_FINISH }; } };
+    const body = { code: code, seller_id: sellerId, token: token, phone_number_id: picked.phoneNumberId, waba_id: picked.wabaId };
     return await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   } finally { picked.stop(); }
 }

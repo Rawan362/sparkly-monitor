@@ -115,7 +115,7 @@ const login = (page, code) => page.evaluate((c) => { window.__fb.cb(c ? { authRe
 const status = (page) => page.$eval('#whatsapp-connect-status', (e) => e.textContent);
 const waitStatus = (page, re) => page.waitForFunction((s) => new RegExp(s).test(document.getElementById('whatsapp-connect-status').textContent), re);
 
-test('the signup call sends the code, the seller id, the login token and the two picked ids', { skip }, async () => {
+test('the signup call sends exactly the code, the seller id, the login token and the two picked ids (plan section 8.1)', { skip }, async () => {
   const calls = [];
   const { page, errors } = await openFlow(good, calls);
   await start(page);
@@ -137,17 +137,17 @@ test('a finish message that arrives just after the code is still used', { skip }
   assert.deepEqual(calls[0], { code: 'CODE1', seller_id: 'seller-test', token: 'login-jwt', phone_number_id: '1234567890', waba_id: '9876543210' });
 });
 
-test('with no finish message the ids are left out (never empty) and the call still goes, so the door decides', { skip }, async () => {
+test('with no finish message the door is not called and the seller is told to finish the popup', { skip }, async () => {
   const calls = [];
   const { page } = await openFlow(good, calls);
   await start(page);
   await login(page);
-  await waitStatus(page, 'Connected');
-  assert.deepEqual(calls, [{ code: 'CODE1', seller_id: 'seller-test', token: 'login-jwt' }]);
-  assert.ok(!('phone_number_id' in calls[0]) && !('waba_id' in calls[0]));
+  await waitStatus(page, 'Failed');
+  assert.equal(calls.length, 0);
+  assert.deepEqual(await page.evaluate(() => window.__alerts), ['Could not connect your WhatsApp number: Please finish the WhatsApp setup in the popup, then try again.']);
 });
 
-test('messages from other origins or with ids that are not Meta ids are ignored', { skip }, async () => {
+test('messages from other origins or with ids that are not Meta ids are ignored, so the door is not called', { skip }, async () => {
   const bad = [
     ['https://evilfacebook.com', FINISH('1234567890', '9876543210')],
     ['https://example.com', FINISH('1234567890', '9876543210')],
@@ -164,8 +164,8 @@ test('messages from other origins or with ids that are not Meta ids are ignored'
     await start(page);
     await finishMsg(page, origin, data);
     await login(page);
-    await waitStatus(page, 'Connected');
-    assert.deepEqual(Object.keys(calls[0]).sort(), ['code', 'seller_id', 'token'], origin + ' ' + JSON.stringify(data).slice(0, 60));
+    await waitStatus(page, 'Failed');
+    assert.equal(calls.length, 0, origin + ' ' + JSON.stringify(data).slice(0, 60));
     await page.close();
   }
 });
@@ -184,8 +184,8 @@ test('ids sent as numbers are accepted; a cancel message stops the listening', {
   await finishMsg(two.page, 'https://www.facebook.com', { type: 'WA_EMBEDDED_SIGNUP', event: 'CANCEL', data: { current_step: 'x' } });
   await finishMsg(two.page, 'https://www.facebook.com', FINISH('1234567890', '9876543210'));
   await login(two.page);
-  await waitStatus(two.page, 'Connected');
-  assert.deepEqual(Object.keys(b[0]).sort(), ['code', 'seller_id', 'token']);
+  await waitStatus(two.page, 'Failed');
+  assert.equal(b.length, 0, 'after a cancel message the later finish message is not used');
 });
 
 test('without a login nothing is sent and the seller is told to sign in again', { skip }, async () => {
@@ -202,11 +202,13 @@ test('without a login nothing is sent and the seller is told to sign in again', 
 test('what the door answers is shown exactly as before: a refusal text, a network failure, a cancel', { skip }, async () => {
   const refuse = await openFlow(() => ({ json: { success: false, error: 'Please pick the number you want to connect.' } }), []);
   await start(refuse.page);
+  await finishMsg(refuse.page, 'https://www.facebook.com', FINISH('1234567890', '9876543210'));
   await login(refuse.page);
   await waitStatus(refuse.page, 'Failed');
   assert.deepEqual(await refuse.page.evaluate(() => window.__alerts), ['Could not connect your WhatsApp number: Please pick the number you want to connect.']);
   const down = await openFlow(() => ({ abort: true }), []);
   await start(down.page);
+  await finishMsg(down.page, 'https://www.facebook.com', FINISH('1234567890', '9876543210'));
   await login(down.page);
   await waitStatus(down.page, 'Failed');
   const alerts = await down.page.evaluate(() => window.__alerts);
@@ -223,6 +225,7 @@ test('what the door answers is shown exactly as before: a refusal text, a networ
 test('the login token is never shown to the seller', { skip }, async () => {
   const { page } = await openFlow(() => ({ json: { success: false, error: 'No.' } }), []);
   await start(page);
+  await finishMsg(page, 'https://www.facebook.com', FINISH('1234567890', '9876543210'));
   await login(page);
   await waitStatus(page, 'Failed');
   const shown = (await status(page)) + (await page.evaluate(() => window.__alerts.join(' ')));
