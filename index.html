@@ -16990,16 +16990,13 @@ if ('serviceWorker' in navigator) {
       } catch (e) {}
     }
     window.addEventListener('message', handleSignupMessage);
+    const w1Picked = w1SignupListen();
 
     FB.login(function(response) {
       window.removeEventListener('message', handleSignupMessage);
       if (response.authResponse && response.authResponse.code) {
         if (statusEl) statusEl.textContent = 'Connecting...';
-        fetch(WHATSAPP_SIGNUP_CALLBACK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: response.authResponse.code, seller_id: SELLER_CHAT_ID })
-        })
+        w1SignupPost(WHATSAPP_SIGNUP_CALLBACK_URL, response.authResponse.code, SELLER_CHAT_ID, w1Picked)
           .then(r => r.json())
           .then(data => {
             if (data.success) {
@@ -17516,5 +17513,69 @@ if ('serviceWorker' in navigator) {
     }
   };
 </script>
+<!-- w1-signup-ids:js:start -->
+<script>
+// WhatsApp signup: the signup call now also sends the seller's login token and the two ids the seller picked in Meta's popup (the phone
+// number id and the account id), as the Signup Callback door needs (docs/signup-callback-plan.md, fixes 1 and 3 in the backend repository).
+// The older progress handler of the connect flow is not changed: this code listens to the same Meta finish message on its own.
+// Ids are used only when both look like Meta ids (digits); otherwise they are left out and the door decides (it never guesses).
+const W1_SIGNUP_ID = /^[0-9]{5,32}$/;
+const W1_SIGNUP_WAIT_MS = 1500;
+const W1_SIGNUP_LIFETIME_MS = 15 * 60 * 1000;
+const W1_SIGNUP_RELOGIN = 'Please sign out and sign in again, then try once more.';
+
+function w1SignupHost(origin) {
+  try { return new URL(String(origin)).hostname; } catch (e) { return ''; }
+}
+function w1SignupFromFacebook(origin) {
+  const host = w1SignupHost(origin);
+  return host === 'facebook.com' || host.endsWith('.facebook.com');
+}
+
+// Starts listening when the seller taps Connect. The login token is asked for at once (without waiting), so the popup is never delayed.
+function w1SignupListen() {
+  const state = { phoneNumberId: '', wabaId: '', stopped: false, handler: null, timer: null, resolveReady: null, ready: null, token: null };
+  state.ready = new Promise(function(resolve) { state.resolveReady = resolve; });
+  try { state.token = Promise.resolve(getValidAuthToken()).catch(function() { return null; }); } catch (e) { state.token = Promise.resolve(null); }
+  state.stop = function() {
+    if (state.stopped) return;
+    state.stopped = true;
+    if (state.handler) window.removeEventListener('message', state.handler);
+    if (state.timer) clearTimeout(state.timer);
+    state.resolveReady(false);
+  };
+  state.handler = function(event) {
+    if (!event || !w1SignupFromFacebook(event.origin)) return;
+    let data = event.data;
+    if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { return; } }
+    if (!data || data.type !== 'WA_EMBEDDED_SIGNUP') return;
+    if (data.event === 'CANCEL') { state.stop(); return; }
+    if (data.event !== 'FINISH' || !data.data) return;
+    const pn = String(data.data.phone_number_id === undefined || data.data.phone_number_id === null ? '' : data.data.phone_number_id);
+    const wb = String(data.data.waba_id === undefined || data.data.waba_id === null ? '' : data.data.waba_id);
+    if (W1_SIGNUP_ID.test(pn) && W1_SIGNUP_ID.test(wb)) { state.phoneNumberId = pn; state.wabaId = wb; state.resolveReady(true); }
+  };
+  window.addEventListener('message', state.handler);
+  state.timer = setTimeout(state.stop, W1_SIGNUP_LIFETIME_MS);
+  return state;
+}
+
+// The signup call. Returns what fetch returns, so the older code that reads the answer is unchanged. Without a login it returns the
+// door-style refusal instead of sending anything (the one-time code stays unused).
+async function w1SignupPost(url, code, sellerId, picked) {
+  try {
+    const token = await picked.token;
+    if (!token) return { json: async function() { return { success: false, error: W1_SIGNUP_RELOGIN }; } };
+    if (!picked.phoneNumberId) {
+      // Meta's finish message normally arrives just before the code; give a late one a moment, then go on without it.
+      await Promise.race([picked.ready, new Promise(function(resolve) { setTimeout(resolve, W1_SIGNUP_WAIT_MS); })]);
+    }
+    const body = { code: code, seller_id: sellerId, token: token };
+    if (picked.phoneNumberId && picked.wabaId) { body.phone_number_id = picked.phoneNumberId; body.waba_id = picked.wabaId; }
+    return await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } finally { picked.stop(); }
+}
+</script>
+<!-- w1-signup-ids:js:end -->
 </body>
 </html>
