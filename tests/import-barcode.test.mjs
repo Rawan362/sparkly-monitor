@@ -83,7 +83,8 @@ async function openScreen(answer, calls, token, init) {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: h });
     if (/\/webhook\/seller-stock-invoices$/.test(u)) {
       const body = JSON.parse(route.request().postData() || '{}');
-      calls.push(body);
+      // The Undo section (its own tests are in tests/undo-buttons.test.mjs) asks undoCheck when the screen opens; those calls are not counted here.
+      if (!/^undo/.test(String(body.action))) calls.push(body);
       const a = (answer && answer(body)) || defaults(body);
       return route.fulfill({ status: a.status || 200, contentType: 'application/json', headers: h, body: JSON.stringify(a.json || {}) });
     }
@@ -111,6 +112,7 @@ async function openScreen(answer, calls, token, init) {
   return { page, errors };
 }
 function defaults(body) {
+  if (body.action === 'undoCheck') return { json: { ok: false, error: 'nothing_to_undo', message: 'x' } };
   if (body.action === 'csvCheck') return { json: CHECK() };
   if (body.action === 'csvApply') return { json: { ok: true, message: 'x', imported: 3, skipped: 1, errors: 1 } };
   if (body.action === 'barcodeFind') return { json: { ok: true, found: false } };
