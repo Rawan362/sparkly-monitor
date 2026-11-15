@@ -4166,6 +4166,39 @@
   .ag-table th, .ag-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .ag-warning { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 10px; }
 /* w1-ads-extras:css:end */
+/* w1-import-barcode:css:start */
+  #bk-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; position: relative; }
+  #bk-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #bk-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #bk-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #bk-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .bk-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 4px 0 10px; }
+  .bk-card { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .bk-p { font-size: 13.5px; line-height: 1.45; margin: 0 0 10px; }
+  .bk-small { font-size: 12.5px; color: var(--text-muted); margin: 6px 0; }
+  .bk-msg { font-size: 13px; margin: 8px 0; color: var(--text-muted); }
+  .bk-msg.error { color: var(--danger); }
+  .bk-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .bk-row button, .bk-btn { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer; }
+  .bk-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .bk-row input[type="text"], .bk-row select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; }
+  .bk-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+  .bk-count { background: var(--panel); border-radius: 8px; padding: 8px; text-align: center; }
+  .bk-count b { display: block; font-size: 18px; }
+  .bk-count span { font-size: 11.5px; color: var(--text-muted); }
+  .bk-list { margin: 6px 0; padding-left: 18px; font-size: 12.5px; }
+  .bk-table { border-collapse: collapse; font-size: 12.5px; }
+  .bk-table th, .bk-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .bk-scroll { overflow-x: auto; }
+  #bk-video { width: 100%; max-height: 240px; border-radius: 8px; background: #000; }
+  #bk-confirm { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 5; }
+  #bk-confirm .bk-box { background: var(--panel); border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; }
+  #bk-confirm-summary { font-size: 16px; line-height: 1.4; margin-bottom: 10px; }
+  #bk-confirm .bk-buttons { display: flex; gap: 10px; margin-top: 12px; }
+  #bk-confirm .bk-buttons button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 14px; cursor: pointer; }
+  #bk-confirm .bk-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #bk-confirm-go { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* w1-import-barcode:css:end */
 </style>
 </head>
 <body>
@@ -4664,6 +4697,26 @@
       </div>
     </div>
     <!-- w1-alert-check:html:end -->
+    <!-- w1-import-barcode:html:start -->
+    <div id="bk-tab-content" style="display:none;">
+      <div id="bk-header-row">
+        <button type="button" onclick="closeImportBarcode()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="bk-title">Import and barcodes</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="bk-content"></div>
+      <div id="bk-confirm" role="dialog" aria-modal="true">
+        <div class="bk-box">
+          <div id="bk-confirm-summary"></div>
+          <div class="bk-small">Nothing changes until you press Confirm. A safety copy is saved first.</div>
+          <div class="bk-buttons">
+            <button type="button" id="bk-confirm-cancel" onclick="bkCancelConfirm()">Cancel</button>
+            <button type="button" id="bk-confirm-go" onclick="bkPressConfirm()">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- w1-import-barcode:html:end -->
     <div id="debts-tab-content" style="display:none;">
       <div id="debts-list-view">
         <div id="debts-header-row">
@@ -4958,6 +5011,12 @@
         <span id="ac-menu-label">Alert check</span>
       </div>
       <!-- w1-alert-check:row:end -->
+      <!-- w1-import-barcode:row:start -->
+      <div class="settings-row" id="bk-menu-row" onclick="openImportBarcode()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M16 5v14"/><path d="M20 5v14"/></svg>
+        <span id="bk-menu-label">Import and barcodes</span>
+      </div>
+      <!-- w1-import-barcode:row:end -->
       <div class="settings-row" onclick="openDebtsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span id="settings-label-debts-row">Customer Debts</span>
@@ -19806,5 +19865,431 @@ function agShowReport(r) {
 }
 </script>
 <!-- w1-ads-extras:js:end -->
+<!-- w1-import-barcode:js:start -->
+<script>
+// Import and barcodes screen (build chat W1). Door: POST /webhook/seller-stock-invoices with { token, action, ... }.
+// Import: "csvCheck" is a dry run that writes nothing and shows exactly what would be saved; "csvApply" saves only those rows and needs the
+// digest of the check, so the seller confirms what was shown. Barcode: "barcodeFind" reads; "barcodeLink" writes one code to one product.
+// Every write goes through the confirm panel of this screen (one Confirm press, never repeated). A safety copy is saved by the door first;
+// there is no undo button because the door has none yet, so the screen does not promise one. Words are in BK_TEXT.
+const SELLER_STOCK_URL = 'https://sparklly.site/webhook/seller-stock-invoices';
+const BK_MAX_CHARS = 200000;
+const BK_TEXT = {
+  importTitle: 'Import products from a file', barcodeTitle: 'Barcode',
+  importHelp: 'Choose a CSV file with one product per line. The first line holds the column names. Nothing is saved until you confirm.',
+  chooseFile: 'Choose a file', check: 'Check the file', checking: 'Checking...',
+  willImport: 'Will import', skipped: 'Skipped', refused: 'Refused', lines: 'Lines',
+  problems: 'Problems', line: 'Line', moreProblems: 'There are more problems than are shown here.',
+  sample: 'The first products that will be saved', colName: 'Name', colCategory: 'Category', colWholesale: 'Wholesale', colRetail: 'Retail', colCost: 'Cost', colStock: 'Stock', colThreshold: 'Low stock at', colBarcode: 'Barcode',
+  unused: 'Columns that were not used. Choose what each one is, then check again.', notUsed: 'Not used', checkAgain: 'Check again with these choices',
+  importN1: 'Import ', importN2: ' products', importOne: 'Import 1 product',
+  confirmImport1: 'Import ', confirmImport2: ' products from this file? Lines that were skipped or refused are not imported.', confirmImportOne: 'Import 1 product from this file? Lines that were skipped or refused are not imported.',
+  imported: 'Products imported: ', importedSkipped: ' Skipped: ', importedRefused: ' Refused: ',
+  checkAgainNeeded: 'The file or your products changed since the check. Check the file again and confirm what it shows.',
+  tooBig: 'The file is too big. Split it into smaller files.',
+  noFile: 'Choose a file first.',
+  readFailed: 'The file could not be read.',
+  fields: { product_name: 'Product name', product_category: 'Category', wholesale_price: 'Wholesale price', retail_price: 'Retail price', cost_price: 'Cost price', stock_quantity: 'Stock quantity', low_stock_threshold: 'Low stock alert number', barcode: 'Barcode' },
+  reasons: {
+    missing_name: 'The product name is empty.', name_too_long: 'The product name is longer than 200 characters.', bad_text: 'A text has a control character or is too long.',
+    bad_number: 'A price or quantity is not a plain number.', too_many_cells: 'The line has more cells than the column names.',
+    duplicate_in_file: 'The same product name appears earlier in the file.', already_exists: 'You already have an active product with this name.',
+    bad_barcode: 'The barcode must be 4 to 64 letters, digits, dots, dashes or underscores.', barcode_in_use: 'This barcode is already used by another product or earlier in the file.'
+  },
+  barcodeHelp: 'Type or scan a barcode to find the product it belongs to, or link it to a product.',
+  codePlaceholder: 'Barcode', find: 'Look up', scan: 'Scan with the camera', stopScan: 'Stop scanning', cameraFailed: 'The camera could not be opened. Type the code instead.',
+  foundProduct: 'This barcode belongs to: ', ambiguous1: 'More than one of your products has this barcode (', ambiguous2: ').',
+  notFound: 'No product has this barcode yet. Choose the product to link it to.', pickProduct: 'Choose a product', link: 'Link to this product',
+  confirmLink1: 'Link the barcode ', confirmLink2: ' to ', linked: 'Barcode linked.', linkedAlready: 'This barcode was already linked to that product.',
+  wholesale: 'Wholesale', retail: 'Retail', stockWord: 'Stock', loadingProducts: 'Loading your products...', noProducts: 'You have no products to link to.',
+  confirm: 'Confirm', working: 'Working...',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Check your products before you try again.',
+  codes: {
+    csv_empty: 'The file is empty. It needs a line of column names and at least one product line.',
+    csv_too_big: 'The file is too big. Split it into smaller files.',
+    too_many_rows: 'The file has too many lines. Split it into smaller files.',
+    csv_unreadable: 'The file could not be read as a CSV file (a quote may be missing its end).',
+    bad_mapping: 'The column choice is not valid.',
+    no_name_column: 'No column holds the product name. Choose the name column.',
+    no_barcode_field: 'Your products have no barcode field yet, so barcodes cannot be used. Nothing was changed.',
+    too_many_products: 'You have more active products than an import can check against. Contact support.',
+    nothing_to_import: 'There is nothing to import: no line passed the check.',
+    too_many_to_import: 'More than 500 products would be imported at once. Split the file into smaller files.',
+    undo_unavailable: 'Nothing was changed, because a safe copy of the old data could not be saved. Try again later.',
+    bad_barcode: 'The barcode must be 4 to 64 letters, digits, dots, dashes or underscores.',
+    barcode_in_use: 'This barcode is already linked to another product. Nothing was changed.',
+    no_product: 'That product was not found (it may have been removed). Refresh and try again.',
+    save_failed: 'The change could not be saved. Check your products before you try again.',
+    unconfirmed: 'We did not get a confirmation in time. Check your products before you try again, so nothing is done twice.',
+    read_failed: 'We could not read your data right now. Try again in a moment.'
+  }
+};
+const BK_state = { csv: '', mapping: {}, digest: '', willImport: 0, pending: null, busy: false, confirming: false, code: '', products: null, scan: null };
+
+function bkEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function bkBtn(label, onclick, id) {
+  const b = bkEl('button', '', label);
+  b.type = 'button'; if (id) b.id = id; b.onclick = onclick;
+  return b;
+}
+function bkNum(n) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: 2 }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+
+async function callSellerStock(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, error: 'relogin' };
+  try {
+    const r = await fetch(SELLER_STOCK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+
+function bkErrorText(r) {
+  const code = r && (r.error || r.code);
+  if (code === 'relogin' || code === 'not_logged_in' || code === 'no_seller') return BK_TEXT.relogin;
+  if (code === 'not_available') return BK_TEXT.notAvailable;
+  if (code === 'network') return BK_TEXT.noConnection;
+  if (code === 'changed') return BK_TEXT.checkAgainNeeded;
+  if (BK_TEXT.codes[code]) return BK_TEXT.codes[code];
+  return BK_TEXT.failed;
+}
+
+function bkSet(id, text, isError) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.className = 'bk-msg' + (isError ? ' error' : ''); }
+}
+
+// ---------------------------------------------------------------- the screen
+function bkRender() {
+  const box = document.getElementById('bk-content');
+  if (!box) return;
+  box.textContent = '';
+  box.appendChild(bkEl('div', 'bk-title', BK_TEXT.importTitle));
+  const card = bkEl('div', 'bk-card');
+  card.appendChild(bkEl('p', 'bk-p', BK_TEXT.importHelp));
+  const row = bkEl('div', 'bk-row');
+  const file = document.createElement('input');
+  file.type = 'file'; file.id = 'bk-file'; file.accept = '.csv,text/csv,text/plain';
+  file.onchange = function() { BK_state.csv = ''; BK_state.digest = ''; BK_state.mapping = {}; bkSet('bk-import-msg', '', false); const r = document.getElementById('bk-check-result'); if (r) r.textContent = ''; };
+  row.appendChild(file);
+  row.appendChild(bkBtn(BK_TEXT.check, function() { bkCheck(); }, 'bk-check'));
+  card.appendChild(row);
+  const msg = bkEl('div', 'bk-msg'); msg.id = 'bk-import-msg'; card.appendChild(msg);
+  const res = bkEl('div'); res.id = 'bk-check-result'; card.appendChild(res);
+  box.appendChild(card);
+
+  box.appendChild(bkEl('div', 'bk-title', BK_TEXT.barcodeTitle));
+  const bc = bkEl('div', 'bk-card');
+  bc.appendChild(bkEl('p', 'bk-p', BK_TEXT.barcodeHelp));
+  const r2 = bkEl('div', 'bk-row');
+  const code = document.createElement('input');
+  code.type = 'text'; code.id = 'bk-code'; code.placeholder = BK_TEXT.codePlaceholder; code.maxLength = 64; code.autocomplete = 'off';
+  r2.appendChild(code);
+  r2.appendChild(bkBtn(BK_TEXT.find, function() { bkFind(); }, 'bk-find'));
+  if (bkCanScan()) r2.appendChild(bkBtn(BK_TEXT.scan, function() { bkScan(); }, 'bk-scan'));
+  bc.appendChild(r2);
+  const video = bkEl('div'); video.id = 'bk-scan-area'; bc.appendChild(video);
+  const m2 = bkEl('div', 'bk-msg'); m2.id = 'bk-barcode-msg'; bc.appendChild(m2);
+  const res2 = bkEl('div'); res2.id = 'bk-barcode-result'; bc.appendChild(res2);
+  box.appendChild(bc);
+}
+
+// ---------------------------------------------------------------- import
+function bkReadFile(file) {
+  return new Promise(function(resolve, reject) {
+    const fr = new FileReader();
+    fr.onload = function() { resolve(String(fr.result || '')); };
+    fr.onerror = function() { reject(new Error('read')); };
+    fr.readAsText(file);
+  });
+}
+
+async function bkCheck() {
+  if (BK_state.busy) return;
+  const input = document.getElementById('bk-file');
+  if (!BK_state.csv) {
+    const f = input && input.files && input.files[0];
+    if (!f) { bkSet('bk-import-msg', BK_TEXT.noFile, true); return; }
+    try { BK_state.csv = await bkReadFile(f); } catch (e) { bkSet('bk-import-msg', BK_TEXT.readFailed, true); return; }
+  }
+  if (BK_state.csv.length > BK_MAX_CHARS) { BK_state.csv = ''; bkSet('bk-import-msg', BK_TEXT.tooBig, true); return; }
+  BK_state.busy = true;
+  bkSet('bk-import-msg', BK_TEXT.checking, false);
+  const holder = document.getElementById('bk-check-result'); if (holder) holder.textContent = '';
+  try {
+    const extra = { csv: BK_state.csv };
+    if (Object.keys(BK_state.mapping).length) extra.mapping = Object.assign({}, BK_state.mapping);
+    const r = await callSellerStock('csvCheck', extra);
+    if (!r || r.ok !== true) { BK_state.digest = ''; bkSet('bk-import-msg', bkErrorText(r), true); return; }
+    bkSet('bk-import-msg', '', false);
+    BK_state.digest = String(r.digest || ''); BK_state.willImport = Number(r.willImport) || 0;
+    bkShowCheck(r);
+  } finally { BK_state.busy = false; }
+}
+
+function bkCount(n, label) {
+  const c = bkEl('div', 'bk-count');
+  c.appendChild(bkEl('b', '', bkNum(n)));
+  c.appendChild(bkEl('span', '', label));
+  return c;
+}
+
+function bkShowCheck(r) {
+  const holder = document.getElementById('bk-check-result');
+  if (!holder) return;
+  holder.textContent = '';
+  const counts = bkEl('div', 'bk-counts'); counts.id = 'bk-counts';
+  counts.appendChild(bkCount(r.willImport, BK_TEXT.willImport));
+  counts.appendChild(bkCount(r.skipped, BK_TEXT.skipped));
+  counts.appendChild(bkCount(r.errors, BK_TEXT.refused));
+  counts.appendChild(bkCount(r.total, BK_TEXT.lines));
+  holder.appendChild(counts);
+  const problems = Array.isArray(r.problems) ? r.problems : [];
+  if (problems.length) {
+    holder.appendChild(bkEl('div', 'bk-small', BK_TEXT.problems));
+    const ul = bkEl('ul', 'bk-list'); ul.id = 'bk-problems';
+    problems.forEach(function(p) {
+      const kind = p.status === 'skipped' ? BK_TEXT.skipped : BK_TEXT.refused;
+      ul.appendChild(bkEl('li', '', BK_TEXT.line + ' ' + bkNum(p.line) + ' (' + kind + '): ' + (BK_TEXT.reasons[p.reason] || String(p.message || p.reason || ''))));
+    });
+    holder.appendChild(ul);
+    if (r.problemsCut === true) holder.appendChild(bkEl('div', 'bk-small', BK_TEXT.moreProblems));
+  }
+  const sample = Array.isArray(r.sample) ? r.sample : [];
+  if (sample.length) {
+    holder.appendChild(bkEl('div', 'bk-small', BK_TEXT.sample));
+    const wrap = bkEl('div', 'bk-scroll');
+    const table = bkEl('table', 'bk-table'); table.id = 'bk-sample';
+    const head = document.createElement('tr');
+    [BK_TEXT.colName, BK_TEXT.colCategory, BK_TEXT.colWholesale, BK_TEXT.colRetail, BK_TEXT.colCost, BK_TEXT.colStock, BK_TEXT.colThreshold, BK_TEXT.colBarcode].forEach(function(h) { head.appendChild(bkEl('th', '', h)); });
+    table.appendChild(head);
+    sample.forEach(function(s) {
+      const tr = document.createElement('tr');
+      ['product_name', 'product_category', 'wholesale_price', 'retail_price', 'cost_price', 'stock_quantity', 'low_stock_threshold', 'barcode'].forEach(function(k) {
+        const v = s[k];
+        tr.appendChild(bkEl('td', '', v === undefined || v === null || v === '' ? '-' : (typeof v === 'number' ? bkNum(v) : String(v))));
+      });
+      table.appendChild(tr);
+    });
+    wrap.appendChild(table); holder.appendChild(wrap);
+  }
+  const ignored = Array.isArray(r.ignoredColumns) ? r.ignoredColumns : [];
+  if (ignored.length) holder.appendChild(bkMapping(ignored));
+  const go = bkBtn(r.willImport === 1 ? BK_TEXT.importOne : BK_TEXT.importN1 + bkNum(r.willImport) + BK_TEXT.importN2, function() { bkAskImport(); }, 'bk-import');
+  go.disabled = !(r.willImport > 0);
+  const row = bkEl('div', 'bk-row'); row.appendChild(go);
+  holder.appendChild(row);
+}
+
+// The columns the door did not use: the seller picks what each one is (header -> field), then checks again. Nothing is guessed.
+function bkMapping(ignored) {
+  const box = bkEl('div'); box.id = 'bk-mapping';
+  box.appendChild(bkEl('div', 'bk-small', BK_TEXT.unused));
+  const selects = [];
+  ignored.forEach(function(h) {
+    const row = bkEl('div', 'bk-row');
+    row.appendChild(bkEl('span', '', String(h)));
+    const sel = document.createElement('select'); sel.setAttribute('data-header', String(h));
+    sel.appendChild(new Option(BK_TEXT.notUsed, ''));
+    Object.keys(BK_TEXT.fields).forEach(function(f) { sel.appendChild(new Option(BK_TEXT.fields[f], f)); });
+    if (BK_state.mapping[h]) sel.value = BK_state.mapping[h];
+    row.appendChild(sel); selects.push(sel); box.appendChild(row);
+  });
+  const again = bkBtn(BK_TEXT.checkAgain, function() {
+    const next = Object.assign({}, BK_state.mapping);
+    selects.forEach(function(s) { const h = s.getAttribute('data-header'); if (s.value) next[h] = s.value; else delete next[h]; });
+    BK_state.mapping = next;
+    bkCheck();
+  }, 'bk-check-again');
+  const row = bkEl('div', 'bk-row'); row.appendChild(again); box.appendChild(row);
+  return box;
+}
+
+function bkAskImport() {
+  if (!BK_state.digest || !(BK_state.willImport > 0)) return;
+  const n = BK_state.willImport;
+  bkOpenConfirm({ kind: 'import' }, n === 1 ? BK_TEXT.confirmImportOne : BK_TEXT.confirmImport1 + bkNum(n) + BK_TEXT.confirmImport2);
+}
+
+// ---------------------------------------------------------------- barcode
+function bkValidCode(code) { return /^[A-Za-z0-9._-]{4,64}$/.test(code); }
+
+async function bkFind() {
+  if (BK_state.busy) return;
+  const code = String(document.getElementById('bk-code').value || '').trim();
+  const res = document.getElementById('bk-barcode-result'); if (res) res.textContent = '';
+  if (!bkValidCode(code)) { bkSet('bk-barcode-msg', BK_TEXT.codes.bad_barcode, true); return; }
+  BK_state.busy = true; BK_state.code = code;
+  bkSet('bk-barcode-msg', BK_TEXT.working, false);
+  try {
+    const r = await callSellerStock('barcodeFind', { code: code });
+    if (!r || r.ok !== true) { bkSet('bk-barcode-msg', bkErrorText(r), true); return; }
+    bkSet('bk-barcode-msg', '', false);
+    if (r.found === true && r.ambiguous === true) { bkSet('bk-barcode-msg', BK_TEXT.ambiguous1 + bkNum(r.count) + BK_TEXT.ambiguous2, true); return; }
+    if (r.found === true && r.product) { bkShowFound(r.product); return; }
+    await bkShowNotFound();
+  } finally { BK_state.busy = false; }
+}
+
+function bkShowFound(p) {
+  const res = document.getElementById('bk-barcode-result'); if (!res) return;
+  res.textContent = '';
+  res.appendChild(bkEl('p', 'bk-p', BK_TEXT.foundProduct + String(p.name || '')));
+  const parts = [];
+  if (p.wholesalePrice !== null && p.wholesalePrice !== undefined) parts.push(BK_TEXT.wholesale + ' ' + bkNum(p.wholesalePrice));
+  if (p.retailPrice !== null && p.retailPrice !== undefined) parts.push(BK_TEXT.retail + ' ' + bkNum(p.retailPrice));
+  if (p.trackStock && p.stockQuantity !== null && p.stockQuantity !== undefined) parts.push(BK_TEXT.stockWord + ' ' + bkNum(p.stockQuantity));
+  if (parts.length) res.appendChild(bkEl('div', 'bk-small', parts.join(' - ')));
+}
+
+async function bkShowNotFound() {
+  const res = document.getElementById('bk-barcode-result'); if (!res) return;
+  res.textContent = '';
+  res.appendChild(bkEl('p', 'bk-p', BK_TEXT.notFound));
+  res.appendChild(bkEl('div', 'bk-small', BK_TEXT.loadingProducts));
+  if (!BK_state.products) {
+    const r = await callSellerStock('stockList');
+    if (!r || r.ok !== true) { res.textContent = ''; bkSet('bk-barcode-msg', bkErrorText(r), true); return; }
+    BK_state.products = [].concat(Array.isArray(r.products) ? r.products : [], Array.isArray(r.untracked) ? r.untracked : []).map(function(p) { return { id: String(p.id), name: String(p.name || '') }; });
+  }
+  res.textContent = '';
+  res.appendChild(bkEl('p', 'bk-p', BK_TEXT.notFound));
+  if (!BK_state.products.length) { res.appendChild(bkEl('div', 'bk-small', BK_TEXT.noProducts)); return; }
+  const row = bkEl('div', 'bk-row');
+  const sel = document.createElement('select'); sel.id = 'bk-product';
+  sel.appendChild(new Option(BK_TEXT.pickProduct, ''));
+  BK_state.products.forEach(function(p) { sel.appendChild(new Option(p.name, p.id)); });
+  const link = bkBtn(BK_TEXT.link, function() {
+    const id = sel.value;
+    if (!id) return;
+    const prod = BK_state.products.filter(function(p) { return p.id === id; })[0];
+    bkOpenConfirm({ kind: 'link', code: BK_state.code, productId: id }, BK_TEXT.confirmLink1 + BK_state.code + BK_TEXT.confirmLink2 + (prod ? prod.name : '') + '?');
+  }, 'bk-link');
+  link.disabled = true;
+  sel.onchange = function() { link.disabled = !sel.value; };
+  row.appendChild(sel); row.appendChild(link);
+  res.appendChild(row);
+}
+
+// ---------------------------------------------------------------- optional camera scan (typing always works)
+function bkCanScan() { return !!(window.BarcodeDetector && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+async function bkScan() {
+  const area = document.getElementById('bk-scan-area');
+  if (!area || BK_state.scan) return;
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); } catch (e) { bkSet('bk-barcode-msg', BK_TEXT.cameraFailed, true); return; }
+  const video = document.createElement('video');
+  video.id = 'bk-video'; video.setAttribute('playsinline', ''); video.muted = true; video.srcObject = stream;
+  area.textContent = '';
+  area.appendChild(video);
+  area.appendChild(bkBtn(BK_TEXT.stopScan, function() { bkStopScan(); }, 'bk-stop-scan'));
+  try { const started = video.play(); if (started && started.catch) started.catch(function() { /* the picture may still arrive */ }); } catch (e) { /* the picture may still arrive */ }
+  let detector;
+  try { detector = new window.BarcodeDetector(); } catch (e) { bkStopScan(); bkSet('bk-barcode-msg', BK_TEXT.cameraFailed, true); return; }
+  const timer = setInterval(async function() {
+    try {
+      const found = await detector.detect(video);
+      if (found && found.length && found[0].rawValue) {
+        const value = String(found[0].rawValue).trim();
+        bkStopScan();
+        const input = document.getElementById('bk-code'); if (input) input.value = value;
+      }
+    } catch (e) { /* try again on the next tick */ }
+  }, 400);
+  BK_state.scan = { stream: stream, timer: timer };
+}
+
+function bkStopScan() {
+  const s = BK_state.scan;
+  if (s) { clearInterval(s.timer); try { s.stream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) { /* already stopped */ } }
+  BK_state.scan = null;
+  const area = document.getElementById('bk-scan-area'); if (area) area.textContent = '';
+}
+
+// ---------------------------------------------------------------- the confirm panel (one press, never repeated)
+function bkOpenConfirm(pending, summary) {
+  BK_state.pending = pending; BK_state.confirming = false;
+  document.getElementById('bk-confirm-summary').textContent = summary;
+  document.getElementById('bk-confirm-go').disabled = false;
+  document.getElementById('bk-confirm').style.display = 'flex';
+}
+function bkClosePanel() {
+  BK_state.pending = null; BK_state.confirming = false;
+  const p = document.getElementById('bk-confirm'); if (p) p.style.display = 'none';
+}
+window.bkCancelConfirm = function() { bkClosePanel(); };
+
+window.bkPressConfirm = async function() {
+  const p = BK_state.pending;
+  if (!p || BK_state.confirming) return;
+  BK_state.confirming = true;
+  document.getElementById('bk-confirm-go').disabled = true;
+  BK_state.pending = null;
+  if (p.kind === 'import') {
+    const extra = { csv: BK_state.csv, digest: BK_state.digest };
+    if (Object.keys(BK_state.mapping).length) extra.mapping = Object.assign({}, BK_state.mapping);
+    const r = await callSellerStock('csvApply', extra);
+    bkClosePanel();
+    if (r && r.ok === true) {
+      BK_state.digest = ''; BK_state.willImport = 0;
+      const holder = document.getElementById('bk-check-result'); if (holder) holder.textContent = '';
+      bkSet('bk-import-msg', BK_TEXT.imported + bkNum(r.imported) + BK_TEXT.importedSkipped + bkNum(r.skipped) + BK_TEXT.importedRefused + bkNum(r.errors), false);
+      return;
+    }
+    if (r && (r.error === 'changed')) { BK_state.digest = ''; const imp = document.getElementById('bk-import'); if (imp) imp.disabled = true; }
+    let text = bkErrorText(r);
+    if (r && r.error === 'save_failed' && r.saved && r.saved.products !== undefined) text += ' (' + bkNum(r.saved.products) + ')';
+    bkSet('bk-import-msg', text, true);
+    return;
+  }
+  if (p.kind === 'link') {
+    const r = await callSellerStock('barcodeLink', { code: p.code, productId: p.productId });
+    bkClosePanel();
+    if (r && r.ok === true) {
+      const res = document.getElementById('bk-barcode-result'); if (res) res.textContent = '';
+      bkSet('bk-barcode-msg', r.unchanged === true ? BK_TEXT.linkedAlready : BK_TEXT.linked, false);
+      return;
+    }
+    bkSet('bk-barcode-msg', bkErrorText(r), true);
+  }
+};
+
+window.openImportBarcode = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('bk-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  bkClosePanel();
+  BK_state.csv = ''; BK_state.digest = ''; BK_state.mapping = {}; BK_state.products = null;
+  bkRender();
+};
+
+window.closeImportBarcode = function() {
+  bkStopScan();
+  bkClosePanel();
+  document.getElementById('bk-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-import-barcode:js:end -->
 </body>
 </html>
