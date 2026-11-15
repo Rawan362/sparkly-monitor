@@ -15296,6 +15296,7 @@ window.removeInvoiceLogo = async function() {
 };
 
 async function saveBotSetting(key, value) {
+  if (w1BotHandles(key)) return w1BotDoorSet(key, value);
   const res = await fetch(SUPABASE_URL + '/rest/v1/bot_settings?on_conflict=chat_id,key', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -17516,5 +17517,144 @@ if ('serviceWorker' in navigator) {
     }
   };
 </script>
+<!-- w1-bot-settings-door:js:start -->
+<script>
+// Assistant settings (Business settings screen): saving the 14 bot settings now goes through the Seller Bot Settings door
+// (POST /webhook/seller-bot-settings, actions get and set) instead of writing straight to the bot_settings table with the public key.
+// The door checks the value against its limits, keeps an undo copy first, writes only this seller's row, and reads it back.
+// The controls, the other settings (offers, referral and so on) and the way the screen reads its values are unchanged.
+// "Undo": after a change the screen shows an Undo button for a short time; it sends the old value back through the same door.
+const SELLER_BOT_SETTINGS_URL = 'https://sparklly.site/webhook/seller-bot-settings';
+const W1_BOT_KEYS = ['global_ai_active', 'global_pause_message', 'followup_active', 'followup1_hours', 'followup2_hours', 'followup3_hours',
+  'followup1_message', 'followup2_message', 'followup3_message', 'broadcast_active', 'broadcast_interval', 'broadcast_message', 'target_audience', 'winback_active'];
+const W1_BOT_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Saving is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo last change', undone: 'The change was undone.', undoFailed: 'The change could not be undone. Nothing was changed.'
+};
+const W1_BOT_UNDO_SHOW_MS = 10000;
+const W1_BOT = { loaded: null, value: {}, effective: {}, limits: {}, undo: null, timer: null };
+
+function w1BotHandles(key) { return W1_BOT_KEYS.indexOf(key) >= 0; }
+
+async function w1BotCall(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) throw new Error(W1_BOT_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_BOT_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw new Error(W1_BOT_TEXT.notAvailable);
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_BOT_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && j.error;
+    if (code === 'not_logged_in') throw new Error(W1_BOT_TEXT.relogin);
+    // The door words its own refusals in plain language (a value outside its limits, saving switched off, and so on).
+    throw new Error(j && typeof j.message === 'string' && j.message ? j.message : W1_BOT_TEXT.failed);
+  }
+  return j;
+}
+
+// Learns the saved values, the defaults and the limits once (a read: nothing is written).
+async function w1BotLoad() {
+  if (W1_BOT.loaded) return W1_BOT.loaded;
+  W1_BOT.loaded = (async function() {
+    const j = await w1BotCall('get');
+    (Array.isArray(j.settings) ? j.settings : []).forEach(function(s) {
+      W1_BOT.value[s.key] = s.value === null || s.value === undefined ? '' : String(s.value);
+      W1_BOT.effective[s.key] = s.effective === null || s.effective === undefined ? null : String(s.effective);
+      W1_BOT.limits[s.key] = { min: s.min, max: s.max, maxLength: s.maxLength };
+    });
+  })();
+  W1_BOT.loaded.catch(function() { W1_BOT.loaded = null; });
+  return W1_BOT.loaded;
+}
+
+function w1BotControl(key) { return document.querySelector('#business-tab-content [data-key="' + key + '"]'); }
+// Puts a value on its control. A switch is left alone unless the value is a real answer from the door (the older code only moves a
+// switch after a successful save, so a refused save leaves it where it was).
+function w1BotShow(key, value, fromDoor) {
+  const el = w1BotControl(key);
+  if (!el) return;
+  if (el.classList.contains('biz-toggle')) { if (fromDoor) el.classList.toggle('on', value === 'true'); }
+  else el.value = value === null || value === undefined ? '' : String(value);
+}
+
+// The limits from the door are put on the fields the first time the seller uses one (no text is added to the screen).
+document.addEventListener('focusin', function(e) {
+  const t = e.target;
+  if (!t || !t.matches || !t.matches('#business-tab-content [data-key]')) return;
+  const key = t.getAttribute('data-key');
+  if (!w1BotHandles(key) || t.tagName !== 'INPUT') return;
+  w1BotLoad().then(function() {
+    const l = W1_BOT.limits[key] || {};
+    if (l.min !== undefined) t.min = String(l.min);
+    if (l.max !== undefined) t.max = String(l.max);
+    if (l.maxLength !== undefined) t.maxLength = l.maxLength;
+  }).catch(function() { /* the limits are checked by the door anyway */ });
+});
+
+// Called by the screen's saveBotSetting for the 14 keys. Throws an Error with a plain message when the door refuses.
+async function w1BotDoorSet(key, value) {
+  try { await w1BotLoad(); } catch (e) { w1BotShow(key, W1_BOT.value[key]); throw e; }
+  const was = W1_BOT.effective[key];
+  const wasValue = W1_BOT.value[key];
+  let r;
+  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { w1BotShow(key, wasValue); throw e; }
+  W1_BOT.value[key] = String(r.after);
+  W1_BOT.effective[key] = String(r.after);
+  if (r.changed === true) w1BotOfferUndo(key, r.before === null || r.before === undefined ? was : r.before);
+}
+
+// ---- Undo: a short-lived button; it sends the old value back through the same door (limits checked, a new undo copy kept).
+function w1BotOfferUndo(key, back) {
+  W1_BOT.undo = { key: key, back: back };
+  let bar = document.getElementById('w1-bot-undo');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'w1-bot-undo';
+    bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,0.2);';
+    const msg = document.createElement('span'); msg.id = 'w1-bot-undo-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bot-undo-btn'; btn.textContent = W1_BOT_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1BotUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+  document.getElementById('w1-bot-undo-msg').textContent = '';
+  document.getElementById('w1-bot-undo-btn').style.display = '';
+  bar.style.display = 'flex';
+  clearTimeout(W1_BOT.timer);
+  W1_BOT.timer = setTimeout(w1BotHideUndo, W1_BOT_UNDO_SHOW_MS);
+}
+function w1BotHideUndo() {
+  const bar = document.getElementById('w1-bot-undo');
+  if (bar) bar.style.display = 'none';
+  W1_BOT.undo = null;
+}
+async function w1BotUndo() {
+  const u = W1_BOT.undo;
+  if (!u || u.back === null || u.back === undefined) { w1BotHideUndo(); return; }
+  W1_BOT.undo = null;
+  const btn = document.getElementById('w1-bot-undo-btn'); if (btn) btn.disabled = true;
+  const msg = document.getElementById('w1-bot-undo-msg');
+  try {
+    const r = await w1BotCall('set', { key: u.key, value: String(u.back) });
+    W1_BOT.value[u.key] = String(r.after); W1_BOT.effective[u.key] = String(r.after);
+    w1BotShow(u.key, r.after, true);
+    if (msg) msg.textContent = W1_BOT_TEXT.undone;
+  } catch (e) {
+    if (msg) msg.textContent = (e && e.message) || W1_BOT_TEXT.undoFailed;
+  }
+  if (btn) { btn.style.display = 'none'; btn.disabled = false; }
+  clearTimeout(W1_BOT.timer);
+  W1_BOT.timer = setTimeout(w1BotHideUndo, 3500);
+}
+</script>
+<!-- w1-bot-settings-door:js:end -->
 </body>
 </html>
