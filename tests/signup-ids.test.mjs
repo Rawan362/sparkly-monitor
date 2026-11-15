@@ -249,3 +249,27 @@ test('the listener is removed once the call is made, so a later finish message c
   await finishMsg(page, 'https://www.facebook.com', FINISH('5555555555', '6666666666'));
   assert.equal(calls.length, 1);
 });
+
+test('the door answer codes from the login and pick checks show the door text and leave the seller able to try again', { skip }, async () => {
+  const cases = [
+    ['not_logged_in', 'Please log in again.'],
+    ['login_check_failed', 'We could not check your login. Try again in a moment.'],
+    ['not_your_account', 'This account belongs to another seller.'],
+    ['bad_pick', 'The number you picked is not valid.'],
+    ['pick_number', 'Please pick the number you want to connect.'],
+    ['number_not_found', 'That number was not found. Start the connection again and pick your number.']
+  ];
+  for (const [code, error] of cases) {
+    const calls = [];
+    const { page } = await openFlow(() => ({ json: { success: false, code, error } }), calls);
+    await start(page);
+    await finishMsg(page, 'https://www.facebook.com', FINISH('1234567890', '9876543210'));
+    await login(page);
+    await waitStatus(page, 'Failed');
+    assert.deepEqual(await page.evaluate(() => window.__alerts), ['Could not connect your WhatsApp number: ' + error], code);
+    // A second try starts clean: the Connect button opens the popup again and sends a fresh call.
+    await page.evaluate(() => { window.__fb = null; launchWhatsAppSignup(); });
+    assert.ok(await page.evaluate(() => !!window.__fb), 'the popup opens again after ' + code);
+    await page.close();
+  }
+});
