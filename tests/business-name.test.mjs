@@ -45,7 +45,7 @@ test.before(async () => {
 });
 test.after(async () => { if (browser) await browser.close(); if (server) server.close(); });
 
-// `store.value` is the stored business_name_location; `store.patches` collects every write the app makes to the sellers row.
+// `store.value` is the stored business_name_location; `store.patches` collects every business-name write the app makes through the Seller Own Row door.
 // `doorName` is the business name the template door reports (the part before the first comma, trimmed).
 async function openScreen(store, doorName, o = {}) {
   const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
@@ -58,14 +58,21 @@ async function openScreen(store, doorName, o = {}) {
     if (/\/webhook\/seller-message-templates$/.test(u)) {
       return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify({ ok: true, connected: true, templates: o.templates || [], languages: LANGS, businessName: doorName }) });
     }
-    if (/\/rest\/v1\/sellers\?/.test(u)) {
-      if (req.method() === 'PATCH') {
-        store.patches.push({ url: u, body: JSON.parse(req.postData() || '{}') });
-        if (store.failWrite) return route.fulfill({ status: 500, contentType: 'application/json', headers: h, body: '{}' });
-        store.value = store.patches[store.patches.length - 1].body.business_name_location;
-        return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify([{ chat_id: 'seller-test' }]) });
+    // The seller's own row is asked from the Seller Own Row door (not from the sellers table with the public key).
+    if (/\/webhook\/seller-own-row$/.test(u)) {
+      const body = JSON.parse(req.postData() || '{}');
+      const fulfillJson = (j) => route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify(j) });
+      const shortOf = (v) => String(v == null ? '' : v).split(',')[0].trim();
+      if (body.action === 'setBusinessName') {
+        const old = store.value;
+        const rest = String(old == null ? '' : old).includes(',') ? String(old).slice(String(old).indexOf(',')) : '';
+        const next = body.name + rest;
+        store.patches.push({ door: true, body: { business_name_location: next } });
+        if (store.failWrite) return fulfillJson({ ok: false, error: 'save_failed', message: 'The change could not be saved. Try again in a moment.' });
+        store.value = next;
+        return fulfillJson({ ok: true, message: 'The business name was saved.', undo: { restoreTo: old, ifCurrentIs: next } });
       }
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify([{ business_name_location: store.value }]) });
+      return fulfillJson({ ok: true, hasSeller: true, chatId: 'seller-test', businessName: 'x', businessNameLocation: store.value, businessNameShort: shortOf(store.value), onboardingDone: true, whatsappConnected: true, phoneNumberId: '' });
     }
     if (/seller_sales_config/.test(u)) return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify([{ default_language: 'English' }]) });
     return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: '[]' });
@@ -125,7 +132,7 @@ test('saving keeps everything from the first comma onward exactly, writes only t
   await page.waitForFunction(() => document.getElementById('bn-msg').textContent.startsWith('Saved.'));
   assert.equal(store.patches.length, 1);
   assert.deepEqual(store.patches[0].body, { business_name_location: 'Daily Market, 12 Example Street,  Springfield (open daily)' });
-  assert.match(store.patches[0].url, /sellers\?chat_id=eq\.seller-test/);
+  assert.equal(store.patches[0].door, true, 'the save went through the Seller Own Row door');
   assert.equal(await text(page, 'bn-msg'), 'Saved. Your business name is now "Daily Market".');
   assert.equal(await page.$eval('#bn-input', (e) => e.value), 'Daily Market');
   assert.equal(await text(page, 'tpl-preview'), 'Preview: Hello! This is Daily Market. We are happy to help you with anything you need.');
@@ -182,8 +189,8 @@ test('if the save fails the seller is told in plain words and the stored text is
   const { page } = await openSettings(store, 'Corner Shop');
   await page.fill('#bn-input', 'Daily Market');
   await page.click('#bn-save');
-  await page.waitForFunction(() => document.getElementById('bn-msg').textContent.startsWith('Could not save'));
-  assert.equal(await text(page, 'bn-msg'), 'Could not save your business name. Check your internet connection and try again.');
+  await page.waitForFunction(() => document.getElementById('bn-msg').textContent.startsWith('The change could not be saved'));
+  assert.equal(await text(page, 'bn-msg'), 'The change could not be saved. Try again in a moment.');
   assert.equal(store.value, 'Corner Shop, Example Street');
   await page.close();
 });
