@@ -90,7 +90,9 @@ async function boot(browser, world, base) {
   await page.goto(base + '/index.html');
   await page.waitForLoadState('load');
   await page.waitForTimeout(300);
-  for (let attempt = 0; attempt < 6; attempt++) {
+  // The page can still navigate once after load (the first reload), which wipes the state set here and destroys the next evaluate.
+  // So set it up, let it settle, and only go on when the state is still there.
+  for (let attempt = 0; attempt < 8; attempt++) {
     try {
       await page.evaluate(() => {
         SELLER_CHAT_ID = 'seller-test';
@@ -99,8 +101,11 @@ async function boot(browser, world, base) {
         window.getValidAuthToken = async () => 'test-token';
         window._sellerPnid = 'pnid-1';
       });
-      break;
-    } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
+      await page.waitForTimeout(400);
+      const kept = await page.evaluate(() => SELLER_CHAT_ID === 'seller-test' && window._sellerPnid === 'pnid-1');
+      if (kept) break;
+      if (attempt === 7) throw new Error('page state did not settle');
+    } catch (e) { if (attempt === 7) throw e; await page.waitForLoadState('load').catch(() => {}); await page.waitForTimeout(500); }
   }
   return { page, errors };
 }
