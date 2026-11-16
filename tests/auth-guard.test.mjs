@@ -83,6 +83,7 @@ test('the real logout() leaves no login token behind and reloads the page', () =
   ctx.window = {};
   ctx.location = { reload: () => { reloads++; } };
   ctx.fetch = (url, init) => { calls.push({ url: String(url), method: init && init.method }); return Promise.resolve({}); };
+  ctx.w1SessionsPost = (tok, action, extra, keepalive) => { calls.push({ url: 'sessions-door', method: 'DELETE', action, keepalive }); return Promise.resolve({}); };
   vm.runInContext(m[0], ctx); // the guard code is already loaded in this context by load()
   ctx.window.logout();
   assert.deepEqual(localStorage.keys(), ['sparkly_lang']);
