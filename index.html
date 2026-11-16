@@ -1065,6 +1065,10 @@
   .ts .ticks svg { display: block; }
   .ts .ticks.read { color: #4FB3F6; }
   .ts .ticks.failed { color: #e5534b; }
+  /* w1-failed-state:css:start */
+  .ts .ticks.failed .ticks-failed-label { margin-left: 3px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .bubble .ts:has(.ticks.failed) { opacity: 1; }
+  /* w1-failed-state:css:end */
   .audio-row .vn-mic { display: inline-flex; flex: 0 0 auto; color: #8696a0; }
   .audio-row .vn-mic.played { color: #4FB3F6; }
   .optimistic-pending { display: inline-flex; opacity: 0.7; }
@@ -6354,7 +6358,7 @@ const TICK_FAILED = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none"
 const MIC_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21H8a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2h-3v-3.08A7 7 0 0 0 19 11z"/></svg>';
 
 function tickHtml(state, err) {
-  if (state === 'failed') return '<span class="ticks failed" data-dstate="failed" title="' + escapeHtml(String(err || 'Not delivered')) + '">' + TICK_FAILED + '</span>';
+  if (state === 'failed') return '<span class="ticks failed" data-dstate="failed" title="' + escapeHtml(String(err || 'Not delivered')) + '">' + TICK_FAILED + '<span class="ticks-failed-label">Not delivered</span></span>';
   if (state === 'sent') return '<span class="ticks" data-dstate="sent" title="Sent">' + TICK_SINGLE + '</span>';
   if (state === 'read') return '<span class="ticks read" data-dstate="read" title="Read">' + TICK_DOUBLE + '</span>';
   return '<span class="ticks" data-dstate="delivered" title="Delivered">' + TICK_DOUBLE + '</span>';
