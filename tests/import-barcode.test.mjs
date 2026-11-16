@@ -106,7 +106,7 @@ async function openScreen(answer, calls, token, init) {
       break;
     } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
   }
-  await page.click('#bk-menu-row');
+  await page.evaluate(() => { const r = document.getElementById('bk-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#bk-menu-row');
   await page.waitForSelector('#bk-file');
   return { page, errors };
 }
