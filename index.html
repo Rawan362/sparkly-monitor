@@ -18355,5 +18355,127 @@ function w1GateRun() { Object.keys(W1_GATE.rows).forEach(function(id) { w1GatePr
 w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overview');
 </script>
 <!-- w1-menu-gate:js:end -->
+<!-- w1-signup-create-seller:js:start -->
+<script>
+// Sign-up and first login with the Seller Own Row door (POST /webhook/seller-own-row, backend PR 236):
+// - sign-up creates the seller row with createSeller, sent with the NEW login's token (no more public-key write of the sellers table);
+// - when the sign-up answer has no token (the email is not confirmed yet), the typed business name is kept on this device (name and
+//   email only, nothing secret) and createSeller is called at the first login after the email is confirmed;
+// - at login the door's "me" answer says whether the login has a seller row (replaces the public-key read of the sellers table).
+// If the seller confirms the email on another device and no kept name exists there, the app asks for the business name first.
+const SELLER_OWN_ROW_URL = 'https://sparklly.site/webhook/seller-own-row';
+const W1_PENDING_KEY = 'sparkly_pending_business';
+const W1_PENDING_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const W1_OWN_ROW_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Sign-in is not available right now. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not set up your account. Please try again in a moment.',
+  askNameTitle: 'One more step',
+  askNameSub: 'Type your business name to finish setting up your account.',
+  askNamePlaceholder: 'Business name',
+  askNameButton: 'Continue',
+  askNameEmpty: 'Please type your business name.'
+};
+const _w1Login = { authData: null, email: '' };
+
+async function w1OwnRowCall(action, token, extra) {
+  try {
+    const r = await fetch(SELLER_OWN_ROW_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+function w1OwnRowErrorText(r) {
+  const code = r && r.error;
+  if (code === 'not_logged_in') return W1_OWN_ROW_TEXT.relogin;
+  if (code === 'not_available') return W1_OWN_ROW_TEXT.notAvailable;
+  if (code === 'network') return W1_OWN_ROW_TEXT.noConnection;
+  // The door words its own refusals in plain language (a name that is empty or too long, and so on).
+  return r && typeof r.message === 'string' && r.message ? r.message : W1_OWN_ROW_TEXT.failed;
+}
+
+// ---- The business name typed at sign-up, kept until the first login after the email is confirmed (this device only).
+function w1KeepPendingName(email, name) {
+  try { localStorage.setItem(W1_PENDING_KEY, JSON.stringify({ email: String(email).trim().toLowerCase(), name: String(name), at: Date.now() })); } catch (e) { /* storage may be blocked */ }
+}
+function w1ReadPendingName(email) {
+  try {
+    const v = JSON.parse(localStorage.getItem(W1_PENDING_KEY) || 'null');
+    if (!v || typeof v.name !== 'string' || !v.name.trim()) return '';
+    if (String(v.email) !== String(email).trim().toLowerCase()) return '';
+    if (Date.now() - Number(v.at) > W1_PENDING_MAX_AGE_MS) { localStorage.removeItem(W1_PENDING_KEY); return ''; }
+    return v.name.trim();
+  } catch (e) { return ''; }
+}
+function w1ForgetPendingName() { try { localStorage.removeItem(W1_PENDING_KEY); } catch (e) { /* nothing to remove */ } }
+
+// Starts the app as the signed-in seller (the same steps the sign-in always did).
+function w1FinishLogin(authData, chatId) {
+  localStorage.setItem('sparkly_seller_chat_id', chatId);
+  localStorage.setItem('sparkly_auth_token', authData.access_token);
+  localStorage.setItem('sparkly_refresh_token', authData.refresh_token || '');
+  SELLER_CHAT_ID = chatId;
+  const overlay = document.getElementById('login-overlay');
+  if (overlay) overlay.remove();
+  document.getElementById('app').style.display = 'flex';
+  startApp();
+}
+
+// At login: which seller does this login belong to? Returns the chat id, or null when a screen was shown instead (a refusal, or the
+// question for the business name).
+async function w1ResolveSeller(authData, email) {
+  const me = await w1OwnRowCall('me', authData.access_token);
+  if (!me || me.ok !== true) { showLoginScreen(w1OwnRowErrorText(me)); return null; }
+  if (me.hasSeller === true && me.chatId) return String(me.chatId);
+  const kept = w1ReadPendingName(email);
+  if (!kept) { w1ShowBusinessNameScreen(authData, email, ''); return null; }
+  const made = await w1OwnRowCall('createSeller', authData.access_token, { businessName: kept });
+  if (!made || made.ok !== true || !made.chatId) { showLoginScreen(w1OwnRowErrorText(made)); return null; }
+  w1ForgetPendingName();
+  return String(made.chatId);
+}
+
+// The question for the business name (a login with no seller row and no kept name on this device).
+function w1ShowBusinessNameScreen(authData, email, errorMsg) {
+  _w1Login.authData = authData; _w1Login.email = email;
+  const landing = document.getElementById('landing');
+  if (landing) landing.remove();
+  document.getElementById('app').style.display = 'none';
+  let overlay = document.getElementById('login-overlay');
+  if (!overlay) { overlay = document.createElement('div'); overlay.id = 'login-overlay'; document.body.appendChild(overlay); }
+  overlay.textContent = '';
+  const card = document.createElement('div'); card.id = 'login-card';
+  const h = document.createElement('h1'); h.textContent = W1_OWN_ROW_TEXT.askNameTitle; card.appendChild(h);
+  const sub = document.createElement('p'); sub.className = 'login-sub'; sub.textContent = W1_OWN_ROW_TEXT.askNameSub; card.appendChild(sub);
+  if (errorMsg) { const err = document.createElement('div'); err.id = 'login-error'; err.textContent = errorMsg; card.appendChild(err); }
+  const input = document.createElement('input'); input.id = 'w1-business-name'; input.placeholder = W1_OWN_ROW_TEXT.askNamePlaceholder; input.autocomplete = 'organization'; input.maxLength = 100; card.appendChild(input);
+  const btn = document.createElement('button'); btn.id = 'w1-business-name-btn'; btn.type = 'button'; btn.textContent = W1_OWN_ROW_TEXT.askNameButton;
+  btn.onclick = function() { w1SubmitBusinessName(); };
+  card.appendChild(btn);
+  overlay.appendChild(card);
+  input.focus();
+}
+window.w1SubmitBusinessName = async function() {
+  const input = document.getElementById('w1-business-name');
+  const btn = document.getElementById('w1-business-name-btn');
+  const name = input ? input.value.trim() : '';
+  const login = _w1Login.authData;
+  if (!login) return;
+  if (!name) { w1ShowBusinessNameScreen(login, _w1Login.email, W1_OWN_ROW_TEXT.askNameEmpty); return; }
+  if (btn) btn.disabled = true;
+  const made = await w1OwnRowCall('createSeller', login.access_token, { businessName: name });
+  if (!made || made.ok !== true || !made.chatId) { w1ShowBusinessNameScreen(login, _w1Login.email, w1OwnRowErrorText(made)); return; }
+  w1ForgetPendingName();
+  _w1Login.authData = null;
+  w1FinishLogin(login, String(made.chatId));
+};
+</script>
+<!-- w1-signup-create-seller:js:end -->
 </body>
 </html>
