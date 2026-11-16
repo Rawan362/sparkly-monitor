@@ -1,6 +1,6 @@
 // Run with:  node --test tests/*.test.mjs
-// Real-browser tests of "Create account". The REAL index.html runs in Chromium; the login system (/auth/v1/signup) and the database
-// (/rest/v1/sellers) are answered by the test. Skipped when Playwright is not installed (it is installed in CI).
+// Real-browser tests of "Create account". The REAL index.html runs in Chromium; the login system (/auth/v1/signup) and the Seller Own Row
+// door (/webhook/seller-own-row, which now makes the seller row) are answered by the test. Skipped when Playwright is not installed (it is installed in CI).
 // Found 2026-11-09: signing up with an email that ALREADY has a confirmed account made the app insert a profile row with the made-up id
 // Supabase returns for such emails (identities is an empty list), and the database refused it (foreign key, error 23503).
 // No email or id is printed anywhere.
@@ -53,19 +53,24 @@ const SIGNUPS = {
   withSession: { user: { id: NEW_ID, identities: [{ id: NEW_ID }] }, access_token: 'tok', refresh_token: 'ref' }
 };
 
-async function run(browser, base, kind, sellerAnswer) {
+async function run(browser, base, kind, doorAnswer) {
   const page = await browser.newPage({ viewport: { width: 420, height: 800 } });
-  const calls = { signups: 0, sellerPosts: [], errorsLogged: 0 };
+  const calls = { signups: 0, sellerPosts: [], doorCalls: [], errorsLogged: 0 };
   await page.route('**/*', async (route) => {
     const req = route.request(); const u = req.url();
     if (u.startsWith(base)) return route.continue();
     const h = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: h });
     if (u.includes('/auth/v1/signup')) { calls.signups++; return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: JSON.stringify(SIGNUPS[kind]) }); }
+    if (u.includes('/webhook/seller-own-row')) {
+      const body = JSON.parse(req.postData() || '{}');
+      calls.doorCalls.push(body);
+      const a = doorAnswer || { status: 200, json: { ok: true, created: true, chatId: 'web_' + NEW_ID } };
+      return route.fulfill({ status: a.status, contentType: 'application/json', headers: h, body: JSON.stringify(a.json || {}) });
+    }
     if (u.includes('/rest/v1/sellers') && req.method() === 'POST') {
       calls.sellerPosts.push(JSON.parse(req.postData() || '{}'));
-      const a = sellerAnswer || { status: 201, body: '' };
-      return route.fulfill({ status: a.status, contentType: 'application/json', headers: h, body: a.body });
+      return route.fulfill({ status: 201, contentType: 'application/json', headers: h, body: '' });
     }
     if (u.includes('system_errors') || u.includes('debug_log')) calls.errorsLogged++;
     return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: '[]' });
@@ -105,30 +110,29 @@ test('an email that already has an account: no profile row is created with the m
   assert.deepEqual(r.pageErrors, []);
 });
 
-test('a new email (confirmation on): exactly one profile row with the real id, then the "check your email" message', { skip }, async () => {
+test('a new email (confirmation on): no login token yet, so nothing is created now; the name is kept and the "check your email" message is shown', { skip }, async () => {
   const r = await run(browser, base, 'newEmail');
-  assert.equal(r.calls.sellerPosts.length, 1);
-  assert.equal(r.calls.sellerPosts[0].auth_user_id, NEW_ID);
-  assert.equal(r.calls.sellerPosts[0].chat_id, 'web_' + NEW_ID);
+  assert.deepEqual(r.calls.sellerPosts, [], 'nothing is written to the sellers table with the public key');
+  assert.deepEqual(r.calls.doorCalls, [], 'the door needs a login token, so it is called at the first login after the email is confirmed');
   assert.match(r.text, /Account created! Check/);
   assert.deepEqual(r.pageErrors, []);
 });
 
-test('a new email (confirmation off, session returned): one profile row with the real id', { skip }, async () => {
+test('a new email (confirmation off, session returned): the seller is created through the door with the new login, none through the public key', { skip }, async () => {
   const r = await run(browser, base, 'withSession');
-  assert.equal(r.calls.sellerPosts.length, 1);
-  assert.equal(r.calls.sellerPosts[0].auth_user_id, NEW_ID);
+  assert.deepEqual(r.calls.sellerPosts, []);
+  assert.deepEqual(r.calls.doorCalls, [{ token: 'tok', action: 'createSeller', businessName: 'Test Shop' }]);
 });
 
-test('if the database still refuses the link (23503), the message says so in plain words and shows no database wording', { skip }, async () => {
-  const body = JSON.stringify({ code: '23503', message: 'insert or update on table "sellers" violates foreign key constraint' });
-  const r = await run(browser, base, 'newEmail', { status: 409, body });
-  assert.match(r.text, /could not finish setting up this account/i);
+test('if the door refuses the profile, the message uses the door words and shows no database wording', { skip }, async () => {
+  const answer = { status: 200, json: { ok: false, error: 'already_exists', message: 'A business profile already exists for this account. Nothing was changed.' } };
+  const r = await run(browser, base, 'withSession', answer);
+  assert.match(r.text, /Account created, but profile setup failed: A business profile already exists for this account\./);
   assert.ok(!/violates|23503|constraint/i.test(r.text), 'no database wording on the screen');
 });
 
-test('the sign-up code checks for the made-up user before it inserts the profile row', () => {
+test('the sign-up code checks for the made-up user before it creates the profile', () => {
   const a = html.indexOf('user.identities.length === 0');
-  const b = html.indexOf("/rest/v1/sellers', {", html.indexOf('window.doSignUp'));
+  const b = html.indexOf("w1OwnRowCall('createSeller'", html.indexOf('window.doSignUp'));
   assert.ok(a > 0 && b > a, 'the check comes first');
 });
