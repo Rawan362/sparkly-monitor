@@ -5004,7 +5004,7 @@
       </div>
       <!-- w1-sales-screen:row:end -->
       <!-- w1-ads-screen:row:start -->
-      <div class="settings-row" id="ax-menu-row" onclick="openAdsScreen()">
+      <div class="settings-row" id="ax-menu-row" style="display:none" onclick="openAdsScreen()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 8a5 5 0 0 1 0 8"/></svg>
         <span id="ax-menu-label">Ads</span>
       </div>
@@ -20488,5 +20488,64 @@ async function w1UndoRefreshKeepMessage() {
 }
 </script>
 <!-- w1-undo-buttons:js:end -->
+<!-- w1-menu-gate:js:start -->
+<script>
+// Menu entries of the new screens stay hidden until their door says it is available for this seller (build chat W1).
+// While a door is limited to a list of sellers it answers not_available to everyone else; those sellers must not see an entry that leads nowhere.
+// A row is shown only when the door gives a real answer. Hidden: not_available, HTTP 503/404/502, no connection, no login yet (tried again next time).
+// The probe sends one harmless request per row and per visit (a read, or an action the door does not know: it writes nothing).
+const W1_GATE = { rows: {}, started: false };
+function w1GateTarget(row) { return row.closest('.dx-zone') || row; }
+function w1GateRegister(rowId, url, action) {
+  W1_GATE.rows[rowId] = { url: url, action: action, state: 'hidden', busy: false };
+  const row = document.getElementById(rowId);
+  if (row) w1GateTarget(row).style.display = 'none';
+}
+async function w1GateProbe(rowId) {
+  const g = W1_GATE.rows[rowId];
+  if (!g || g.busy || g.state === 'shown') return;
+  g.busy = true;
+  try {
+    let token = null;
+    try { token = await getValidAuthToken(); } catch (e) { token = null; }
+    if (!token) return;
+    const r = await fetch(g.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, action: g.action }) });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return;
+    let j = null;
+    try { j = await r.json(); } catch (e) { return; }
+    const code = j && (j.code || j.error);
+    if (!j || typeof j !== 'object' || code === 'not_available' || code === 'not_logged_in' || code === 'relogin') return;
+    g.state = 'shown';
+    const row = document.getElementById(rowId);
+    if (row) w1GateTarget(row).style.display = '';
+  } catch (e) { /* hidden; tried again the next time Settings opens */ } finally { g.busy = false; }
+}
+function w1GateRun() { Object.keys(W1_GATE.rows).forEach(function(id) { w1GateProbe(id); }); }
+(function() {
+  const original = window.openSettings;
+  if (typeof original !== 'function') return;
+  window.openSettings = function() { const out = original.apply(this, arguments); w1GateRun(); return out; };
+})();
+w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overview');
+</script>
+<!-- w1-menu-gate:js:end -->
+<!-- w1-menu-gate-delete:js:start -->
+<script>
+// Hides the Delete my business menu entry until its door answers (see the w1-menu-gate block).
+w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-business', 'status');
+</script>
+<!-- w1-menu-gate-delete:js:end -->
+<!-- w1-menu-gate-alerts:js:start -->
+<script>
+// Hides the Alert check menu entry until its door answers (see the w1-menu-gate block).
+w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'availability');
+</script>
+<!-- w1-menu-gate-alerts:js:end -->
+<!-- w1-menu-gate-import:js:start -->
+<script>
+// Hides the Import and barcodes menu entry until its door answers (see the w1-menu-gate block).
+w1GateRegister('bk-menu-row', 'https://sparklly.site/webhook/seller-stock-invoices', 'availability');
+</script>
+<!-- w1-menu-gate-import:js:end -->
 </body>
 </html>

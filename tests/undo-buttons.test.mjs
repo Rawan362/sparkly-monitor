@@ -109,7 +109,7 @@ async function openScreen(plans, calls, answer, token) {
       break;
     } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
   }
-  await page.click('#bk-menu-row');
+  await page.evaluate(() => { const r = document.getElementById('bk-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#bk-menu-row');
   await page.waitForSelector('#w1u-rows', { state: 'attached' });
   await page.waitForFunction(() => document.getElementById('w1u-msg').textContent !== 'Checking...');
   return { page, errors };
