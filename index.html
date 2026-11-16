@@ -5571,6 +5571,8 @@ async function loadValidAuthToken() {
 async function getValidAuthToken() {
   return assertTokenMatchesSeller(await loadValidAuthToken());
 }
+// Read for the sign-out call only (the sessions door needs the login token before storage is cleared).
+function w1StoredLoginToken() { try { return localStorage.getItem('sparkly_auth_token'); } catch (e) { return null; } }
 // </auth-guard>
 
 async function callSellerCalling(action, enabled) {
@@ -9926,7 +9928,7 @@ async function deleteAccountNow() {
 
 window.logout = function() {
   const token = localStorage.getItem('sparkly_session_token');
-  const authToken = localStorage.getItem('sparkly_auth_token');
+  const authToken = w1StoredLoginToken();
   if (token && authToken) {
     // Fire and forget; keepalive lets the request finish while the page reloads.
     w1SessionsPost(authToken, 'logout', { sessionToken: token }, true);
