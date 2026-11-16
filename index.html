@@ -15376,6 +15376,8 @@ window.saveBizField = async function(el) {
   }
   try {
     const table = el.dataset.table;
+    // The Meta Ad Account ID goes through the Ads door (checked, confirmed, with an undo copy), not straight to the table.
+    if (key === 'ad_account_id' && table === 'seller_ad_config' && await w1AdAccountSave(el) !== 'fallback') return; // W1-FALLBACK-REMOVE: when the Ads door says not_available the older direct save below runs; remove this once the door is open to everyone
     if (table) {
       // Numeric fields (pos_settings thresholds, invoice numbers) need real
       // numbers, not strings, or PostgREST rejects the write.
@@ -20475,6 +20477,210 @@ w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'av
 w1GateRegister('bk-menu-row', 'https://sparklly.site/webhook/seller-stock-invoices', 'availability');
 </script>
 <!-- w1-menu-gate-import:js:end -->
+<!-- w1-ad-account-id:js:start -->
+<script>
+// The Meta Ad Account ID box (Business settings) is now saved through the Ads door (POST /webhook/seller-ads, action prepare then confirm,
+// change type set_account_id; backend PR 245) instead of writing the seller_ad_config table with the public key. The door trims the id,
+// checks the format (3 to 30 digits, with or without "act_"), keeps an undo copy first and reads the saved id back. The screen checks the
+// format first, shows exactly what will be saved, and saves only after Confirm. An Undo button is offered after a save.
+const W1_ACCT_URL = 'https://sparklly.site/webhook/seller-ads';
+const W1_ACCT_TEXT = {
+  badId: 'The Meta Ad Account ID must be 3 to 30 digits, with or without "act_".',
+  unchanged: 'That is already your Meta Ad Account ID. Nothing was changed.',
+  saved: 'Saved.',
+  notSeen: 'Sent, but not confirmed. Look at the box again in a minute before you try again.',
+  confirmTitle: 'Save the Meta Ad Account ID?',
+  nothingChanges: 'Nothing changes until you press Confirm.',
+  confirm: 'Confirm', cancel: 'Cancel', undo: 'Undo last change',
+  expired: 'This ran out of time. Try again.',
+  secondsLeft: ' left to confirm',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Saving is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Nothing was changed. Look at the box again before you try again.',
+  codes: {
+    bad_account_id: 'The Meta Ad Account ID must be 3 to 30 digits, with or without "act_".',
+    changed_since_preview: 'Your account ID changed meanwhile. Nothing was changed. Try again.',
+    invalid_token: 'This confirmation is not valid. Nothing was changed. Try again.',
+    already_used: 'This confirmation was already used. Nothing was changed.',
+    expired: 'This ran out of time. Try again.',
+    undo_copy_failed: 'A safety copy could not be saved, so nothing was changed. Try again.',
+    not_saved: 'The Meta Ad Account ID could not be saved. Nothing was changed. Try again in a moment.',
+    unconfirmed: 'We could not confirm the save. Look at the box before you try again.',
+    unavailable: 'Your ad settings could not be read. Nothing was changed. Try again.',
+    not_configured: 'Saving is not available yet. Please try again later.',
+    cannot_undo: 'There was no earlier ID, so this cannot be put back here.',
+    nothing_to_undo: 'There is nothing to undo.'
+  }
+};
+const W1_ACCT_UNDO_SHOW_MS = 10000;
+const W1_ACCT = { fallback: false, pending: null, timer: null, confirming: false, busy: false, undoTimer: null, last: null };
+
+async function w1AcctCall(action, extra) {
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { ok: false, code: 'relogin' };
+  try {
+    const r = await fetch(W1_ACCT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, code: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, code: 'failed' };
+  } catch (e) { return { ok: false, code: 'network' }; }
+}
+function w1AcctErrorText(r) {
+  const code = r && (r.code || r.error);
+  if (code === 'relogin' || code === 'not_logged_in') return W1_ACCT_TEXT.relogin;
+  if (code === 'not_available') return W1_ACCT_TEXT.notAvailable;
+  if (code === 'network') return W1_ACCT_TEXT.noConnection;
+  return W1_ACCT_TEXT.codes[code] || W1_ACCT_TEXT.failed;
+}
+function w1AcctMsg(text, isError) {
+  let el = document.getElementById('w1-acct-msg');
+  const box = document.getElementById('biz-ad-account-id');
+  if (!el && box && box.parentNode) {
+    el = document.createElement('div'); el.id = 'w1-acct-msg'; el.style.cssText = 'font-size:12.5px;margin:4px 0;';
+    box.parentNode.appendChild(el);
+  }
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = isError ? 'var(--danger)' : 'var(--text-muted)';
+}
+function w1AcctValid(text) { return /^(act_)?[0-9]{3,30}$/i.test(String(text || '').trim()); }
+
+// Remember what the box held before it was edited, so a refused or cancelled save puts it back.
+document.addEventListener('focusin', function(e) {
+  const t = e.target;
+  if (t && t.id === 'biz-ad-account-id') t.setAttribute('data-w1-prev', t.value);
+});
+function w1AcctRestore(el) { const prev = el.getAttribute('data-w1-prev'); if (prev !== null) el.value = prev; }
+
+// Called by saveBizField for this box. Nothing is saved here: it only asks the door to prepare the change and opens the confirm panel.
+async function w1AdAccountSave(el) {
+  if (W1_ACCT.fallback) return 'fallback';
+  if (W1_ACCT.busy) return;
+  const value = String(el.value || '').trim();
+  w1AcctMsg('', false);
+  if (!w1AcctValid(value)) { w1AcctRestore(el); w1AcctMsg(W1_ACCT_TEXT.badId, true); return; }
+  W1_ACCT.busy = true;
+  try {
+    const r = await w1AcctCall('prepare', { change: { type: 'set_account_id', accountId: value } });
+    if (r && (r.code === 'not_available' || r.error === 'not_available')) { W1_ACCT.fallback = true; return 'fallback'; }
+    if (r && r.ok === true && r.unchanged === true) { el.value = String(r.adAccountId || value); w1AcctMsg(W1_ACCT_TEXT.unchanged, false); return; }
+    if (!r || r.ok !== true || r.needsConfirm !== true || !r.confirmToken) { w1AcctRestore(el); w1AcctMsg(w1AcctErrorText(r), true); return; }
+    w1AcctOpenConfirm(r, el);
+  } finally { W1_ACCT.busy = false; }
+}
+
+// ---- The confirm panel: one Confirm sends confirm once; Cancel sends nothing; the token lives only in memory.
+function w1AcctOpenConfirm(r, el) {
+  w1AcctClose(true);
+  W1_ACCT.pending = { token: String(r.confirmToken), expiresAt: Date.parse(r.expiresAt) || 0, el: el, undo: false };
+  W1_ACCT.confirming = false;
+  let panel = document.getElementById('w1-acct-confirm');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'w1-acct-confirm'; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true');
+    panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:200;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--panel);border-radius:14px;padding:20px;max-width:420px;width:100%;';
+    const title = document.createElement('div'); title.id = 'w1-acct-title'; title.style.cssText = 'font-weight:700;margin-bottom:8px;';
+    const sum = document.createElement('div'); sum.id = 'w1-acct-summary'; sum.style.cssText = 'font-size:16px;line-height:1.4;margin-bottom:10px;';
+    const count = document.createElement('div'); count.id = 'w1-acct-count'; count.style.cssText = 'font-size:13px;color:var(--text-muted);margin-bottom:6px;';
+    const note = document.createElement('div'); note.id = 'w1-acct-note'; note.style.cssText = 'font-size:12.5px;color:var(--text-muted);';
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;margin-top:12px;';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.id = 'w1-acct-cancel';
+    const go = document.createElement('button'); go.type = 'button'; go.id = 'w1-acct-go';
+    [cancel, go].forEach(function(b) { b.style.cssText = 'flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-size:14px;cursor:pointer;'; });
+    cancel.onclick = function() { w1AcctClose(false); };
+    go.onclick = function() { w1AcctPressConfirm(); };
+    row.appendChild(cancel); row.appendChild(go);
+    [title, sum, count, note, row].forEach(function(x) { box.appendChild(x); });
+    panel.appendChild(box);
+    document.body.appendChild(panel);
+  }
+  document.getElementById('w1-acct-title').textContent = W1_ACCT_TEXT.confirmTitle;
+  document.getElementById('w1-acct-summary').textContent = String((r.preview && r.preview.summary) || '');
+  document.getElementById('w1-acct-note').textContent = W1_ACCT_TEXT.nothingChanges;
+  document.getElementById('w1-acct-cancel').textContent = W1_ACCT_TEXT.cancel;
+  document.getElementById('w1-acct-go').textContent = W1_ACCT_TEXT.confirm;
+  document.getElementById('w1-acct-go').disabled = false;
+  panel.style.display = 'flex';
+  w1AcctTick();
+  W1_ACCT.timer = setInterval(w1AcctTick, 500);
+}
+function w1AcctTick() {
+  const p = W1_ACCT.pending;
+  const count = document.getElementById('w1-acct-count');
+  const go = document.getElementById('w1-acct-go');
+  if (!p || !count || !go) return;
+  const left = Math.max(0, Math.ceil((p.expiresAt - Date.now()) / 1000));
+  if (left <= 0) {
+    count.textContent = W1_ACCT_TEXT.expired;
+    go.disabled = true;
+    if (W1_ACCT.timer) { clearInterval(W1_ACCT.timer); W1_ACCT.timer = null; }
+    return;
+  }
+  count.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + W1_ACCT_TEXT.secondsLeft;
+}
+// Closes the panel and forgets the token. When it is a cancel, the box goes back to what it held.
+function w1AcctClose(keepBox) {
+  const p = W1_ACCT.pending;
+  if (W1_ACCT.timer) { clearInterval(W1_ACCT.timer); W1_ACCT.timer = null; }
+  W1_ACCT.pending = null; W1_ACCT.confirming = false;
+  const panel = document.getElementById('w1-acct-confirm');
+  if (panel) panel.style.display = 'none';
+  if (p && !keepBox && p.el && !p.undo) w1AcctRestore(p.el);
+}
+async function w1AcctPressConfirm() {
+  const p = W1_ACCT.pending;
+  if (!p || W1_ACCT.confirming) return;
+  if (Date.now() >= p.expiresAt) { w1AcctTick(); return; }
+  W1_ACCT.confirming = true;
+  document.getElementById('w1-acct-go').disabled = true;
+  const token = p.token; const el = p.el; const wasUndo = p.undo;
+  W1_ACCT.pending = null;
+  const r = await w1AcctCall('confirm', { confirmToken: token });
+  w1AcctClose(true);
+  const box = el || document.getElementById('biz-ad-account-id');
+  if (r && r.ok === true) {
+    if (box && r.adAccountId) box.value = String(r.adAccountId);
+    if (box) box.setAttribute('data-w1-prev', box.value);
+    w1AcctMsg(r.verified === false ? W1_ACCT_TEXT.notSeen : W1_ACCT_TEXT.saved, r.verified === false);
+    if (!wasUndo) w1AcctOfferUndo();
+    return;
+  }
+  if (box && !wasUndo) w1AcctRestore(box);
+  w1AcctMsg(w1AcctErrorText(r), true);
+}
+
+// ---- Undo: a short-lived button that asks the door to put the earlier id back (through the same prepare and confirm).
+function w1AcctOfferUndo() {
+  let btn = document.getElementById('w1-acct-undo');
+  if (!btn) {
+    btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-acct-undo'; btn.textContent = W1_ACCT_TEXT.undo;
+    btn.style.cssText = 'margin:4px 0;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:8px;padding:4px 10px;font-size:12.5px;cursor:pointer;';
+    const msg = document.getElementById('w1-acct-msg');
+    if (msg && msg.parentNode) msg.parentNode.insertBefore(btn, msg.nextSibling);
+    btn.onclick = function() { w1AcctUndo(); };
+  }
+  btn.style.display = '';
+  clearTimeout(W1_ACCT.undoTimer);
+  W1_ACCT.undoTimer = setTimeout(function() { btn.style.display = 'none'; }, W1_ACCT_UNDO_SHOW_MS);
+}
+async function w1AcctUndo() {
+  const btn = document.getElementById('w1-acct-undo');
+  if (btn) btn.style.display = 'none';
+  if (W1_ACCT.busy) return;
+  W1_ACCT.busy = true;
+  try {
+    const r = await w1AcctCall('prepare', { change: { type: 'undo_last' } });
+    if (!r || r.ok !== true || r.needsConfirm !== true || !r.confirmToken) { w1AcctMsg(w1AcctErrorText(r), true); return; }
+    w1AcctOpenConfirm(r, document.getElementById('biz-ad-account-id'));
+    if (W1_ACCT.pending) W1_ACCT.pending.undo = true;
+  } finally { W1_ACCT.busy = false; }
+}
+</script>
+<!-- w1-ad-account-id:js:end -->
 <!-- w1-migrate-door:js:start -->
 <script>
 // Upgrade an old chat-ID account to an email login, through the Seller Migrate door (build chat W1).
