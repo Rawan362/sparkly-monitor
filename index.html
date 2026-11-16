@@ -5671,18 +5671,24 @@ function authTokenUserId(token) {
 }
 
 const _sellerAuthUserCache = {};
-// The login user a seller belongs to: web sellers are named web_<login user id>; older sellers are looked up once.
-async function expectedAuthUserId(sellerChatId) {
+const AUTH_GUARD_OWN_ROW_URL = 'https://sparklly.site/webhook/seller-own-row';
+// The login user a seller belongs to: web sellers are named web_<login user id>; for older sellers the Seller Own Row door says which
+// seller THIS login belongs to, and the login belongs to the seller on screen exactly when that is the same chat id. Asked once per login.
+async function expectedAuthUserId(sellerChatId, token) {
   const m = /^web_(.+)$/.exec(String(sellerChatId));
   if (m) return m[1].toLowerCase();
-  if (Object.prototype.hasOwnProperty.call(_sellerAuthUserCache, sellerChatId)) return _sellerAuthUserCache[sellerChatId];
-  const r = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(sellerChatId) + '&select=auth_user_id&limit=1', {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-  });
-  if (!r.ok) throw new Error('Could not verify your login. Please try again.');
-  const rows = await r.json();
-  const id = rows && rows[0] && rows[0].auth_user_id ? String(rows[0].auth_user_id).toLowerCase() : null;
-  _sellerAuthUserCache[sellerChatId] = id;
+  const own = authTokenUserId(token);
+  const key = String(sellerChatId) + '|' + String(own);
+  if (Object.prototype.hasOwnProperty.call(_sellerAuthUserCache, key)) return _sellerAuthUserCache[key];
+  let id = null;
+  try {
+    const r = await fetch(AUTH_GUARD_OWN_ROW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, action: 'me' }) });
+    if (!r.ok) throw new Error('down');
+    const j = await r.json();
+    if (!j || j.ok !== true) throw new Error('refused');
+    id = j.hasSeller === true && own && String(j.chatId) === String(sellerChatId) ? own : null;
+  } catch (e) { throw new Error('Could not verify your login. Please try again.'); }
+  _sellerAuthUserCache[key] = id;
   return id;
 }
 
@@ -5691,7 +5697,7 @@ async function expectedAuthUserId(sellerChatId) {
 async function assertTokenMatchesSeller(token) {
   if (!token || !SELLER_CHAT_ID) return token; // no token: the server refuses it and asks to sign in again (unchanged)
   const have = authTokenUserId(token);
-  const want = await expectedAuthUserId(SELLER_CHAT_ID);
+  const want = await expectedAuthUserId(SELLER_CHAT_ID, token);
   if (!have || !want || have !== want) throw new Error(AUTH_MISMATCH_MESSAGE);
   return token;
 }
@@ -5882,9 +5888,9 @@ async function bnLoad() {
   if (!input || !SELLER_CHAT_ID) return;
   const loadingFor = SELLER_CHAT_ID;
   try {
-    const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name_location&limit=1');
+    const me = await w1MeGet();
     if (loadingFor !== SELLER_CHAT_ID) return;
-    input.value = (rows && rows[0]) ? bnSplit(rows[0].business_name_location).name : '';
+    input.value = (me && me.hasSeller === true) ? (me.businessNameShort || '') : '';
   } catch (e) { debugLog('bnLoad failed: ' + (e && e.message)); }
 }
 window.bnSave = async function() {
@@ -5900,26 +5906,19 @@ window.bnSave = async function() {
   if (btn) btn.disabled = true;
   bnSetMsg('Saving...', false);
   try {
-    // Read the stored text right before saving, so the part after the first comma is exactly what is stored now.
-    const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=business_name_location&limit=1');
-    if (!rows || !rows[0]) throw new Error('account not found');
-    const next = name + bnSplit(rows[0].business_name_location).rest;
-    const r = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_id', {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-      body: JSON.stringify({ business_name_location: next })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const done = await r.json();
-    if (!Array.isArray(done) || !done.length) throw new Error('not saved');
+    // The Seller Own Row door replaces only the part before the first comma and keeps everything after it, in one checked update with an
+    // undo copy; the screen no longer reads the stored text first.
+    const saved = await w1OwnRowAsk('setBusinessName', { name: name });
+    w1MeForget();
     input.value = name;
     _tplState.businessName = name;
     if (typeof window.nctSetBusinessName === 'function') window.nctSetBusinessName(name);
     tplUpdatePreview();
     bnSetMsg('Saved. Your business name is now "' + name + '".', false);
+    w1BnOfferUndo(saved && saved.undo);
   } catch (e) {
     debugLog('bnSave failed: ' + (e && e.message));
-    bnSetMsg('Could not save your business name. Check your internet connection and try again.', true);
+    bnSetMsg(e && e.doorMessage ? e.doorMessage : 'Could not save your business name. Check your internet connection and try again.', true);
   } finally { _bnBusy = false; if (btn) btn.disabled = false; }
 };
 // From a warning: go to the Business name field (closing the Start a new conversation panel first when it is open).
@@ -6297,7 +6296,7 @@ function tickHtml(state, err) {
 // What WhatsApp reported for this chat. Reports are kept per message id.
 async function fetchDeliveryContext(phone) {
   if (!window._sellerPnid) {
-    try { const r = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=phone_number_id&limit=1'); window._sellerPnid = (r && r[0] && r[0].phone_number_id) || ''; } catch (e) {}
+    try { const me = await w1MeGet(); window._sellerPnid = (me && me.phoneNumberId) || ''; } catch (e) {}
   }
   if (!window._sellerPnid) return null;
   const rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
@@ -9852,28 +9851,22 @@ window.doSignUp = async function() {
       showLoginScreen('This email already has an account. Sign in below instead of creating a new one.');
       return;
     }
-    const newChatId = 'web_' + user.id;
-    const sellerRes = await fetch(SUPABASE_URL + '/rest/v1/sellers', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ chat_id: newChatId, auth_user_id: user.id, email, business_name: businessName })
-    });
-    if (!sellerRes.ok) {
-      const sellerErrText = await sellerRes.text().catch(() => '');
-      logSystemError(newChatId, 'doSignUp', 'Failed to create sellers row: HTTP ' + sellerRes.status + ' - ' + sellerErrText.slice(0, 300));
-      const linkBroken = /23503/.test(sellerErrText);
-      showSignUpScreen(linkBroken
-        ? 'We could not finish setting up this account (the login was not found). Try signing in, or use a different email.'
-        : 'Account created, but profile setup failed: ' + sellerErrText.slice(0, 150));
-      return;
-    }
+    // The seller row is made by the Seller Own Row door with the NEW login's own token (nothing is written to the sellers table with the
+    // public key any more). Without a token (the email is not confirmed yet) nothing can be created now: the typed business name is kept on
+    // this device and the row is created at the first login after the email is confirmed.
     if (!authData.access_token) {
-      // Email confirmation is required and hasn't happened yet - this is
-      // success, just not signed-in-yet success. Tell them clearly instead
-      // of silently trying (and failing) to open the dashboard.
+      w1KeepPendingName(email, businessName);
       showLoginScreen('Account created! Check ' + email + ' and click the confirmation link, then sign in below.');
       return;
     }
+    const made = await w1OwnRowCall('createSeller', authData.access_token, { businessName });
+    if (!made || made.ok !== true || !made.chatId) {
+      logSystemError(null, 'doSignUp', 'createSeller was refused: ' + String((made && made.error) || 'unknown'));
+      w1KeepPendingName(email, businessName);
+      showSignUpScreen('Account created, but profile setup failed: ' + w1OwnRowErrorText(made) + ' Sign in to finish.');
+      return;
+    }
+    const newChatId = String(made.chatId);
     localStorage.setItem('sparkly_seller_chat_id', newChatId);
     localStorage.setItem('sparkly_auth_token', authData.access_token || '');
     localStorage.setItem('sparkly_refresh_token', authData.refresh_token || '');
@@ -9923,144 +9916,18 @@ window.doLoginWithEmail = async function() {
       return;
     }
 
-    const sellerRows = await fetch(SUPABASE_URL + '/rest/v1/sellers?auth_user_id=eq.' + authData.user.id + '&select=chat_id', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    }).then(r => r.json());
-    if (!sellerRows || sellerRows.length === 0) {
-      showLoginScreen('Account found, but no seller profile is linked — contact support.');
-      return;
-    }
-    localStorage.setItem('sparkly_seller_chat_id', sellerRows[0].chat_id);
-    localStorage.setItem('sparkly_auth_token', authData.access_token);
-    localStorage.setItem('sparkly_refresh_token', authData.refresh_token || '');
-    SELLER_CHAT_ID = sellerRows[0].chat_id;
-    const overlay = document.getElementById('login-overlay');
-    if (overlay) overlay.remove();
-    document.getElementById('app').style.display = 'flex';
-    startApp();
+    // Which seller is this login? The Seller Own Row door answers from the login itself (no public-key read of the sellers table).
+    // A login with no seller row yet gets one here (the business name kept at sign-up, or asked for), then the app starts as usual.
+    const sellerChatId = await w1ResolveSeller(authData, email);
+    if (!sellerChatId) return;
+    w1FinishLogin(authData, sellerChatId);
   } catch (e) {
     showLoginScreen('Something went wrong — try again.');
   }
 };
 
-// One-time flow for your EXISTING Telegram-linked account: verifies your
-// current chat-ID + password (the old way), then sets up a real email +
-// password on top of it, linking the two so you sign in the new way from
-// now on. Existing data (products, conversations, everything) stays
-// exactly as-is - this only adds a login method, nothing is recreated.
-function showMigrateAccountScreen(step, errorMsg) {
-  const landing = document.getElementById('landing');
-  if (landing) landing.remove();
-  document.getElementById('app').style.display = 'none';
-  let overlay = document.getElementById('login-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'login-overlay';
-    document.body.appendChild(overlay);
-  }
-  if (step !== 2) {
-    overlay.innerHTML = `
-      <div id="login-card">
-        <div id="login-logo"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
-        <h1>Upgrade your account</h1>
-        <p class="login-sub">Step 1: confirm your existing seller login</p>
-        ${errorMsg ? `<div id="login-error">${escapeHtml(errorMsg)}</div>` : ''}
-        <input id="migrate-chatid" placeholder="Your seller chat ID" autocomplete="off">
-        <input id="migrate-password" type="password" placeholder="Current password">
-        <button id="migrate-step1-btn" onclick="doMigrateStep1()">Continue</button>
-        <button type="button" onclick="showLoginScreen()" style="background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;margin-top:2px;">Cancel</button>
-      </div>
-    `;
-    document.getElementById('migrate-chatid').focus();
-  } else {
-    overlay.innerHTML = `
-      <div id="login-card">
-        <div id="login-logo"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
-        <h1>Upgrade your account</h1>
-        <p class="login-sub">Step 2: set your new email + password</p>
-        ${errorMsg ? `<div id="login-error">${escapeHtml(errorMsg)}</div>` : ''}
-        <input id="migrate-email" type="email" placeholder="Email" autocomplete="email">
-        <input id="migrate-newpassword" type="password" placeholder="New password (min 8 characters)" autocomplete="new-password">
-        <button id="migrate-step2-btn" onclick="doMigrateStep2()">Finish setup</button>
-      </div>
-    `;
-    document.getElementById('migrate-email').focus();
-  }
-}
-
-let _migratingChatId = null;
-
-window.doMigrateStep1 = async function() {
-  const chatId = document.getElementById('migrate-chatid').value.trim();
-  const password = document.getElementById('migrate-password').value;
-  if (!chatId || !password) return;
-  const btn = document.getElementById('migrate-step1-btn');
-  btn.disabled = true;
-  btn.textContent = 'Checking...';
-  try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/verify_seller_login', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_chat_id: chatId, p_password: password })
-    });
-    const isValid = await res.json();
-    if (!res.ok || isValid !== true) {
-      showMigrateAccountScreen(1, 'Incorrect chat ID or password.');
-      return;
-    }
-    _migratingChatId = chatId;
-    showMigrateAccountScreen(2);
-  } catch (e) {
-    showMigrateAccountScreen(1, 'Something went wrong — try again.');
-  }
-};
-
-window.doMigrateStep2 = async function() {
-  const email = document.getElementById('migrate-email').value.trim();
-  const password = document.getElementById('migrate-newpassword').value;
-  if (!email || !password || !_migratingChatId) return;
-  if (password.length < 8) { showMigrateAccountScreen(2, 'Password must be at least 8 characters.'); return; }
-  const btn = document.getElementById('migrate-step2-btn');
-  btn.disabled = true;
-  btn.textContent = 'Finishing setup...';
-  try {
-    const authRes = await fetch(SUPABASE_URL + '/auth/v1/signup', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const authData = await authRes.json();
-    const user = authData.user || (authData.id ? authData : null);
-    if (!authRes.ok || !user) {
-      showMigrateAccountScreen(2, authData.msg || authData.error_description || 'Could not set up email — it may already be in use.');
-      return;
-    }
-    const updateRes = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + _migratingChatId, {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ auth_user_id: user.id, email })
-    });
-    if (!updateRes.ok) {
-      showMigrateAccountScreen(2, 'Email setup succeeded, but linking to your account failed — contact support.');
-      logSystemError(_migratingChatId, 'doMigrateStep2', 'Failed to link auth_user_id to existing seller row');
-      return;
-    }
-    if (!authData.access_token) {
-      showLoginScreen('Almost done! Check ' + email + ' and click the confirmation link, then sign in below.');
-      return;
-    }
-    localStorage.setItem('sparkly_seller_chat_id', _migratingChatId);
-    localStorage.setItem('sparkly_auth_token', authData.access_token || '');
-    localStorage.setItem('sparkly_refresh_token', authData.refresh_token || '');
-    SELLER_CHAT_ID = _migratingChatId;
-    const overlay = document.getElementById('login-overlay');
-    if (overlay) overlay.remove();
-    document.getElementById('app').style.display = 'flex';
-    startApp();
-  } catch (e) {
-    showMigrateAccountScreen(2, 'Something went wrong — try again.');
-  }
-};
+// Upgrade flow for an old chat-ID account: the screens and the Seller Migrate door calls are in the w1-migrate-door block below.
+function showMigrateAccountScreen(step, errorMsg) { w1MigShow(step === 2 ? 2 : 1, errorMsg); }
 
 window.confirmDeleteAccount = function() {
   const typed = prompt(t('delete_confirm'));
@@ -14985,11 +14852,9 @@ async function loadBizSettings() {
   const loadingFor = SELLER_CHAT_ID;
   try {
     bnLoad();
-    fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name&limit=1', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    }).then(r => r.json()).then(rows => {
+    w1MeGet().then(me => {
       const lbl = document.getElementById('biz-account-label');
-      if (lbl && rows && rows[0] && loadingFor === SELLER_CHAT_ID) lbl.textContent = 'These settings are for: ' + (rows[0].business_name || 'your account');
+      if (lbl && me && me.hasSeller === true && loadingFor === SELLER_CHAT_ID) lbl.textContent = 'These settings are for: ' + (me.businessName || 'your account');
     }).catch(() => {});
     const [settingsRes, configRes, posRes, adConfigRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
@@ -15539,6 +15404,7 @@ window.removeInvoiceLogo = async function() {
 };
 
 async function saveBotSetting(key, value) {
+  if (w1BotHandles(key) && await w1BotTry(key, value)) return; // W1-FALLBACK-REMOVE: when the door says not_available the older direct write below runs; remove this line once the door is open to everyone
   const res = await fetch(SUPABASE_URL + '/rest/v1/bot_settings?on_conflict=chat_id,key', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -16821,8 +16687,8 @@ function startApp() {
 // run once we know WhatsApp is actually connected.
 async function checkWhatsAppConnectedThenOnboarding() {
   try {
-    const rows = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=phone_number_id&limit=1');
-    const isConnected = rows && rows.length > 0 && rows[0].phone_number_id;
+    const me = await w1MeGet();
+    const isConnected = me && me.hasSeller === true && me.whatsappConnected === true;
     if (!isConnected) {
       document.getElementById('app').style.display = 'none';
       document.getElementById('whatsapp-connect-gate').style.display = 'flex';
@@ -16839,8 +16705,8 @@ async function checkWhatsAppConnectedThenOnboarding() {
 
 async function checkOnboardingNeeded() {
   try {
-    const rows = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=business_name_location&limit=1');
-    const needsOnboarding = !rows || rows.length === 0 || !rows[0].business_name_location;
+    const me = await w1MeGet();
+    const needsOnboarding = !me || me.hasSeller !== true || me.onboardingDone !== true;
     if (needsOnboarding) {
       document.getElementById('app').style.display = 'none';
       document.getElementById('onboarding-overlay').style.display = 'flex';
@@ -17750,6 +17616,154 @@ if ('serviceWorker' in navigator) {
     }
   };
 </script>
+<!-- w1-bot-settings-door:js:start -->
+<script>
+// Assistant settings (Business settings screen): saving the 14 bot settings now goes through the Seller Bot Settings door
+// (POST /webhook/seller-bot-settings, actions get and set) instead of writing straight to the bot_settings table with the public key.
+// The door checks the value against its limits, keeps an undo copy first, writes only this seller's row, and reads it back.
+// The controls, the other settings (offers, referral and so on) and the way the screen reads its values are unchanged.
+// "Undo": after a change the screen shows an Undo button for a short time; it sends the old value back through the same door.
+const SELLER_BOT_SETTINGS_URL = 'https://sparklly.site/webhook/seller-bot-settings';
+const W1_BOT_KEYS = ['global_ai_active', 'global_pause_message', 'followup_active', 'followup1_hours', 'followup2_hours', 'followup3_hours',
+  'followup1_message', 'followup2_message', 'followup3_message', 'broadcast_active', 'broadcast_interval', 'broadcast_message', 'target_audience', 'winback_active'];
+const W1_BOT_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Saving is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo last change', undone: 'The change was undone.', undoFailed: 'The change could not be undone. Nothing was changed.'
+};
+const W1_BOT_UNDO_SHOW_MS = 10000;
+const W1_BOT = { loaded: null, value: {}, effective: {}, limits: {}, undo: null, timer: null, fallback: false };
+function w1BotNotAvailable() { const e = new Error(W1_BOT_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+
+function w1BotHandles(key) { return W1_BOT_KEYS.indexOf(key) >= 0; }
+
+async function w1BotCall(action, extra) {
+  if (W1_BOT.fallback) throw w1BotNotAvailable();
+  const token = await getValidAuthToken();
+  if (!token) throw new Error(W1_BOT_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_BOT_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1BotNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_BOT_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1BotNotAvailable();
+    if (code === 'not_logged_in') throw new Error(W1_BOT_TEXT.relogin);
+    // The door words its own refusals in plain language (a value outside its limits, saving switched off, and so on).
+    throw new Error(j && typeof j.message === 'string' && j.message ? j.message : W1_BOT_TEXT.failed);
+  }
+  return j;
+}
+
+// Learns the saved values, the defaults and the limits once (a read: nothing is written).
+async function w1BotLoad() {
+  if (W1_BOT.loaded) return W1_BOT.loaded;
+  W1_BOT.loaded = (async function() {
+    const j = await w1BotCall('get');
+    (Array.isArray(j.settings) ? j.settings : []).forEach(function(s) {
+      W1_BOT.value[s.key] = s.value === null || s.value === undefined ? '' : String(s.value);
+      W1_BOT.effective[s.key] = s.effective === null || s.effective === undefined ? null : String(s.effective);
+      W1_BOT.limits[s.key] = { min: s.min, max: s.max, maxLength: s.maxLength };
+    });
+  })();
+  W1_BOT.loaded.catch(function() { W1_BOT.loaded = null; });
+  return W1_BOT.loaded;
+}
+
+function w1BotControl(key) { return document.querySelector('#business-tab-content [data-key="' + key + '"]'); }
+// Puts a value on its control. A switch is left alone unless the value is a real answer from the door (the older code only moves a
+// switch after a successful save, so a refused save leaves it where it was).
+function w1BotShow(key, value, fromDoor) {
+  const el = w1BotControl(key);
+  if (!el) return;
+  if (el.classList.contains('biz-toggle')) { if (fromDoor) el.classList.toggle('on', value === 'true'); }
+  else el.value = value === null || value === undefined ? '' : String(value);
+}
+
+// The limits from the door are put on the fields the first time the seller uses one (no text is added to the screen).
+document.addEventListener('focusin', function(e) {
+  const t = e.target;
+  if (!t || !t.matches || !t.matches('#business-tab-content [data-key]')) return;
+  const key = t.getAttribute('data-key');
+  if (!w1BotHandles(key) || t.tagName !== 'INPUT') return;
+  w1BotLoad().then(function() {
+    const l = W1_BOT.limits[key] || {};
+    if (l.min !== undefined) t.min = String(l.min);
+    if (l.max !== undefined) t.max = String(l.max);
+    if (l.maxLength !== undefined) t.maxLength = l.maxLength;
+  }).catch(function() { /* the limits are checked by the door anyway */ });
+});
+
+// Called by the screen's saveBotSetting for the 14 keys. Throws an Error with a plain message when the door refuses.
+async function w1BotDoorSet(key, value) {
+  try { await w1BotLoad(); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, W1_BOT.value[key]); throw e; }
+  const was = W1_BOT.effective[key];
+  const wasValue = W1_BOT.value[key];
+  let r;
+  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, wasValue); throw e; }
+  W1_BOT.value[key] = String(r.after);
+  W1_BOT.effective[key] = String(r.after);
+  if (r.changed === true) w1BotOfferUndo(key, r.before === null || r.before === undefined ? was : r.before);
+}
+
+// Door first; when it answers not_available (the seller is not on its list yet) the screen keeps the older direct write, exactly as before.
+async function w1BotTry(key, value) {
+  if (W1_BOT.fallback) return false;
+  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
+}
+
+// ---- Undo: a short-lived button; it sends the old value back through the same door (limits checked, a new undo copy kept).
+function w1BotOfferUndo(key, back) {
+  W1_BOT.undo = { key: key, back: back };
+  let bar = document.getElementById('w1-bot-undo');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'w1-bot-undo';
+    bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,0.2);';
+    const msg = document.createElement('span'); msg.id = 'w1-bot-undo-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bot-undo-btn'; btn.textContent = W1_BOT_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1BotUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+  document.getElementById('w1-bot-undo-msg').textContent = '';
+  document.getElementById('w1-bot-undo-btn').style.display = '';
+  bar.style.display = 'flex';
+  clearTimeout(W1_BOT.timer);
+  W1_BOT.timer = setTimeout(w1BotHideUndo, W1_BOT_UNDO_SHOW_MS);
+}
+function w1BotHideUndo() {
+  const bar = document.getElementById('w1-bot-undo');
+  if (bar) bar.style.display = 'none';
+  W1_BOT.undo = null;
+}
+async function w1BotUndo() {
+  const u = W1_BOT.undo;
+  if (!u || u.back === null || u.back === undefined) { w1BotHideUndo(); return; }
+  W1_BOT.undo = null;
+  const btn = document.getElementById('w1-bot-undo-btn'); if (btn) btn.disabled = true;
+  const msg = document.getElementById('w1-bot-undo-msg');
+  try {
+    const r = await w1BotCall('set', { key: u.key, value: String(u.back) });
+    W1_BOT.value[u.key] = String(r.after); W1_BOT.effective[u.key] = String(r.after);
+    w1BotShow(u.key, r.after, true);
+    if (msg) msg.textContent = W1_BOT_TEXT.undone;
+  } catch (e) {
+    if (msg) msg.textContent = (e && e.message) || W1_BOT_TEXT.undoFailed;
+  }
+  if (btn) { btn.style.display = 'none'; btn.disabled = false; }
+  clearTimeout(W1_BOT.timer);
+  W1_BOT.timer = setTimeout(w1BotHideUndo, 3500);
+}
+</script>
+<!-- w1-bot-settings-door:js:end -->
 <!-- w1-sales-screen:js:start -->
 <script>
 // Sales and stock screen (build chat W1, screen 1). READ ONLY: it calls the Seller Reports door and writes nothing.
@@ -18069,6 +18083,88 @@ window.closeSalesScreen = function() {
 };
 </script>
 <!-- w1-sales-screen:js:end -->
+<!-- w1-own-row-calls:js:start -->
+<script>
+// The seller's own row (business name, whether a WhatsApp number is connected, whether onboarding is done) is now asked from the
+// Seller Own Row door (POST /webhook/seller-own-row, backend PR 236) with the person's own login, instead of reading and writing the
+// sellers table with the public key. "me" is read once and kept for a short time; changing the business name goes through the door
+// (limits checked, an undo copy kept) and gets an Undo button.
+const W1_ME_TTL_MS = 20000;
+const W1_ME_TEXT = {
+  notAvailable: 'This is not available right now. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not read your account right now. Try again in a moment.',
+  undo: 'Undo', undoFailed: 'The business name could not be put back. Nothing was changed.'
+};
+const _w1Me = { chat: null, at: 0, value: null, pending: null };
+
+// One door call with the current login (the same login check as every other call). Throws an Error with the door's plain words
+// in .doorMessage when the door answers with a refusal.
+async function w1OwnRowAsk(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) { const e = new Error(W1_ME_TEXT.relogin); e.doorMessage = W1_ME_TEXT.relogin; throw e; }
+  let r;
+  try {
+    r = await fetch('https://sparklly.site/webhook/seller-own-row', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { const err = new Error(W1_ME_TEXT.noConnection); err.doorMessage = W1_ME_TEXT.noConnection; throw err; }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { const err = new Error(W1_ME_TEXT.notAvailable); err.doorMessage = W1_ME_TEXT.notAvailable; throw err; }
+  let j;
+  try { j = await r.json(); } catch (e) { const err = new Error(W1_ME_TEXT.failed); err.doorMessage = W1_ME_TEXT.failed; throw err; }
+  if (!j || j.ok !== true) {
+    const text = j && j.error === 'not_logged_in' ? W1_ME_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_ME_TEXT.failed);
+    const err = new Error(text); err.doorMessage = text; err.code = j && j.error; throw err;
+  }
+  return j;
+}
+
+// The seller's own row facts, kept for 20 seconds so the checks that run together at start-up ask once. Throws when the door cannot answer.
+function w1MeGet(force) {
+  const now = Date.now();
+  if (!force && _w1Me.chat === SELLER_CHAT_ID && _w1Me.value && now - _w1Me.at < W1_ME_TTL_MS) return Promise.resolve(_w1Me.value);
+  if (!force && _w1Me.pending && _w1Me.chat === SELLER_CHAT_ID) return _w1Me.pending;
+  const chat = SELLER_CHAT_ID;
+  const p = w1OwnRowAsk('me').then(function(j) { _w1Me.chat = chat; _w1Me.value = j; _w1Me.at = Date.now(); _w1Me.pending = null; return j; }, function(e) { _w1Me.pending = null; throw e; });
+  _w1Me.pending = p; _w1Me.chat = chat;
+  return p;
+}
+function w1MeForget() { _w1Me.value = null; _w1Me.at = 0; }
+
+// ---- The business name: Undo after a save (puts the old text back only while nothing changed since).
+function w1BnApply(shortName) {
+  const input = document.getElementById('bn-input');
+  if (input) input.value = shortName;
+  _tplState.businessName = shortName;
+  if (typeof window.nctSetBusinessName === 'function') window.nctSetBusinessName(shortName);
+  tplUpdatePreview();
+}
+function w1BnOfferUndo(undo) {
+  let btn = document.getElementById('w1-bn-undo');
+  if (!undo || typeof undo.ifCurrentIs !== 'string' || (undo.restoreTo !== null && typeof undo.restoreTo !== 'string')) { if (btn) btn.remove(); return; }
+  if (!btn) {
+    btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bn-undo'; btn.textContent = W1_ME_TEXT.undo;
+    btn.style.cssText = 'margin-left:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:8px;padding:4px 10px;font-size:12.5px;cursor:pointer;';
+    const msg = document.getElementById('bn-msg');
+    if (msg && msg.parentNode) msg.parentNode.insertBefore(btn, msg.nextSibling);
+  }
+  btn.disabled = false; btn.style.display = '';
+  btn.onclick = function() { w1BnUndo(undo, btn); };
+}
+async function w1BnUndo(undo, btn) {
+  btn.disabled = true;
+  try {
+    const r = await w1OwnRowAsk('undoBusinessName', { restoreTo: undo.restoreTo, ifCurrentIs: undo.ifCurrentIs });
+    w1MeForget();
+    w1BnApply(bnSplit(undo.restoreTo === null ? '' : undo.restoreTo).name);
+    bnSetMsg(typeof r.message === 'string' && r.message ? r.message : 'The business name was put back.', false);
+    btn.remove();
+  } catch (e) {
+    bnSetMsg(e && e.doorMessage ? e.doorMessage : W1_ME_TEXT.undoFailed, true);
+    btn.remove();
+  }
+}
+</script>
+<!-- w1-own-row-calls:js:end -->
 <!-- w1-sessions-door:js:start -->
 <script>
 // Device sessions (ensure, heartbeat, log out, list, sign out another device) now go through the Seller Sessions door
@@ -19544,5 +19640,297 @@ w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-busin
 w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'availability');
 </script>
 <!-- w1-menu-gate-alerts:js:end -->
+<!-- w1-migrate-door:js:start -->
+<script>
+// Upgrade an old chat-ID account to an email login, through the Seller Migrate door (build chat W1).
+// Door: POST /webhook/seller-migrate with { token, action, oldChatId, oldPassword, confirmCode }. "check" writes nothing; "apply" links the login.
+// The OLD password is sent only to that door. It is kept in memory only (never in storage, a URL, a log or the page) and dropped as soon as the flow ends.
+const SELLER_MIGRATE_URL = 'https://sparklly.site/webhook/seller-migrate';
+const W1_MIG = { chatId: '', password: '', email: '', token: '', refresh: '', code: '', account: null, busy: false };
+const W1_MIG_TEXT = {
+  old_number: 'Old account number', old_password: 'Old password', link_btn: 'Link my old account', continue_btn: 'Continue', cancel: 'Cancel',
+  step1_sub: 'Step 1: enter your old account number and old password',
+  step2_sub: 'Step 2: set your new email and password',
+  step3_sub: 'Sign in with the new login you already created',
+  confirm_sub: 'Step 3: check and confirm',
+  email: 'Email', new_password: 'New password (min 8 characters)', password: 'Password', finish_btn: 'Finish setup', signin_btn: 'Sign in and continue',
+  have_login: 'I already created my new login',
+  checking: 'Checking...', working: 'Working...',
+  nothing_until: 'Nothing changes until you press the button.',
+  short_password: 'Password must be at least 8 characters.',
+  need_all: 'Fill in every box.',
+  signup_failed: 'Could not set up the email. It may already be in use.',
+  signin_failed: 'The email or password is not correct.',
+  confirm_email: 'Account created. Confirm your email, sign in, then choose Upgrade again and use "I already created my new login".',
+  linked: 'Your login is now linked.',
+  wrong_old_credentials: 'The old account number or password is not correct.',
+  too_many_attempts: 'Too many wrong attempts. Try again later.',
+  login_has_seller: 'This login already has a business profile. Sign in with it instead.',
+  no_old_account: 'There is no old account to link to.',
+  already_linked: 'This account is already linked.',
+  bad_confirmation: 'The confirmation ran out. Please check again and press the button once more.',
+  too_many_codes: 'Too many checks are open. Wait a few minutes and try again.',
+  undo_unavailable: 'A safety copy could not be saved, so nothing was changed. Try again in a moment.',
+  save_failed: 'The link could not be saved. Nothing was changed. Try again in a moment.',
+  read_failed: 'Your account could not be read. Nothing was changed. Try again in a moment.',
+  unconfirmed: 'We could not confirm the link. Sign in again before you try once more.',
+  not_available: 'Linking is not available yet. Please try again later.',
+  wrong_ids: 'Something went wrong. Try again.'
+};
+function w1MigText(key) { return W1_MIG_TEXT[key] || W1_MIG_TEXT.wrong_ids; }
+function w1MigForgetOld() { W1_MIG.chatId = ''; W1_MIG.password = ''; W1_MIG.code = ''; W1_MIG.account = null; }
+function w1MigReset() { w1MigForgetOld(); W1_MIG.email = ''; W1_MIG.token = ''; W1_MIG.refresh = ''; W1_MIG.busy = false; }
+function w1MigErrorText(a, status) {
+  if (status === 503 || status === 404 || status === 502) return w1MigText('not_available');
+  const code = a && (a.code || a.error);
+  if (code === 'too_many_attempts') {
+    const s = Number(a.retryAfterSeconds);
+    return s > 0 ? w1MigText('too_many_attempts') + ' (about ' + Math.ceil(s / 60) + ' min)' : w1MigText('too_many_attempts');
+  }
+  return W1_MIG_TEXT[code] ? w1MigText(code) : w1MigText('wrong_ids');
+}
+async function w1MigPost(body) {
+  try {
+    const res = await fetch(SELLER_MIGRATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    let json = null;
+    try { json = await res.json(); } catch (e) { json = null; }
+    return { status: res.status, json: json || {} };
+  } catch (e) { return { status: 0, json: {} }; }
+}
+function w1MigCard(sub, err, inner) {
+  const overlay = document.getElementById('login-overlay') || (function () { const o = document.createElement('div'); o.id = 'login-overlay'; document.body.appendChild(o); return o; })();
+  const landing = document.getElementById('landing'); if (landing) landing.remove();
+  document.getElementById('app').style.display = 'none';
+  overlay.innerHTML = '<div id="login-card"><h1>Upgrade your account</h1><p class="login-sub">' + escapeHtml(sub) + '</p>' +
+    (err ? '<div id="login-error">' + escapeHtml(err) + '</div>' : '') + inner + '</div>';
+}
+const W1_MIG_LINK = 'background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;margin-top:2px;';
+function w1MigShow(step, err) {
+  if (step === 'confirm') {
+    const a = W1_MIG.account || {};
+    const line = 'Link ' + (W1_MIG.email || 'your new login') + ' to the old account' + (a.chatIdEnding ? ' ending in ' + a.chatIdEnding : '') + (a.businessName ? ' (' + a.businessName + ')' : '') + '.';
+    w1MigCard(w1MigText('confirm_sub'), err, '<div id="w1-mig-summary">' + escapeHtml(line) + '</div><div id="w1-mig-note" style="font-size:12px;color:var(--text-muted);">' + escapeHtml(w1MigText('nothing_until')) + '</div>' +
+      '<button id="w1-mig-apply" onclick="w1MigApply()">' + escapeHtml(w1MigText('link_btn')) + '</button><button type="button" id="w1-mig-cancel" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+  } else if (step === 3) {
+    w1MigCard(w1MigText('step3_sub'), err, '<input id="migrate-email" type="email" placeholder="' + w1MigText('email') + '" autocomplete="email"><input id="migrate-newpassword" type="password" placeholder="' + w1MigText('password') + '" autocomplete="current-password">' +
+      '<button id="migrate-step3-btn" onclick="w1MigSignIn()">' + escapeHtml(w1MigText('signin_btn')) + '</button><button type="button" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+    const e = document.getElementById('migrate-email'); if (e) e.focus();
+  } else if (step === 2) {
+    w1MigCard(w1MigText('step2_sub'), err, '<input id="migrate-email" type="email" placeholder="' + w1MigText('email') + '" autocomplete="email"><input id="migrate-newpassword" type="password" placeholder="' + w1MigText('new_password') + '" autocomplete="new-password">' +
+      '<button id="migrate-step2-btn" onclick="doMigrateStep2()">' + escapeHtml(w1MigText('finish_btn')) + '</button><button type="button" id="w1-mig-have" onclick="w1MigShow(3)" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('have_login')) + '</button><button type="button" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+    const e = document.getElementById('migrate-email'); if (e) e.focus();
+  } else {
+    w1MigCard(w1MigText('step1_sub'), err, '<input id="migrate-chatid" placeholder="' + w1MigText('old_number') + '" autocomplete="off"><input id="migrate-password" type="password" placeholder="' + w1MigText('old_password') + '" autocomplete="off">' +
+      '<button id="migrate-step1-btn" onclick="doMigrateStep1()">' + escapeHtml(w1MigText('continue_btn')) + '</button><button type="button" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+    const e = document.getElementById('migrate-chatid'); if (e) e.focus();
+  }
+}
+function w1MigCancel() { w1MigReset(); showLoginScreen(); }
+window.doMigrateStep1 = async function () {
+  const chatId = document.getElementById('migrate-chatid').value.trim();
+  const password = document.getElementById('migrate-password').value;
+  if (!chatId || !password) { w1MigShow(1, w1MigText('need_all')); return; }
+  W1_MIG.chatId = chatId; W1_MIG.password = password;
+  if (W1_MIG.token) { await w1MigCheck(); return; }
+  w1MigShow(2);
+};
+window.doMigrateStep2 = async function () {
+  if (W1_MIG.busy) return;
+  const email = document.getElementById('migrate-email').value.trim();
+  const password = document.getElementById('migrate-newpassword').value;
+  if (!email || !password || !W1_MIG.chatId) { w1MigShow(2, w1MigText('need_all')); return; }
+  if (password.length < 8) { w1MigShow(2, w1MigText('short_password')); return; }
+  W1_MIG.busy = true;
+  const btn = document.getElementById('migrate-step2-btn'); if (btn) { btn.disabled = true; btn.textContent = w1MigText('working'); }
+  try {
+    const authRes = await fetch(SUPABASE_URL + '/auth/v1/signup', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const authData = await authRes.json();
+    const user = authData.user || (authData.id ? authData : null);
+    if (!authRes.ok || !user) { W1_MIG.busy = false; w1MigShow(2, authData.msg || authData.error_description || w1MigText('signup_failed')); return; }
+    if (!authData.access_token) { w1MigReset(); showLoginScreen(w1MigText('confirm_email')); return; }
+    W1_MIG.email = email; W1_MIG.token = authData.access_token; W1_MIG.refresh = authData.refresh_token || '';
+    W1_MIG.busy = false;
+    await w1MigCheck();
+  } catch (e) { W1_MIG.busy = false; w1MigShow(2, w1MigText('wrong_ids')); }
+};
+async function w1MigSignIn() {
+  if (W1_MIG.busy) return;
+  const email = document.getElementById('migrate-email').value.trim();
+  const password = document.getElementById('migrate-newpassword').value;
+  if (!email || !password) { w1MigShow(3, w1MigText('need_all')); return; }
+  W1_MIG.busy = true;
+  try {
+    const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const d = await res.json();
+    W1_MIG.busy = false;
+    if (!res.ok || !d.access_token) { w1MigShow(3, w1MigText('signin_failed')); return; }
+    W1_MIG.email = email; W1_MIG.token = d.access_token; W1_MIG.refresh = d.refresh_token || '';
+    if (!W1_MIG.chatId || !W1_MIG.password) { w1MigShow(1); return; }
+    await w1MigCheck();
+  } catch (e) { W1_MIG.busy = false; w1MigShow(3, w1MigText('wrong_ids')); }
+}
+async function w1MigCheck(noteText) {
+  if (W1_MIG.busy) return;
+  W1_MIG.busy = true;
+  const r = await w1MigPost({ token: W1_MIG.token, action: 'check', oldChatId: W1_MIG.chatId, oldPassword: W1_MIG.password });
+  W1_MIG.busy = false;
+  const a = r.json;
+  if (r.status === 200 && a.ok && a.confirmCode) { W1_MIG.code = a.confirmCode; W1_MIG.account = { chatIdEnding: a.chatIdEnding || '', businessName: a.businessName || '' }; w1MigShow('confirm', noteText || ''); return; }
+  const code = a && (a.code || a.error);
+  const text = w1MigErrorText(a, r.status);
+  if (code === 'wrong_old_credentials' || code === 'too_many_attempts') { W1_MIG.password = ''; W1_MIG.code = ''; w1MigShow(1, text); return; }
+  w1MigForgetOld(); w1MigShow(1, text);
+}
+async function w1MigApply() {
+  if (W1_MIG.busy || !W1_MIG.code) return;
+  W1_MIG.busy = true;
+  const btn = document.getElementById('w1-mig-apply'); if (btn) { btn.disabled = true; btn.textContent = w1MigText('working'); }
+  const r = await w1MigPost({ token: W1_MIG.token, action: 'apply', oldChatId: W1_MIG.chatId, oldPassword: W1_MIG.password, confirmCode: W1_MIG.code });
+  W1_MIG.busy = false;
+  const a = r.json;
+  if (r.status === 200 && a.ok) {
+    const chatId = (typeof a.chatId === 'string' && a.chatId) || W1_MIG.chatId;
+    const access = W1_MIG.token; const refresh = W1_MIG.refresh;
+    w1MigReset();
+    localStorage.setItem('sparkly_seller_chat_id', chatId);
+    localStorage.setItem('sparkly_auth_token', access);
+    localStorage.setItem('sparkly_refresh_token', refresh);
+    SELLER_CHAT_ID = chatId;
+    const overlay = document.getElementById('login-overlay'); if (overlay) overlay.remove();
+    document.getElementById('app').style.display = 'flex';
+    startApp();
+    return;
+  }
+  const code = a && (a.code || a.error);
+  if (code === 'bad_confirmation') { W1_MIG.code = ''; await w1MigCheck(w1MigText('bad_confirmation')); return; }
+  const text = w1MigErrorText(a, r.status);
+  if (code === 'wrong_old_credentials' || code === 'too_many_attempts') { W1_MIG.password = ''; W1_MIG.code = ''; w1MigShow(1, text); return; }
+  if (code === 'login_has_seller' || code === 'already_linked' || code === 'no_old_account') { w1MigForgetOld(); w1MigShow(1, text); return; }
+  w1MigShow('confirm', text);
+}
+</script>
+<!-- w1-migrate-door:js:end -->
+<!-- w1-signup-create-seller:js:start -->
+<script>
+// Sign-up and first login with the Seller Own Row door (POST /webhook/seller-own-row, backend PR 236):
+// - sign-up creates the seller row with createSeller, sent with the NEW login's token (no more public-key write of the sellers table);
+// - when the sign-up answer has no token (the email is not confirmed yet), the typed business name is kept on this device (name and
+//   email only, nothing secret) and createSeller is called at the first login after the email is confirmed;
+// - at login the door's "me" answer says whether the login has a seller row (replaces the public-key read of the sellers table).
+// If the seller confirms the email on another device and no kept name exists there, the app asks for the business name first.
+const SELLER_OWN_ROW_URL = 'https://sparklly.site/webhook/seller-own-row';
+const W1_PENDING_KEY = 'sparkly_pending_business';
+const W1_PENDING_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const W1_OWN_ROW_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Sign-in is not available right now. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not set up your account. Please try again in a moment.',
+  askNameTitle: 'One more step',
+  askNameSub: 'Type your business name to finish setting up your account.',
+  askNamePlaceholder: 'Business name',
+  askNameButton: 'Continue',
+  askNameEmpty: 'Please type your business name.'
+};
+const _w1Login = { authData: null, email: '' };
+
+async function w1OwnRowCall(action, token, extra) {
+  try {
+    const r = await fetch(SELLER_OWN_ROW_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+function w1OwnRowErrorText(r) {
+  const code = r && r.error;
+  if (code === 'not_logged_in') return W1_OWN_ROW_TEXT.relogin;
+  if (code === 'not_available') return W1_OWN_ROW_TEXT.notAvailable;
+  if (code === 'network') return W1_OWN_ROW_TEXT.noConnection;
+  // The door words its own refusals in plain language (a name that is empty or too long, and so on).
+  return r && typeof r.message === 'string' && r.message ? r.message : W1_OWN_ROW_TEXT.failed;
+}
+
+// ---- The business name typed at sign-up, kept until the first login after the email is confirmed (this device only).
+function w1KeepPendingName(email, name) {
+  try { localStorage.setItem(W1_PENDING_KEY, JSON.stringify({ email: String(email).trim().toLowerCase(), name: String(name), at: Date.now() })); } catch (e) { /* storage may be blocked */ }
+}
+function w1ReadPendingName(email) {
+  try {
+    const v = JSON.parse(localStorage.getItem(W1_PENDING_KEY) || 'null');
+    if (!v || typeof v.name !== 'string' || !v.name.trim()) return '';
+    if (String(v.email) !== String(email).trim().toLowerCase()) return '';
+    if (Date.now() - Number(v.at) > W1_PENDING_MAX_AGE_MS) { localStorage.removeItem(W1_PENDING_KEY); return ''; }
+    return v.name.trim();
+  } catch (e) { return ''; }
+}
+function w1ForgetPendingName() { try { localStorage.removeItem(W1_PENDING_KEY); } catch (e) { /* nothing to remove */ } }
+
+// Starts the app as the signed-in seller (the same steps the sign-in always did).
+function w1FinishLogin(authData, chatId) {
+  localStorage.setItem('sparkly_seller_chat_id', chatId);
+  localStorage.setItem('sparkly_auth_token', authData.access_token);
+  localStorage.setItem('sparkly_refresh_token', authData.refresh_token || '');
+  SELLER_CHAT_ID = chatId;
+  const overlay = document.getElementById('login-overlay');
+  if (overlay) overlay.remove();
+  document.getElementById('app').style.display = 'flex';
+  startApp();
+}
+
+// At login: which seller does this login belong to? Returns the chat id, or null when a screen was shown instead (a refusal, or the
+// question for the business name).
+async function w1ResolveSeller(authData, email) {
+  const me = await w1OwnRowCall('me', authData.access_token);
+  if (!me || me.ok !== true) { showLoginScreen(w1OwnRowErrorText(me)); return null; }
+  if (me.hasSeller === true && me.chatId) return String(me.chatId);
+  const kept = w1ReadPendingName(email);
+  if (!kept) { w1ShowBusinessNameScreen(authData, email, ''); return null; }
+  const made = await w1OwnRowCall('createSeller', authData.access_token, { businessName: kept });
+  if (!made || made.ok !== true || !made.chatId) { showLoginScreen(w1OwnRowErrorText(made)); return null; }
+  w1ForgetPendingName();
+  return String(made.chatId);
+}
+
+// The question for the business name (a login with no seller row and no kept name on this device).
+function w1ShowBusinessNameScreen(authData, email, errorMsg) {
+  _w1Login.authData = authData; _w1Login.email = email;
+  const landing = document.getElementById('landing');
+  if (landing) landing.remove();
+  document.getElementById('app').style.display = 'none';
+  let overlay = document.getElementById('login-overlay');
+  if (!overlay) { overlay = document.createElement('div'); overlay.id = 'login-overlay'; document.body.appendChild(overlay); }
+  overlay.textContent = '';
+  const card = document.createElement('div'); card.id = 'login-card';
+  const h = document.createElement('h1'); h.textContent = W1_OWN_ROW_TEXT.askNameTitle; card.appendChild(h);
+  const sub = document.createElement('p'); sub.className = 'login-sub'; sub.textContent = W1_OWN_ROW_TEXT.askNameSub; card.appendChild(sub);
+  if (errorMsg) { const err = document.createElement('div'); err.id = 'login-error'; err.textContent = errorMsg; card.appendChild(err); }
+  const input = document.createElement('input'); input.id = 'w1-business-name'; input.placeholder = W1_OWN_ROW_TEXT.askNamePlaceholder; input.autocomplete = 'organization'; input.maxLength = 100; card.appendChild(input);
+  const btn = document.createElement('button'); btn.id = 'w1-business-name-btn'; btn.type = 'button'; btn.textContent = W1_OWN_ROW_TEXT.askNameButton;
+  btn.onclick = function() { w1SubmitBusinessName(); };
+  card.appendChild(btn);
+  overlay.appendChild(card);
+  input.focus();
+}
+window.w1SubmitBusinessName = async function() {
+  const input = document.getElementById('w1-business-name');
+  const btn = document.getElementById('w1-business-name-btn');
+  const name = input ? input.value.trim() : '';
+  const login = _w1Login.authData;
+  if (!login) return;
+  if (!name) { w1ShowBusinessNameScreen(login, _w1Login.email, W1_OWN_ROW_TEXT.askNameEmpty); return; }
+  if (btn) btn.disabled = true;
+  const made = await w1OwnRowCall('createSeller', login.access_token, { businessName: name });
+  if (!made || made.ok !== true || !made.chatId) { w1ShowBusinessNameScreen(login, _w1Login.email, w1OwnRowErrorText(made)); return; }
+  w1ForgetPendingName();
+  _w1Login.authData = null;
+  w1FinishLogin(login, String(made.chatId));
+};
+</script>
+<!-- w1-signup-create-seller:js:end -->
 </body>
 </html>
