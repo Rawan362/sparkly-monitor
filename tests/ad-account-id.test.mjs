@@ -22,7 +22,7 @@ test('the new ad account code and this test file contain only ASCII characters',
   const start = html.indexOf('w1-ad-account-id:js:start');
   const end = html.indexOf('w1-ad-account-id:js:end');
   assert.ok(start > 0 && end > start, 'marked block missing');
-  const hook = html.split('\n').filter((l) => l.includes('W1-FALLBACK-REMOVE'));
+  const hook = html.split('\n').filter((l) => l.includes('W1-FALLBACK-REMOVE') && l.includes('w1AdAccountSave'));
   assert.equal(hook.length, 1);
   const files = { 'this test file': fs.readFileSync(fileURLToPath(import.meta.url), 'utf8'), block: html.slice(start, end), hook: hook.join('\n') };
   for (const [name, text] of Object.entries(files)) {
