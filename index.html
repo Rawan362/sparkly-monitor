@@ -15237,7 +15237,7 @@ window.saveBizField = async function(el) {
   try {
     const table = el.dataset.table;
     // The Meta Ad Account ID goes through the Ads door (checked, confirmed, with an undo copy), not straight to the table.
-    if (key === 'ad_account_id' && table === 'seller_ad_config') { await w1AdAccountSave(el); return; }
+    if (key === 'ad_account_id' && table === 'seller_ad_config' && await w1AdAccountSave(el) !== 'fallback') return; // W1-FALLBACK-REMOVE: when the Ads door says not_available the older direct save below runs; remove this once the door is open to everyone
     if (table) {
       // Numeric fields (pos_settings thresholds, invoice numbers) need real
       // numbers, not strings, or PostgREST rejects the write.
@@ -17914,7 +17914,7 @@ const W1_ACCT_TEXT = {
   }
 };
 const W1_ACCT_UNDO_SHOW_MS = 10000;
-const W1_ACCT = { pending: null, timer: null, confirming: false, busy: false, undoTimer: null, last: null };
+const W1_ACCT = { fallback: false, pending: null, timer: null, confirming: false, busy: false, undoTimer: null, last: null };
 
 async function w1AcctCall(action, extra) {
   let token = null;
@@ -17956,6 +17956,7 @@ function w1AcctRestore(el) { const prev = el.getAttribute('data-w1-prev'); if (p
 
 // Called by saveBizField for this box. Nothing is saved here: it only asks the door to prepare the change and opens the confirm panel.
 async function w1AdAccountSave(el) {
+  if (W1_ACCT.fallback) return 'fallback';
   if (W1_ACCT.busy) return;
   const value = String(el.value || '').trim();
   w1AcctMsg('', false);
@@ -17963,6 +17964,7 @@ async function w1AdAccountSave(el) {
   W1_ACCT.busy = true;
   try {
     const r = await w1AcctCall('prepare', { change: { type: 'set_account_id', accountId: value } });
+    if (r && (r.code === 'not_available' || r.error === 'not_available')) { W1_ACCT.fallback = true; return 'fallback'; }
     if (r && r.ok === true && r.unchanged === true) { el.value = String(r.adAccountId || value); w1AcctMsg(W1_ACCT_TEXT.unchanged, false); return; }
     if (!r || r.ok !== true || r.needsConfirm !== true || !r.confirmToken) { w1AcctRestore(el); w1AcctMsg(w1AcctErrorText(r), true); return; }
     w1AcctOpenConfirm(r, el);

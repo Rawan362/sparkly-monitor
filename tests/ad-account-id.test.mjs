@@ -22,7 +22,7 @@ test('the new ad account code and this test file contain only ASCII characters',
   const start = html.indexOf('w1-ad-account-id:js:start');
   const end = html.indexOf('w1-ad-account-id:js:end');
   assert.ok(start > 0 && end > start, 'marked block missing');
-  const hook = html.split('\n').filter((l) => l.includes("await w1AdAccountSave(el); return;"));
+  const hook = html.split('\n').filter((l) => l.includes('W1-FALLBACK-REMOVE'));
   assert.equal(hook.length, 1);
   const files = { 'this test file': fs.readFileSync(fileURLToPath(import.meta.url), 'utf8'), block: html.slice(start, end), hook: hook.join('\n') };
   for (const [name, text] of Object.entries(files)) {
@@ -175,7 +175,6 @@ test('door refusals are shown in plain words and the box goes back: at prepare a
     [{ json: { ok: false, code: 'bad_account_id', message: 'raw' } }, 'The Meta Ad Account ID must be 3 to 30 digits, with or without "act_".'],
     [{ json: { ok: false, code: 'unavailable', message: 'raw' } }, 'Your ad settings could not be read. Nothing was changed. Try again.'],
     [{ json: { ok: false, code: 'not_configured', message: 'raw' } }, 'Saving is not available yet. Please try again later.'],
-    [{ status: 503, json: {} }, 'Saving is not available yet. Please try again later.'],
     [{ json: { ok: false, code: 'relogin', message: 'raw' } }, 'Please sign out and sign in again, then try once more.']
   ];
   for (const [reply, expected] of prepareCases) {
@@ -267,4 +266,40 @@ test('every other field of Business settings still saves the way it did', { skip
   await page.evaluate(() => { SELLER_CHAT_ID = 'seller-test'; bizLoadedFor = 'seller-test'; document.getElementById('app').style.display = 'flex'; const el = document.getElementById('biz-currency-label'); el.value = 'XYZ'; return saveBizField(el); });
   assert.equal(calls.length, 0, 'the Ads door is not asked for another field');
   assert.deepEqual(posts, [{ chat_id: 'seller-test', currency_label: 'XYZ' }]);
+});
+
+// ---- Fallback: a seller who is not on the Ads door's list gets not_available; the older direct save runs as before. ----
+test('fallback: when the Ads door answers not_available (code or HTTP 503) the id is saved the older way, with no panel and no message', { skip }, async () => {
+  for (const reply of [{ json: { ok: false, code: 'not_available', message: 'raw' } }, { status: 503, json: {} }]) {
+    const calls = []; const direct = [];
+    const { page } = await openApp((b) => b.action === 'prepare' ? reply : null, calls, direct);
+    await type(page, '123456789');
+    await page.waitForTimeout(400);
+    assert.equal(await page.$('#w1-acct-confirm'), null);
+    assert.equal(await msg(page), '');
+    assert.equal(asked(calls, 'confirm').length, 0);
+    assert.equal(direct.length, 1, 'one direct save');
+    assert.equal(await page.$eval('#biz-ad-account-id', (e) => e.value), '123456789');
+    await page.close();
+  }
+});
+
+test('fallback: once not_available is known the door is not asked again in this visit; later saves go the older way at once', { skip }, async () => {
+  const calls = []; const direct = [];
+  const { page } = await openApp((b) => b.action === 'prepare' ? { json: { ok: false, code: 'not_available' } } : null, calls, direct);
+  await type(page, '123456789');
+  await page.waitForTimeout(300);
+  const n = calls.length;
+  await type(page, '987654321');
+  await page.waitForTimeout(300);
+  assert.equal(calls.length, n);
+  assert.equal(direct.length, 2);
+});
+
+test('fallback: other refusals (for example a changed account id) are NOT saved the older way', { skip }, async () => {
+  const calls = []; const direct = [];
+  const { page } = await openApp((b) => b.action === 'prepare' ? { json: { ok: false, code: 'unavailable', message: 'raw' } } : null, calls, direct);
+  await type(page, '123456789');
+  await page.waitForTimeout(300);
+  assert.equal(direct.length, 0);
 });
