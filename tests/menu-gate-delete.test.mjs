@@ -76,13 +76,15 @@ const hidden = (page) => page.evaluate((id) => { const r = document.getElementBy
 const openSettings = (page) => page.evaluate(() => openSettings());
 
 test('hidden before Settings is opened, and shown when the door gives a real answer (the probe sends the login and nothing else)', { skip }, async () => {
-  const { page, probes } = await boot(() => ({ json: { ok: false, code: 'bad_action', message: 'x' } }));
+  const { page, probes } = await boot(() => ({ json: { ok: false, code: 'confirm_text', message: 'Nothing was done.' } }));
   assert.equal(await hidden(page), true);
   assert.equal(probes.length, 0);
   await openSettings(page);
   await page.waitForFunction((id) => { const r = document.getElementById(id); const t = r.closest('.dx-zone') || r; return getComputedStyle(t).display !== 'none'; }, ROW);
   assert.equal(probes.length, 1);
-  assert.deepEqual(Object.keys(probes[0]).sort(), ['action', 'token']);
+  assert.deepEqual(Object.keys(probes[0]).sort(), ['action', 'confirmText', 'token']);
+  assert.equal(probes[0].action, 'request');
+  assert.equal(probes[0].confirmText, 'w1-gate-probe-not-a-phrase');
   assert.equal(probes[0].token, 'test-token');
   await openSettings(page); await page.waitForTimeout(300);
   assert.equal(probes.length, 1, 'a shown row is not probed again');
