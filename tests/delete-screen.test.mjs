@@ -110,7 +110,7 @@ async function openScreen(answer, calls, token, name) {
   }
   return { page, errors };
 }
-const open = async (page) => { await page.click('#dx-menu-row'); await page.waitForSelector('#dx-content .dx-p, #dx-content .dx-status.error, #dx-content .dx-status'); await page.waitForFunction(() => !/^Loading/.test(document.getElementById('dx-content').textContent)); };
+const open = async (page) => { await page.evaluate(() => { const r = document.getElementById('dx-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#dx-menu-row'); await page.waitForSelector('#dx-content .dx-p, #dx-content .dx-status.error, #dx-content .dx-status'); await page.waitForFunction(() => !/^Loading/.test(document.getElementById('dx-content').textContent)); };
 const text = (page, sel) => page.$eval(sel || '#dx-content', (e) => e.textContent);
 const actionsOf = (calls) => calls.map((c) => c.action);
 
