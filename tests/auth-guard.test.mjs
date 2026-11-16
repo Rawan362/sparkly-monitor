@@ -97,8 +97,9 @@ test('every other sign-out path also clears all tokens (admin logout, "signed ou
   assert.ok(admin && admin[0].includes('clearAllAuthStorage()'), 'adminLogout');
   const beat = html.slice(html.indexOf("alert('You were signed out from this device.')") - 200, html.indexOf("alert('You were signed out from this device.')"));
   assert.ok(beat.includes('clearAllAuthStorage()'), 'heartbeat sign-out');
-  const del = /async function deleteAccountNow\(\) \{[\s\S]*?\n\}/.exec(html);
-  assert.ok(del && del[0].includes('clearAllAuthStorage()'), 'deleteAccountNow');
+  // The old direct delete (deleteAccountNow) is gone: the button opens the Delete my business screen, which uses the door.
+  assert.ok(!html.includes('function deleteAccountNow'), 'deleteAccountNow removed');
+  assert.ok(html.includes('openDeleteScreen()'), 'delete button opens the delete screen');
 });
 
 test('no code outside the guard reads the stored login token (nothing can bypass the check)', () => {
