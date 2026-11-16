@@ -172,13 +172,14 @@ test('an expired token is refreshed, and the refreshed token is checked too (Kha
 
 function authSub(token) { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub; }
 
-test('older sellers (ids not starting with web_) are checked against their linked login user, looked up once', async () => {
-  const lookup = (authUserId) => async () => ({ ok: true, json: async () => [{ auth_user_id: authUserId }] });
-  const mismatch = load({ local: { sparkly_auth_token: jwt(KHANI) }, seller: '6150148292', fetchImpl: lookup(DOUBLE_LINE) });
+test('older sellers (ids not starting with web_) are checked through the Seller Own Row door: the login must belong to the seller on screen, asked once', async () => {
+  // The Seller Own Row door says which seller the login belongs to (hasSeller and chatId); the guard compares it with the seller on screen.
+  const lookup = (chatId) => async () => ({ ok: true, json: async () => (chatId === null ? { ok: true, hasSeller: false } : { ok: true, hasSeller: true, chatId }) });
+  const mismatch = load({ local: { sparkly_auth_token: jwt(KHANI) }, seller: '6150148292', fetchImpl: lookup('5550001111') });
   await assert.rejects(() => mismatch.api.getValidAuthToken(), { message: MESSAGE });
   const noLogin = load({ local: { sparkly_auth_token: jwt(KHANI) }, seller: '6150148292', fetchImpl: lookup(null) });
   await assert.rejects(() => noLogin.api.getValidAuthToken(), { message: MESSAGE });
-  const match = load({ local: { sparkly_auth_token: jwt(DOUBLE_LINE) }, seller: '6150148292', fetchImpl: lookup(DOUBLE_LINE) });
+  const match = load({ local: { sparkly_auth_token: jwt(DOUBLE_LINE) }, seller: '6150148292', fetchImpl: lookup('6150148292') });
   await match.api.getValidAuthToken();
   await match.api.getValidAuthToken();
   assert.equal(match.fetches.length, 1); // cached after the first look-up
