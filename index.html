@@ -18279,5 +18279,175 @@ function w1GateRun() { Object.keys(W1_GATE.rows).forEach(function(id) { w1GatePr
 w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overview');
 </script>
 <!-- w1-menu-gate:js:end -->
+<!-- w1-migrate-door:js:start -->
+<script>
+// Upgrade an old chat-ID account to an email login, through the Seller Migrate door (build chat W1).
+// Door: POST /webhook/seller-migrate with { token, action, oldChatId, oldPassword, confirmCode }. "check" writes nothing; "apply" links the login.
+// The OLD password is sent only to that door. It is kept in memory only (never in storage, a URL, a log or the page) and dropped as soon as the flow ends.
+const SELLER_MIGRATE_URL = 'https://sparklly.site/webhook/seller-migrate';
+const W1_MIG = { chatId: '', password: '', email: '', token: '', refresh: '', code: '', account: null, busy: false };
+const W1_MIG_TEXT = {
+  old_number: 'Old account number', old_password: 'Old password', link_btn: 'Link my old account', continue_btn: 'Continue', cancel: 'Cancel',
+  step1_sub: 'Step 1: enter your old account number and old password',
+  step2_sub: 'Step 2: set your new email and password',
+  step3_sub: 'Sign in with the new login you already created',
+  confirm_sub: 'Step 3: check and confirm',
+  email: 'Email', new_password: 'New password (min 8 characters)', password: 'Password', finish_btn: 'Finish setup', signin_btn: 'Sign in and continue',
+  have_login: 'I already created my new login',
+  checking: 'Checking...', working: 'Working...',
+  nothing_until: 'Nothing changes until you press the button.',
+  short_password: 'Password must be at least 8 characters.',
+  need_all: 'Fill in every box.',
+  signup_failed: 'Could not set up the email. It may already be in use.',
+  signin_failed: 'The email or password is not correct.',
+  confirm_email: 'Account created. Confirm your email, sign in, then choose Upgrade again and use "I already created my new login".',
+  linked: 'Your login is now linked.',
+  wrong_old_credentials: 'The old account number or password is not correct.',
+  too_many_attempts: 'Too many wrong attempts. Try again later.',
+  login_has_seller: 'This login already has a business profile. Sign in with it instead.',
+  no_old_account: 'There is no old account to link to.',
+  already_linked: 'This account is already linked.',
+  bad_confirmation: 'The confirmation ran out. Please check again and press the button once more.',
+  too_many_codes: 'Too many checks are open. Wait a few minutes and try again.',
+  undo_unavailable: 'A safety copy could not be saved, so nothing was changed. Try again in a moment.',
+  save_failed: 'The link could not be saved. Nothing was changed. Try again in a moment.',
+  read_failed: 'Your account could not be read. Nothing was changed. Try again in a moment.',
+  unconfirmed: 'We could not confirm the link. Sign in again before you try once more.',
+  not_available: 'Linking is not available yet. Please try again later.',
+  wrong_ids: 'Something went wrong. Try again.'
+};
+function w1MigText(key) { return W1_MIG_TEXT[key] || W1_MIG_TEXT.wrong_ids; }
+function w1MigForgetOld() { W1_MIG.chatId = ''; W1_MIG.password = ''; W1_MIG.code = ''; W1_MIG.account = null; }
+function w1MigReset() { w1MigForgetOld(); W1_MIG.email = ''; W1_MIG.token = ''; W1_MIG.refresh = ''; W1_MIG.busy = false; }
+function w1MigErrorText(a, status) {
+  if (status === 503 || status === 404 || status === 502) return w1MigText('not_available');
+  const code = a && (a.code || a.error);
+  if (code === 'too_many_attempts') {
+    const s = Number(a.retryAfterSeconds);
+    return s > 0 ? w1MigText('too_many_attempts') + ' (about ' + Math.ceil(s / 60) + ' min)' : w1MigText('too_many_attempts');
+  }
+  return W1_MIG_TEXT[code] ? w1MigText(code) : w1MigText('wrong_ids');
+}
+async function w1MigPost(body) {
+  try {
+    const res = await fetch(SELLER_MIGRATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    let json = null;
+    try { json = await res.json(); } catch (e) { json = null; }
+    return { status: res.status, json: json || {} };
+  } catch (e) { return { status: 0, json: {} }; }
+}
+function w1MigCard(sub, err, inner) {
+  const overlay = document.getElementById('login-overlay') || (function () { const o = document.createElement('div'); o.id = 'login-overlay'; document.body.appendChild(o); return o; })();
+  const landing = document.getElementById('landing'); if (landing) landing.remove();
+  document.getElementById('app').style.display = 'none';
+  overlay.innerHTML = '<div id="login-card"><h1>Upgrade your account</h1><p class="login-sub">' + escapeHtml(sub) + '</p>' +
+    (err ? '<div id="login-error">' + escapeHtml(err) + '</div>' : '') + inner + '</div>';
+}
+const W1_MIG_LINK = 'background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;margin-top:2px;';
+function w1MigShow(step, err) {
+  if (step === 'confirm') {
+    const a = W1_MIG.account || {};
+    const line = 'Link ' + (W1_MIG.email || 'your new login') + ' to the old account' + (a.chatIdEnding ? ' ending in ' + a.chatIdEnding : '') + (a.businessName ? ' (' + a.businessName + ')' : '') + '.';
+    w1MigCard(w1MigText('confirm_sub'), err, '<div id="w1-mig-summary">' + escapeHtml(line) + '</div><div id="w1-mig-note" style="font-size:12px;color:var(--text-muted);">' + escapeHtml(w1MigText('nothing_until')) + '</div>' +
+      '<button id="w1-mig-apply" onclick="w1MigApply()">' + escapeHtml(w1MigText('link_btn')) + '</button><button type="button" id="w1-mig-cancel" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+  } else if (step === 3) {
+    w1MigCard(w1MigText('step3_sub'), err, '<input id="migrate-email" type="email" placeholder="' + w1MigText('email') + '" autocomplete="email"><input id="migrate-newpassword" type="password" placeholder="' + w1MigText('password') + '" autocomplete="current-password">' +
+      '<button id="migrate-step3-btn" onclick="w1MigSignIn()">' + escapeHtml(w1MigText('signin_btn')) + '</button><button type="button" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+    const e = document.getElementById('migrate-email'); if (e) e.focus();
+  } else if (step === 2) {
+    w1MigCard(w1MigText('step2_sub'), err, '<input id="migrate-email" type="email" placeholder="' + w1MigText('email') + '" autocomplete="email"><input id="migrate-newpassword" type="password" placeholder="' + w1MigText('new_password') + '" autocomplete="new-password">' +
+      '<button id="migrate-step2-btn" onclick="doMigrateStep2()">' + escapeHtml(w1MigText('finish_btn')) + '</button><button type="button" id="w1-mig-have" onclick="w1MigShow(3)" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('have_login')) + '</button><button type="button" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+    const e = document.getElementById('migrate-email'); if (e) e.focus();
+  } else {
+    w1MigCard(w1MigText('step1_sub'), err, '<input id="migrate-chatid" placeholder="' + w1MigText('old_number') + '" autocomplete="off"><input id="migrate-password" type="password" placeholder="' + w1MigText('old_password') + '" autocomplete="off">' +
+      '<button id="migrate-step1-btn" onclick="doMigrateStep1()">' + escapeHtml(w1MigText('continue_btn')) + '</button><button type="button" onclick="w1MigCancel()" style="' + W1_MIG_LINK + '">' + escapeHtml(w1MigText('cancel')) + '</button>');
+    const e = document.getElementById('migrate-chatid'); if (e) e.focus();
+  }
+}
+function w1MigCancel() { w1MigReset(); showLoginScreen(); }
+window.doMigrateStep1 = async function () {
+  const chatId = document.getElementById('migrate-chatid').value.trim();
+  const password = document.getElementById('migrate-password').value;
+  if (!chatId || !password) { w1MigShow(1, w1MigText('need_all')); return; }
+  W1_MIG.chatId = chatId; W1_MIG.password = password;
+  if (W1_MIG.token) { await w1MigCheck(); return; }
+  w1MigShow(2);
+};
+window.doMigrateStep2 = async function () {
+  if (W1_MIG.busy) return;
+  const email = document.getElementById('migrate-email').value.trim();
+  const password = document.getElementById('migrate-newpassword').value;
+  if (!email || !password || !W1_MIG.chatId) { w1MigShow(2, w1MigText('need_all')); return; }
+  if (password.length < 8) { w1MigShow(2, w1MigText('short_password')); return; }
+  W1_MIG.busy = true;
+  const btn = document.getElementById('migrate-step2-btn'); if (btn) { btn.disabled = true; btn.textContent = w1MigText('working'); }
+  try {
+    const authRes = await fetch(SUPABASE_URL + '/auth/v1/signup', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const authData = await authRes.json();
+    const user = authData.user || (authData.id ? authData : null);
+    if (!authRes.ok || !user) { W1_MIG.busy = false; w1MigShow(2, authData.msg || authData.error_description || w1MigText('signup_failed')); return; }
+    if (!authData.access_token) { w1MigReset(); showLoginScreen(w1MigText('confirm_email')); return; }
+    W1_MIG.email = email; W1_MIG.token = authData.access_token; W1_MIG.refresh = authData.refresh_token || '';
+    W1_MIG.busy = false;
+    await w1MigCheck();
+  } catch (e) { W1_MIG.busy = false; w1MigShow(2, w1MigText('wrong_ids')); }
+};
+async function w1MigSignIn() {
+  if (W1_MIG.busy) return;
+  const email = document.getElementById('migrate-email').value.trim();
+  const password = document.getElementById('migrate-newpassword').value;
+  if (!email || !password) { w1MigShow(3, w1MigText('need_all')); return; }
+  W1_MIG.busy = true;
+  try {
+    const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const d = await res.json();
+    W1_MIG.busy = false;
+    if (!res.ok || !d.access_token) { w1MigShow(3, w1MigText('signin_failed')); return; }
+    W1_MIG.email = email; W1_MIG.token = d.access_token; W1_MIG.refresh = d.refresh_token || '';
+    if (!W1_MIG.chatId || !W1_MIG.password) { w1MigShow(1); return; }
+    await w1MigCheck();
+  } catch (e) { W1_MIG.busy = false; w1MigShow(3, w1MigText('wrong_ids')); }
+}
+async function w1MigCheck(noteText) {
+  if (W1_MIG.busy) return;
+  W1_MIG.busy = true;
+  const r = await w1MigPost({ token: W1_MIG.token, action: 'check', oldChatId: W1_MIG.chatId, oldPassword: W1_MIG.password });
+  W1_MIG.busy = false;
+  const a = r.json;
+  if (r.status === 200 && a.ok && a.confirmCode) { W1_MIG.code = a.confirmCode; W1_MIG.account = { chatIdEnding: a.chatIdEnding || '', businessName: a.businessName || '' }; w1MigShow('confirm', noteText || ''); return; }
+  const code = a && (a.code || a.error);
+  const text = w1MigErrorText(a, r.status);
+  if (code === 'wrong_old_credentials' || code === 'too_many_attempts') { W1_MIG.password = ''; W1_MIG.code = ''; w1MigShow(1, text); return; }
+  w1MigForgetOld(); w1MigShow(1, text);
+}
+async function w1MigApply() {
+  if (W1_MIG.busy || !W1_MIG.code) return;
+  W1_MIG.busy = true;
+  const btn = document.getElementById('w1-mig-apply'); if (btn) { btn.disabled = true; btn.textContent = w1MigText('working'); }
+  const r = await w1MigPost({ token: W1_MIG.token, action: 'apply', oldChatId: W1_MIG.chatId, oldPassword: W1_MIG.password, confirmCode: W1_MIG.code });
+  W1_MIG.busy = false;
+  const a = r.json;
+  if (r.status === 200 && a.ok) {
+    const chatId = (typeof a.chatId === 'string' && a.chatId) || W1_MIG.chatId;
+    const access = W1_MIG.token; const refresh = W1_MIG.refresh;
+    w1MigReset();
+    localStorage.setItem('sparkly_seller_chat_id', chatId);
+    localStorage.setItem('sparkly_auth_token', access);
+    localStorage.setItem('sparkly_refresh_token', refresh);
+    SELLER_CHAT_ID = chatId;
+    const overlay = document.getElementById('login-overlay'); if (overlay) overlay.remove();
+    document.getElementById('app').style.display = 'flex';
+    startApp();
+    return;
+  }
+  const code = a && (a.code || a.error);
+  if (code === 'bad_confirmation') { W1_MIG.code = ''; await w1MigCheck(w1MigText('bad_confirmation')); return; }
+  const text = w1MigErrorText(a, r.status);
+  if (code === 'wrong_old_credentials' || code === 'too_many_attempts') { W1_MIG.password = ''; W1_MIG.code = ''; w1MigShow(1, text); return; }
+  if (code === 'login_has_seller' || code === 'already_linked' || code === 'no_old_account') { w1MigForgetOld(); w1MigShow(1, text); return; }
+  w1MigShow('confirm', text);
+}
+</script>
+<!-- w1-migrate-door:js:end -->
 </body>
 </html>
