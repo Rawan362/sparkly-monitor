@@ -5512,18 +5512,24 @@ function authTokenUserId(token) {
 }
 
 const _sellerAuthUserCache = {};
-// The login user a seller belongs to: web sellers are named web_<login user id>; older sellers are looked up once.
-async function expectedAuthUserId(sellerChatId) {
+const AUTH_GUARD_OWN_ROW_URL = 'https://sparklly.site/webhook/seller-own-row';
+// The login user a seller belongs to: web sellers are named web_<login user id>; for older sellers the Seller Own Row door says which
+// seller THIS login belongs to, and the login belongs to the seller on screen exactly when that is the same chat id. Asked once per login.
+async function expectedAuthUserId(sellerChatId, token) {
   const m = /^web_(.+)$/.exec(String(sellerChatId));
   if (m) return m[1].toLowerCase();
-  if (Object.prototype.hasOwnProperty.call(_sellerAuthUserCache, sellerChatId)) return _sellerAuthUserCache[sellerChatId];
-  const r = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(sellerChatId) + '&select=auth_user_id&limit=1', {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-  });
-  if (!r.ok) throw new Error('Could not verify your login. Please try again.');
-  const rows = await r.json();
-  const id = rows && rows[0] && rows[0].auth_user_id ? String(rows[0].auth_user_id).toLowerCase() : null;
-  _sellerAuthUserCache[sellerChatId] = id;
+  const own = authTokenUserId(token);
+  const key = String(sellerChatId) + '|' + String(own);
+  if (Object.prototype.hasOwnProperty.call(_sellerAuthUserCache, key)) return _sellerAuthUserCache[key];
+  let id = null;
+  try {
+    const r = await fetch(AUTH_GUARD_OWN_ROW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, action: 'me' }) });
+    if (!r.ok) throw new Error('down');
+    const j = await r.json();
+    if (!j || j.ok !== true) throw new Error('refused');
+    id = j.hasSeller === true && own && String(j.chatId) === String(sellerChatId) ? own : null;
+  } catch (e) { throw new Error('Could not verify your login. Please try again.'); }
+  _sellerAuthUserCache[key] = id;
   return id;
 }
 
@@ -5532,7 +5538,7 @@ async function expectedAuthUserId(sellerChatId) {
 async function assertTokenMatchesSeller(token) {
   if (!token || !SELLER_CHAT_ID) return token; // no token: the server refuses it and asks to sign in again (unchanged)
   const have = authTokenUserId(token);
-  const want = await expectedAuthUserId(SELLER_CHAT_ID);
+  const want = await expectedAuthUserId(SELLER_CHAT_ID, token);
   if (!have || !want || have !== want) throw new Error(AUTH_MISMATCH_MESSAGE);
   return token;
 }
@@ -5721,9 +5727,9 @@ async function bnLoad() {
   if (!input || !SELLER_CHAT_ID) return;
   const loadingFor = SELLER_CHAT_ID;
   try {
-    const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name_location&limit=1');
+    const me = await w1MeGet();
     if (loadingFor !== SELLER_CHAT_ID) return;
-    input.value = (rows && rows[0]) ? bnSplit(rows[0].business_name_location).name : '';
+    input.value = (me && me.hasSeller === true) ? (me.businessNameShort || '') : '';
   } catch (e) { debugLog('bnLoad failed: ' + (e && e.message)); }
 }
 window.bnSave = async function() {
@@ -5739,26 +5745,19 @@ window.bnSave = async function() {
   if (btn) btn.disabled = true;
   bnSetMsg('Saving...', false);
   try {
-    // Read the stored text right before saving, so the part after the first comma is exactly what is stored now.
-    const rows = await sb('sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=business_name_location&limit=1');
-    if (!rows || !rows[0]) throw new Error('account not found');
-    const next = name + bnSplit(rows[0].business_name_location).rest;
-    const r = await fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_id', {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-      body: JSON.stringify({ business_name_location: next })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const done = await r.json();
-    if (!Array.isArray(done) || !done.length) throw new Error('not saved');
+    // The Seller Own Row door replaces only the part before the first comma and keeps everything after it, in one checked update with an
+    // undo copy; the screen no longer reads the stored text first.
+    const saved = await w1OwnRowAsk('setBusinessName', { name: name });
+    w1MeForget();
     input.value = name;
     _tplState.businessName = name;
     if (typeof window.nctSetBusinessName === 'function') window.nctSetBusinessName(name);
     tplUpdatePreview();
     bnSetMsg('Saved. Your business name is now "' + name + '".', false);
+    w1BnOfferUndo(saved && saved.undo);
   } catch (e) {
     debugLog('bnSave failed: ' + (e && e.message));
-    bnSetMsg('Could not save your business name. Check your internet connection and try again.', true);
+    bnSetMsg(e && e.doorMessage ? e.doorMessage : 'Could not save your business name. Check your internet connection and try again.', true);
   } finally { _bnBusy = false; if (btn) btn.disabled = false; }
 };
 // From a warning: go to the Business name field (closing the Start a new conversation panel first when it is open).
@@ -6136,7 +6135,7 @@ function tickHtml(state, err) {
 // What WhatsApp reported for this chat. Reports are kept per message id.
 async function fetchDeliveryContext(phone) {
   if (!window._sellerPnid) {
-    try { const r = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=phone_number_id&limit=1'); window._sellerPnid = (r && r[0] && r[0].phone_number_id) || ''; } catch (e) {}
+    try { const me = await w1MeGet(); window._sellerPnid = (me && me.phoneNumberId) || ''; } catch (e) {}
   }
   if (!window._sellerPnid) return null;
   const rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
@@ -14778,11 +14777,9 @@ async function loadBizSettings() {
   const loadingFor = SELLER_CHAT_ID;
   try {
     bnLoad();
-    fetch(SUPABASE_URL + '/rest/v1/sellers?chat_id=eq.' + encodeURIComponent(loadingFor) + '&select=business_name&limit=1', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    }).then(r => r.json()).then(rows => {
+    w1MeGet().then(me => {
       const lbl = document.getElementById('biz-account-label');
-      if (lbl && rows && rows[0] && loadingFor === SELLER_CHAT_ID) lbl.textContent = 'These settings are for: ' + (rows[0].business_name || 'your account');
+      if (lbl && me && me.hasSeller === true && loadingFor === SELLER_CHAT_ID) lbl.textContent = 'These settings are for: ' + (me.businessName || 'your account');
     }).catch(() => {});
     const [settingsRes, configRes, posRes, adConfigRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
@@ -16623,8 +16620,8 @@ function startApp() {
 // run once we know WhatsApp is actually connected.
 async function checkWhatsAppConnectedThenOnboarding() {
   try {
-    const rows = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=phone_number_id&limit=1');
-    const isConnected = rows && rows.length > 0 && rows[0].phone_number_id;
+    const me = await w1MeGet();
+    const isConnected = me && me.hasSeller === true && me.whatsappConnected === true;
     if (!isConnected) {
       document.getElementById('app').style.display = 'none';
       document.getElementById('whatsapp-connect-gate').style.display = 'flex';
@@ -16641,8 +16638,8 @@ async function checkWhatsAppConnectedThenOnboarding() {
 
 async function checkOnboardingNeeded() {
   try {
-    const rows = await sb('sellers?chat_id=eq.' + SELLER_CHAT_ID + '&select=business_name_location&limit=1');
-    const needsOnboarding = !rows || rows.length === 0 || !rows[0].business_name_location;
+    const me = await w1MeGet();
+    const needsOnboarding = !me || me.hasSeller !== true || me.onboardingDone !== true;
     if (needsOnboarding) {
       document.getElementById('app').style.display = 'none';
       document.getElementById('onboarding-overlay').style.display = 'flex';
@@ -17871,5 +17868,87 @@ window.closeSalesScreen = function() {
 };
 </script>
 <!-- w1-sales-screen:js:end -->
+<!-- w1-own-row-calls:js:start -->
+<script>
+// The seller's own row (business name, whether a WhatsApp number is connected, whether onboarding is done) is now asked from the
+// Seller Own Row door (POST /webhook/seller-own-row, backend PR 236) with the person's own login, instead of reading and writing the
+// sellers table with the public key. "me" is read once and kept for a short time; changing the business name goes through the door
+// (limits checked, an undo copy kept) and gets an Undo button.
+const W1_ME_TTL_MS = 20000;
+const W1_ME_TEXT = {
+  notAvailable: 'This is not available right now. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not read your account right now. Try again in a moment.',
+  undo: 'Undo', undoFailed: 'The business name could not be put back. Nothing was changed.'
+};
+const _w1Me = { chat: null, at: 0, value: null, pending: null };
+
+// One door call with the current login (the same login check as every other call). Throws an Error with the door's plain words
+// in .doorMessage when the door answers with a refusal.
+async function w1OwnRowAsk(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) { const e = new Error(W1_ME_TEXT.relogin); e.doorMessage = W1_ME_TEXT.relogin; throw e; }
+  let r;
+  try {
+    r = await fetch('https://sparklly.site/webhook/seller-own-row', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { const err = new Error(W1_ME_TEXT.noConnection); err.doorMessage = W1_ME_TEXT.noConnection; throw err; }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { const err = new Error(W1_ME_TEXT.notAvailable); err.doorMessage = W1_ME_TEXT.notAvailable; throw err; }
+  let j;
+  try { j = await r.json(); } catch (e) { const err = new Error(W1_ME_TEXT.failed); err.doorMessage = W1_ME_TEXT.failed; throw err; }
+  if (!j || j.ok !== true) {
+    const text = j && j.error === 'not_logged_in' ? W1_ME_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_ME_TEXT.failed);
+    const err = new Error(text); err.doorMessage = text; err.code = j && j.error; throw err;
+  }
+  return j;
+}
+
+// The seller's own row facts, kept for 20 seconds so the checks that run together at start-up ask once. Throws when the door cannot answer.
+function w1MeGet(force) {
+  const now = Date.now();
+  if (!force && _w1Me.chat === SELLER_CHAT_ID && _w1Me.value && now - _w1Me.at < W1_ME_TTL_MS) return Promise.resolve(_w1Me.value);
+  if (!force && _w1Me.pending && _w1Me.chat === SELLER_CHAT_ID) return _w1Me.pending;
+  const chat = SELLER_CHAT_ID;
+  const p = w1OwnRowAsk('me').then(function(j) { _w1Me.chat = chat; _w1Me.value = j; _w1Me.at = Date.now(); _w1Me.pending = null; return j; }, function(e) { _w1Me.pending = null; throw e; });
+  _w1Me.pending = p; _w1Me.chat = chat;
+  return p;
+}
+function w1MeForget() { _w1Me.value = null; _w1Me.at = 0; }
+
+// ---- The business name: Undo after a save (puts the old text back only while nothing changed since).
+function w1BnApply(shortName) {
+  const input = document.getElementById('bn-input');
+  if (input) input.value = shortName;
+  _tplState.businessName = shortName;
+  if (typeof window.nctSetBusinessName === 'function') window.nctSetBusinessName(shortName);
+  tplUpdatePreview();
+}
+function w1BnOfferUndo(undo) {
+  let btn = document.getElementById('w1-bn-undo');
+  if (!undo || typeof undo.ifCurrentIs !== 'string' || (undo.restoreTo !== null && typeof undo.restoreTo !== 'string')) { if (btn) btn.remove(); return; }
+  if (!btn) {
+    btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bn-undo'; btn.textContent = W1_ME_TEXT.undo;
+    btn.style.cssText = 'margin-left:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:8px;padding:4px 10px;font-size:12.5px;cursor:pointer;';
+    const msg = document.getElementById('bn-msg');
+    if (msg && msg.parentNode) msg.parentNode.insertBefore(btn, msg.nextSibling);
+  }
+  btn.disabled = false; btn.style.display = '';
+  btn.onclick = function() { w1BnUndo(undo, btn); };
+}
+async function w1BnUndo(undo, btn) {
+  btn.disabled = true;
+  try {
+    const r = await w1OwnRowAsk('undoBusinessName', { restoreTo: undo.restoreTo, ifCurrentIs: undo.ifCurrentIs });
+    w1MeForget();
+    w1BnApply(bnSplit(undo.restoreTo === null ? '' : undo.restoreTo).name);
+    bnSetMsg(typeof r.message === 'string' && r.message ? r.message : 'The business name was put back.', false);
+    btn.remove();
+  } catch (e) {
+    bnSetMsg(e && e.doorMessage ? e.doorMessage : W1_ME_TEXT.undoFailed, true);
+    btn.remove();
+  }
+}
+</script>
+<!-- w1-own-row-calls:js:end -->
 </body>
 </html>

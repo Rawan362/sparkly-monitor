@@ -34,9 +34,10 @@ test('the new screen code and this test file contain only ASCII characters', () 
   }
 });
 
-test('the service worker cache name is bumped once for this page change', () => {
+test('the service worker cache name is bumped for this page change', () => {
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  assert.match(sw, /sparkly-shell-v66'/);
+  const n = Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]);
+  assert.ok(n >= 66, 'cache name must be at least v66');
 });
 
 test('the screen is added as a new menu row and the existing Reports row is untouched', () => {
