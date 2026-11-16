@@ -19250,8 +19250,8 @@ function rsShow(r) {
 // The probe sends one harmless request per row and per visit (a read, or an action the door does not know: it writes nothing).
 const W1_GATE = { rows: {}, started: false };
 function w1GateTarget(row) { return row.closest('.dx-zone') || row; }
-function w1GateRegister(rowId, url, action) {
-  W1_GATE.rows[rowId] = { url: url, action: action, state: 'hidden', busy: false };
+function w1GateRegister(rowId, url, action, extra) {
+  W1_GATE.rows[rowId] = { url: url, action: action, extra: extra || null, state: 'hidden', busy: false };
   const row = document.getElementById(rowId);
   if (row) w1GateTarget(row).style.display = 'none';
 }
@@ -19263,7 +19263,7 @@ async function w1GateProbe(rowId) {
     let token = null;
     try { token = await getValidAuthToken(); } catch (e) { token = null; }
     if (!token) return;
-    const r = await fetch(g.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, action: g.action }) });
+    const r = await fetch(g.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: g.action }, g.extra || {})) });
     if (r.status === 503 || r.status === 404 || r.status === 502) return;
     let j = null;
     try { j = await r.json(); } catch (e) { return; }
@@ -19286,7 +19286,8 @@ w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overv
 <!-- w1-menu-gate-delete:js:start -->
 <script>
 // Hides the Delete my business menu entry until its door answers (see the w1-menu-gate block).
-w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-business', 'status');
+// The Delete door checks the seller before the confirm text: a seller not on its list gets not_available, a listed one gets a refusal (confirm_text) and nothing is done.
+w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-business', 'request', { confirmText: 'w1-gate-probe-not-a-phrase' });
 </script>
 <!-- w1-menu-gate-delete:js:end -->
 <!-- w1-menu-gate-alerts:js:start -->
