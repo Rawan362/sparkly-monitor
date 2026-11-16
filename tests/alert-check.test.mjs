@@ -98,7 +98,7 @@ async function openScreen(reply, calls, token) {
       break;
     } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
   }
-  await page.click('#ac-menu-row');
+  await page.evaluate(() => { const r = document.getElementById('ac-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ac-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#ac-menu-row');
   return { page, errors };
 }
 const result = (page) => page.$eval('#ac-result', (e) => e.textContent);
