@@ -5633,6 +5633,8 @@ async function loadValidAuthToken() {
 async function getValidAuthToken() {
   return assertTokenMatchesSeller(await loadValidAuthToken());
 }
+// Read for the sign-out call only (the sessions door needs the login token before storage is cleared).
+function w1StoredLoginToken() { try { return localStorage.getItem('sparkly_auth_token'); } catch (e) { return null; } }
 // </auth-guard>
 
 async function callSellerCalling(action, enabled) {
@@ -9988,11 +9990,10 @@ async function deleteAccountNow() {
 
 window.logout = function() {
   const token = localStorage.getItem('sparkly_session_token');
-  if (token) {
-    fetch(SUPABASE_URL + '/rest/v1/sessions?session_token=eq.' + encodeURIComponent(token), {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    }).catch(() => {});
+  const authToken = w1StoredLoginToken();
+  if (token && authToken) {
+    // Fire and forget; keepalive lets the request finish while the page reloads.
+    w1SessionsPost(authToken, 'logout', { sessionToken: token }, true);
   }
   clearAllAuthStorage();
   location.reload();
@@ -16128,20 +16129,22 @@ async function renderDevicesList() {
   const myToken = localStorage.getItem('sparkly_session_token');
   const list = document.getElementById('devices-list');
   list.innerHTML = '<div id="loading"><div class="spinner"></div></div>';
-  const rows = await sb('sessions?seller_id=eq.' + SELLER_CHAT_ID + '&select=id,session_token,device_label,last_seen_at&order=last_seen_at.desc').catch(() => []);
+  // The door lists this seller's devices (newest first) and marks this one with isThisDevice. It never returns a session token.
+  const listed = await w1SessionsCall('list', { sessionToken: myToken });
+  const rows = listed && listed.ok === true && Array.isArray(listed.devices) ? listed.devices : [];
 
   if (!rows || rows.length === 0) {
     list.innerHTML = '<div id="loading">' + t('no_devices_found') + '</div>';
     return;
   }
   list.innerHTML = rows.map(r => {
-    const isThis = r.session_token === myToken;
+    const isThis = r.isThisDevice === true;
     return `
     <div class="device-row">
       <div class="device-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg></div>
       <div class="device-info">
-        <div class="device-label">${escapeHtml(r.device_label || t('unknown_device'))}${isThis ? ' <span class="device-this-tag">' + t('this_device') + '</span>' : ''}</div>
-        <div class="device-time">${t('last_active')} ${timeAgo(r.last_seen_at)}</div>
+        <div class="device-label">${escapeHtml(r.deviceLabel || t('unknown_device'))}${isThis ? ' <span class="device-this-tag">' + t('this_device') + '</span>' : ''}</div>
+        <div class="device-time">${t('last_active')} ${timeAgo(r.lastSeenAt)}</div>
       </div>
       ${!isThis ? `<button class="device-signout-btn" onclick="signOutDevice('${r.id}')">${t('sign_out')}</button>` : ''}
     </div>`;
@@ -16152,10 +16155,7 @@ window.signOutDevice = async function(sessionId) {
   const ok = confirm(t('sign_out_device_confirm'));
   if (!ok) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/sessions?id=eq.' + sessionId, {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
+    await w1SessionsCall('signOutDevice', { deviceId: sessionId });
   } catch (e) {}
   await renderDevicesList();
 };
@@ -16534,11 +16534,7 @@ async function ensureSession() {
     localStorage.setItem('sparkly_session_token', token);
   }
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/sessions?on_conflict=session_token', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ session_token: token, seller_id: SELLER_CHAT_ID, device_label: detectDeviceLabel(), last_seen_at: new Date().toISOString() })
-    });
+    await w1SessionsCall('ensure', { sessionToken: token, deviceLabel: detectDeviceLabel() });
   } catch (e) {}
 }
 
@@ -16549,18 +16545,14 @@ async function heartbeatSession() {
   sessionCheckCounter++;
   if (sessionCheckCounter % 6 !== 0) return; // roughly every ~48s, not every poll
   try {
-    const rows = await sb('sessions?session_token=eq.' + encodeURIComponent(token) + '&select=id');
-    if (!rows || rows.length === 0) {
+    // The door moves last_seen_at and says whether this device still has a session (active false: signed out from another device).
+    const r = await w1SessionsCall('heartbeat', { sessionToken: token });
+    if (r && r.ok === true && r.active === false) {
       clearAllAuthStorage();
       alert('You were signed out from this device.');
       location.reload();
       return;
     }
-    await fetch(SUPABASE_URL + '/rest/v1/sessions?session_token=eq.' + encodeURIComponent(token), {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ last_seen_at: new Date().toISOString() })
-    });
   } catch (e) {}
 }
 
@@ -17935,6 +17927,38 @@ window.closeSalesScreen = function() {
 };
 </script>
 <!-- w1-sales-screen:js:end -->
+<!-- w1-sessions-door:js:start -->
+<script>
+// Device sessions (ensure, heartbeat, log out, list, sign out another device) now go through the Seller Sessions door
+// (POST /webhook/seller-sessions) with the person's own login, instead of reading and writing the sessions table with the public key.
+// The door never returns a session token: the device list carries an isThisDevice flag instead. The session token itself is still made
+// by this browser (crypto.randomUUID, kept in localStorage) and only travels TO the door.
+// A device linked with a code has no login token of its own; for it these calls do nothing (it keeps working, it just has no session row).
+const SELLER_SESSIONS_URL = 'https://sparklly.site/webhook/seller-sessions';
+
+async function w1SessionsPost(token, action, extra, keepalive) {
+  try {
+    const r = await fetch(SELLER_SESSIONS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})),
+      keepalive: !!keepalive
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+
+// The door call with the current login. Never throws: no login (a device linked with a code) or a problem is an answer with ok false.
+async function w1SessionsCall(action, extra) {
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { ok: false, error: 'no_login' };
+  return w1SessionsPost(token, action, extra, false);
+}
+</script>
+<!-- w1-sessions-door:js:end -->
 <!-- w1-ads-screen:js:start -->
 <script>
 // Ads screen (build chat W1, screen 2). Door: POST /webhook/seller-ads with { token, action, ... }. The login decides the seller.
