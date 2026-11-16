@@ -15336,7 +15336,7 @@ window.removeInvoiceLogo = async function() {
 };
 
 async function saveBotSetting(key, value) {
-  if (w1BotHandles(key)) return w1BotDoorSet(key, value);
+  if (w1BotHandles(key) && await w1BotTry(key, value)) return; // W1-FALLBACK-REMOVE: when the door says not_available the older direct write below runs; remove this line once the door is open to everyone
   const res = await fetch(SUPABASE_URL + '/rest/v1/bot_settings?on_conflict=chat_id,key', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -17575,22 +17575,25 @@ const W1_BOT_TEXT = {
   undo: 'Undo last change', undone: 'The change was undone.', undoFailed: 'The change could not be undone. Nothing was changed.'
 };
 const W1_BOT_UNDO_SHOW_MS = 10000;
-const W1_BOT = { loaded: null, value: {}, effective: {}, limits: {}, undo: null, timer: null };
+const W1_BOT = { loaded: null, value: {}, effective: {}, limits: {}, undo: null, timer: null, fallback: false };
+function w1BotNotAvailable() { const e = new Error(W1_BOT_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
 
 function w1BotHandles(key) { return W1_BOT_KEYS.indexOf(key) >= 0; }
 
 async function w1BotCall(action, extra) {
+  if (W1_BOT.fallback) throw w1BotNotAvailable();
   const token = await getValidAuthToken();
   if (!token) throw new Error(W1_BOT_TEXT.relogin);
   let r;
   try {
     r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
   } catch (e) { throw new Error(W1_BOT_TEXT.noConnection); }
-  if (r.status === 503 || r.status === 404 || r.status === 502) throw new Error(W1_BOT_TEXT.notAvailable);
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1BotNotAvailable();
   let j;
   try { j = await r.json(); } catch (e) { throw new Error(W1_BOT_TEXT.failed); }
   if (!j || j.ok !== true) {
-    const code = j && j.error;
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1BotNotAvailable();
     if (code === 'not_logged_in') throw new Error(W1_BOT_TEXT.relogin);
     // The door words its own refusals in plain language (a value outside its limits, saving switched off, and so on).
     throw new Error(j && typeof j.message === 'string' && j.message ? j.message : W1_BOT_TEXT.failed);
@@ -17639,14 +17642,20 @@ document.addEventListener('focusin', function(e) {
 
 // Called by the screen's saveBotSetting for the 14 keys. Throws an Error with a plain message when the door refuses.
 async function w1BotDoorSet(key, value) {
-  try { await w1BotLoad(); } catch (e) { w1BotShow(key, W1_BOT.value[key]); throw e; }
+  try { await w1BotLoad(); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, W1_BOT.value[key]); throw e; }
   const was = W1_BOT.effective[key];
   const wasValue = W1_BOT.value[key];
   let r;
-  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { w1BotShow(key, wasValue); throw e; }
+  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, wasValue); throw e; }
   W1_BOT.value[key] = String(r.after);
   W1_BOT.effective[key] = String(r.after);
   if (r.changed === true) w1BotOfferUndo(key, r.before === null || r.before === undefined ? was : r.before);
+}
+
+// Door first; when it answers not_available (the seller is not on its list yet) the screen keeps the older direct write, exactly as before.
+async function w1BotTry(key, value) {
+  if (W1_BOT.fallback) return false;
+  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
 }
 
 // ---- Undo: a short-lived button; it sends the old value back through the same door (limits checked, a new undo copy kept).

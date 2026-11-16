@@ -23,7 +23,7 @@ test('the new bot settings code and this test file contain only ASCII characters
   const start = html.indexOf('w1-bot-settings-door:js:start');
   const end = html.indexOf('w1-bot-settings-door:js:end');
   assert.ok(start > 0 && end > start, 'marked block missing');
-  const hook = html.split('\n').filter((l) => l.includes('if (w1BotHandles(key)) return w1BotDoorSet(key, value);'));
+  const hook = html.split('\n').filter((l) => l.includes('W1-FALLBACK-REMOVE'));
   assert.equal(hook.length, 1);
   const files = { 'this test file': fs.readFileSync(fileURLToPath(import.meta.url), 'utf8'), block: html.slice(start, end), hook: hook.join('\n') };
   for (const [name, text] of Object.entries(files)) {
@@ -172,9 +172,8 @@ test('a refused switch stays where it was', { skip }, async () => {
   assert.deepEqual(await page.evaluate(() => window.__alerts), ['Could not save: We could not save the change. Nothing was changed.']);
 });
 
-test('the door not being live, a missing login and a lost connection are told in plain words, and nothing is written to the table', { skip }, async () => {
+test('a missing login is told in plain words and nothing is written to the table (a door that is not live falls back to the older write: see the fallback tests)', { skip }, async () => {
   const cases = [
-    [() => ({ status: 503, json: {} }), 'test-token', 'Could not save: Saving is not available yet. Please try again later.'],
     [() => ({ json: { ok: false, error: 'not_logged_in', message: 'Please log in again.' } }), 'test-token', 'Could not save: Please sign out and sign in again, then try once more.']
   ];
   for (const [answer, token, expected] of cases) {
@@ -250,4 +249,48 @@ test('only read and set are ever sent, and the older reading of the settings is 
   assert.ok(calls.every((c) => ['get', 'set'].includes(c.action)));
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.ok(html.includes("fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {"));
+});
+
+// ---- Fallback: a seller who is not on the door's list gets not_available; the older direct write runs exactly as before. ----
+const NOT_AVAILABLE = (b) => ({ json: { ok: false, error: 'not_available', code: 'not_available', message: 'raw' } });
+
+test('fallback: when the door answers not_available the value is saved the older way (one direct write, same body), no error is shown and the typed value stays', { skip }, async () => {
+  const calls = []; const direct = [];
+  const { page, errors } = await openBusiness(NOT_AVAILABLE, calls, direct);
+  await typeInto(page, 'biz-broadcast-message', 'Hello there');
+  await page.waitForTimeout(300);
+  assert.deepEqual(direct, [{ chat_id: 'seller-test', key: 'broadcast_message', value: 'Hello there' }]);
+  assert.equal(await page.$eval('#biz-broadcast-message', (e) => e.value), 'Hello there');
+  assert.equal(await page.$('#w1-bot-undo'), null);
+  assert.deepEqual(await page.evaluate(() => window.__alerts), []);
+  assert.deepEqual(errors, []);
+});
+
+test('fallback: an HTTP 503 from the door does the same, and once not_available is known the door is not asked again in this visit', { skip }, async () => {
+  const calls = []; const direct = [];
+  const { page } = await openBusiness(() => ({ status: 503, json: {} }), calls, direct);
+  await typeInto(page, 'biz-broadcast-message', 'One');
+  await page.waitForTimeout(300);
+  const after1 = calls.length;
+  await typeInto(page, 'biz-broadcast-message', 'Two');
+  await page.waitForTimeout(300);
+  assert.deepEqual(direct.map((d) => d.value), ['One', 'Two']);
+  assert.equal(calls.length, after1, 'no further door calls');
+});
+
+test('fallback: a switch is saved the older way too (the switch moves after the direct write)', { skip }, async () => {
+  const calls = []; const direct = [];
+  const { page } = await openBusiness(NOT_AVAILABLE, calls, direct);
+  await page.click('#biz-toggle-global_ai_active');
+  await page.waitForTimeout(400);
+  assert.equal(direct.length, 1);
+  assert.equal(direct[0].key, 'global_ai_active');
+});
+
+test('fallback: other door refusals (a value outside the limits) are NOT sent the old way', { skip }, async () => {
+  const calls = []; const direct = [];
+  const { page } = await openBusiness((b) => b.action === 'set' ? { json: { ok: false, error: 'out_of_range', message: 'Must be at most 365.' } } : null, calls, direct);
+  await typeInto(page, 'biz-broadcast-interval', '999');
+  await page.waitForTimeout(400);
+  assert.equal(direct.length, 0);
 });
