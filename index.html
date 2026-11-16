@@ -10001,28 +10001,12 @@ window.doMigrateStep2 = async function() {
   }
 };
 
+// "Delete my account" opens the Delete my business screen: a typed confirmation, a saved copy first, a waiting time, an undo window and a
+// count report, all through the Seller Delete Business door (with the person's login). The old one-step delete (a database function called
+// with the public key) is gone.
 window.confirmDeleteAccount = function() {
-  const typed = prompt(t('delete_confirm'));
-  if (typed !== 'DELETE') return;
-  deleteAccountNow();
+  if (typeof openDeleteScreen === 'function') openDeleteScreen();
 };
-
-async function deleteAccountNow() {
-  try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/delete_seller_account', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_chat_id: SELLER_CHAT_ID })
-    });
-    if (!res.ok) throw new Error('Server error');
-    clearAllAuthStorage();
-    await clearLocalMediaCache();
-    alert('Your account and all associated data have been deleted.');
-    location.reload();
-  } catch (e) {
-    alert('Failed to delete account: ' + e.message + '\nPlease try again, or contact support.');
-  }
-}
 
 window.logout = function() {
   const token = localStorage.getItem('sparkly_session_token');
