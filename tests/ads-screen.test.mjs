@@ -124,7 +124,7 @@ function standard(extra) {
   };
 }
 // Waits until the first load is finished (the "Loading" line is replaced by the list, or by a plain-words problem).
-const open = async (page) => { await page.evaluate(() => { document.getElementById('ax-menu-row').style.display = ''; }); await page.click('#ax-menu-row'); await page.waitForFunction(() => { const c = document.getElementById('ax-content'); return c && c.textContent !== '' && !/^Loading your ads/.test(c.textContent); }); };
+const open = async (page) => { await page.evaluate(() => { document.getElementById('ax-menu-row').style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#ax-menu-row'); await page.waitForFunction(() => { const c = document.getElementById('ax-content'); return c && c.textContent !== '' && !/^Loading your ads/.test(c.textContent); }); };
 const text = (page, sel) => page.$eval(sel, (e) => e.textContent);
 const actionsOf = (calls) => calls.map((c) => c.action);
 
