@@ -20134,6 +20134,7 @@ function bkRender() {
   const m2 = bkEl('div', 'bk-msg'); m2.id = 'bk-barcode-msg'; bc.appendChild(m2);
   const res2 = bkEl('div'); res2.id = 'bk-barcode-result'; bc.appendChild(res2);
   box.appendChild(bc);
+  if (typeof w1UndoSection === 'function') box.appendChild(w1UndoSection());
 }
 
 // ---------------------------------------------------------------- import
@@ -20368,6 +20369,7 @@ window.bkPressConfirm = async function() {
   BK_state.confirming = true;
   document.getElementById('bk-confirm-go').disabled = true;
   BK_state.pending = null;
+  if (p.kind === 'undo' && typeof w1UndoConfirm === 'function') { await w1UndoConfirm(p); return; }
   if (p.kind === 'import') {
     const extra = { csv: BK_state.csv, digest: BK_state.digest };
     if (Object.keys(BK_state.mapping).length) extra.mapping = Object.assign({}, BK_state.mapping);
@@ -20377,6 +20379,7 @@ window.bkPressConfirm = async function() {
       BK_state.digest = ''; BK_state.willImport = 0;
       const holder = document.getElementById('bk-check-result'); if (holder) holder.textContent = '';
       bkSet('bk-import-msg', BK_TEXT.imported + bkNum(r.imported) + BK_TEXT.importedSkipped + bkNum(r.skipped) + BK_TEXT.importedRefused + bkNum(r.errors), false);
+      if (typeof w1UndoRefresh === 'function') w1UndoRefresh();
       return;
     }
     if (r && (r.error === 'changed')) { BK_state.digest = ''; const imp = document.getElementById('bk-import'); if (imp) imp.disabled = true; }
@@ -20391,6 +20394,7 @@ window.bkPressConfirm = async function() {
     if (r && r.ok === true) {
       const res = document.getElementById('bk-barcode-result'); if (res) res.textContent = '';
       bkSet('bk-barcode-msg', r.unchanged === true ? BK_TEXT.linkedAlready : BK_TEXT.linked, false);
+      if (typeof w1UndoRefresh === 'function') w1UndoRefresh();
       return;
     }
     bkSet('bk-barcode-msg', bkErrorText(r), true);
@@ -20417,6 +20421,195 @@ window.closeImportBarcode = function() {
 };
 </script>
 <!-- w1-import-barcode:js:end -->
+<!-- w1-undo-buttons:js:start -->
+<script>
+// Undo section of the Import and barcodes screen (build chat W1). Door: POST /webhook/seller-stock-invoices, actions undoCheck and undoApply.
+// Four undo buttons, each one only while there is something to undo: the last CSV import (hides the imported products, never deletes),
+// the last barcode link (puts the old code back), the last stock change, and the last invoice ("Cancel this invoice": a soft cancel that
+// marks the order CANCELLED and keeps the order and its lines; it works only while the invoice has not been numbered, sent or paid).
+// Every undo shows its dry run first (undoCheck writes nothing), then asks in words, then one Confirm sends undoApply with the digest.
+// Words are in UD_TEXT. Counts only: no values are ever shown from a refusal.
+const UD_KINDS = ['csvApply', 'barcodeLink', 'stockSet', 'invoiceCreate'];
+const UD_TEXT = {
+  title: 'Undo', refresh: 'Refresh', checking: 'Checking...',
+  none: 'Nothing to undo right now.',
+  buttons: { csvApply: 'Undo last import', barcodeLink: 'Undo last barcode link', stockSet: 'Undo last stock change', invoiceCreate: 'Cancel this invoice' },
+  hide1: 'Hide the ', hide2: ' products you imported?', hideOne: 'Hide the 1 product you imported?', hideNote: ' They are hidden, not deleted.',
+  summaryImport1: 'Last import: ', summaryImport2: ' products, ',
+  summaryLink1: 'Last barcode link: ', summaryLink2: ' (', summaryLink3: ' to ', noCode: 'no barcode',
+  putBackCode1: 'Put the old barcode back on ', putBackCode2: '?', putBackNone: 'Take the barcode off ',
+  summaryStock1: 'Last stock change: ', summaryStock2: ', ', summaryStock3: ' to ',
+  putBackStock1: 'Put the stock of ', putBackStock2: ' back to ', putBackStock3: '?', putBackNotTracked: ' back to not tracked?',
+  notTracked: 'not tracked',
+  summaryInvoice1: 'Last invoice: order ', summaryInvoice2: ', ', summaryInvoice3: ' lines, total ',
+  cancelConfirm: 'Mark this order as cancelled. The order and its lines are kept.',
+  cancelRule: 'Cancel only works while the invoice has not been numbered, sent or paid. Nothing is deleted.',
+  undone: 'The change was undone.',
+  cancelled: 'The order was cancelled. Nothing was deleted: the order and its lines are kept and the order shows as cancelled.',
+  changedSinceImport1: ' of ', changedSinceImport2: ' products were changed after the import, so it cannot be undone automatically.',
+  changedSinceGeneric: 'Cannot be undone any more: the products were changed after it. Nothing was changed.',
+  invoiceBlocked: 'This order was already changed, sent or paid, so it cannot be cancelled here. Correct it in the invoice system.',
+  invoiceWhy: ' Why: ', whyChanged: 'it was changed or numbered', whySent: 'it was sent', whyPaid: 'a payment was recorded', whyMissing: 'it is gone',
+  barcodeInUse: 'The old barcode now belongs to another product, so this cannot be undone. Nothing was changed.',
+  newerChange: 'A newer change appeared. Checking again.',
+  refreshFirst: 'Nothing was changed, or it is not known. Press Refresh and look at your list before you try again.',
+  doNotRetry: 'We did not get a confirmation in time. Do not try again: press Refresh and look at your list first.',
+  notAvailable: 'Not available yet.',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Press Refresh and look at your list before you try again.'
+};
+const UD_state = { plans: {}, busy: false, loaded: false };
+
+function udEl(tag, cls, text) { return bkEl(tag, cls, text); }
+function udMsg(text, isError) {
+  const el = document.getElementById('w1u-msg');
+  if (el) { el.textContent = text; el.className = 'bk-msg' + (isError ? ' error' : ''); }
+}
+
+function udRefusalText(kind, r) {
+  const code = r && (r.error || r.code);
+  const c = (r && r.counts) || {};
+  if (code === 'relogin' || code === 'not_logged_in' || code === 'no_seller') return UD_TEXT.relogin;
+  if (code === 'not_available') return UD_TEXT.notAvailable;
+  if (code === 'network') return UD_TEXT.noConnection;
+  if (code === 'barcode_in_use') return UD_TEXT.barcodeInUse;
+  if (code === 'changed') return UD_TEXT.newerChange;
+  if (code === 'unconfirmed') return UD_TEXT.doNotRetry;
+  if (code === 'undo_unavailable' || code === 'save_failed') return UD_TEXT.refreshFirst;
+  if (code === 'changed_since') {
+    if (kind === 'invoiceCreate') {
+      const why = [];
+      if (Number(c.changed) === 1) why.push(UD_TEXT.whyChanged);
+      if (Number(c.sent) === 1) why.push(UD_TEXT.whySent);
+      if (Number(c.paid) === 1) why.push(UD_TEXT.whyPaid);
+      if (Number(c.missing) === 1) why.push(UD_TEXT.whyMissing);
+      return UD_TEXT.invoiceBlocked + (why.length ? UD_TEXT.invoiceWhy + why.join(', ') + '.' : '');
+    }
+    if (kind === 'csvApply' && Number(c.total) > 0) return bkNum((Number(c.changed) || 0) + (Number(c.missing) || 0)) + UD_TEXT.changedSinceImport1 + bkNum(c.total) + UD_TEXT.changedSinceImport2;
+    return UD_TEXT.changedSinceGeneric;
+  }
+  return UD_TEXT.failed;
+}
+
+function udSummaryText(kind, s) {
+  if (kind === 'csvApply') return UD_TEXT.summaryImport1 + bkNum(s.products) + UD_TEXT.summaryImport2 + udDate(s.changedAt);
+  if (kind === 'barcodeLink') return UD_TEXT.summaryLink1 + String(s.productName || '') + UD_TEXT.summaryLink2 + (s.from ? String(s.from) : UD_TEXT.noCode) + UD_TEXT.summaryLink3 + String(s.to || '') + '), ' + udDate(s.changedAt);
+  if (kind === 'stockSet') return UD_TEXT.summaryStock1 + String(s.productName || '') + UD_TEXT.summaryStock2 + udStock(s.to) + UD_TEXT.summaryStock3 + udStock(s.from) + ', ' + udDate(s.changedAt);
+  return UD_TEXT.summaryInvoice1 + String(s.orderId) + UD_TEXT.summaryInvoice2 + bkNum(s.lines) + UD_TEXT.summaryInvoice3 + (s.total === null || s.total === undefined ? '-' : bkNum(s.total)) + ', ' + udDate(s.changedAt);
+}
+function udStock(side) {
+  if (!side || side.tracked === false || side.quantity === null || side.quantity === undefined) return UD_TEXT.notTracked;
+  return bkNum(side.quantity);
+}
+function udDate(iso) {
+  const ms = Date.parse(iso);
+  if (!isFinite(ms)) return '';
+  try { return new Date(ms).toLocaleString(currentLang, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return new Date(ms).toISOString(); }
+}
+
+// What the seller is asked to confirm, in words (the door's summary has the exact numbers).
+function udConfirmText(kind, s) {
+  if (kind === 'csvApply') return (Number(s.products) === 1 ? UD_TEXT.hideOne : UD_TEXT.hide1 + bkNum(s.products) + UD_TEXT.hide2) + UD_TEXT.hideNote;
+  if (kind === 'barcodeLink') return (s.from ? UD_TEXT.putBackCode1 + String(s.productName || '') + UD_TEXT.putBackCode2 : UD_TEXT.putBackNone + String(s.productName || '') + '?');
+  if (kind === 'stockSet') {
+    const from = s.from || {};
+    return from.tracked === false || from.quantity === null || from.quantity === undefined
+      ? UD_TEXT.putBackStock1 + String(s.productName || '') + UD_TEXT.putBackNotTracked
+      : UD_TEXT.putBackStock1 + String(s.productName || '') + UD_TEXT.putBackStock2 + bkNum(from.quantity) + UD_TEXT.putBackStock3;
+  }
+  return UD_TEXT.cancelConfirm + ' ' + UD_TEXT.cancelRule;
+}
+
+// ---- Hook 1: the section drawn by the Import and barcodes screen.
+function w1UndoSection() {
+  const wrap = udEl('div'); wrap.id = 'w1u-section';
+  wrap.appendChild(udEl('div', 'bk-title', UD_TEXT.title));
+  const card = udEl('div', 'bk-card');
+  const rows = udEl('div'); rows.id = 'w1u-rows'; card.appendChild(rows);
+  card.appendChild(udEl('div', 'bk-small', UD_TEXT.cancelRule));
+  const msg = udEl('div', 'bk-msg'); msg.id = 'w1u-msg'; card.appendChild(msg);
+  const row = udEl('div', 'bk-row'); row.appendChild(bkBtn(UD_TEXT.refresh, function() { w1UndoRefresh(); }, 'w1u-refresh')); card.appendChild(row);
+  wrap.appendChild(card);
+  setTimeout(function() { w1UndoRefresh(); }, 0);
+  return wrap;
+}
+
+// Asks the door, for each of the four kinds, what the last change was (a dry run: nothing is written), and shows a button only where
+// there is something to undo. A kind with nothing to undo is hidden.
+async function w1UndoRefresh() {
+  if (UD_state.busy) return;
+  UD_state.busy = true;
+  udMsg(UD_TEXT.checking, false);
+  const rows = document.getElementById('w1u-rows');
+  try {
+    UD_state.plans = {};
+    const results = [];
+    for (const kind of UD_KINDS) results.push({ kind: kind, r: await callSellerStock('undoCheck', { kind: kind }) });
+    if (!document.getElementById('w1u-rows')) return;
+    rows.textContent = '';
+    let shown = 0; let hardError = '';
+    results.forEach(function(x) {
+      const code = x.r && (x.r.error || x.r.code);
+      if (x.r && x.r.ok === true && x.r.canUndo) {
+        UD_state.plans[x.kind] = x.r;
+        shown++;
+        const line = udEl('div', 'bk-row');
+        line.setAttribute('data-w1u-kind', x.kind);
+        line.appendChild(udEl('span', '', udSummaryText(x.kind, x.r.summary || {})));
+        const b = bkBtn(UD_TEXT.buttons[x.kind], function() { w1UndoAsk(x.kind); });
+        b.className = 'w1u-button'; b.setAttribute('data-w1u-kind', x.kind);
+        line.appendChild(b);
+        rows.appendChild(line);
+        return;
+      }
+      if (code === 'nothing_to_undo') return;
+      if (code === 'not_available' || code === 'relogin' || code === 'network' || code === 'not_logged_in') { hardError = udRefusalText(x.kind, x.r); return; }
+      // The last change exists but can not be undone any more: say so plainly (counts only), with no button.
+      shown++;
+      const line = udEl('div', 'bk-msg error');
+      line.setAttribute('data-w1u-kind', x.kind);
+      line.textContent = UD_TEXT.buttons[x.kind] + ': ' + udRefusalText(x.kind, x.r);
+      rows.appendChild(line);
+    });
+    if (hardError) { rows.textContent = ''; udMsg(hardError, true); return; }
+    udMsg(shown ? '' : UD_TEXT.none, false);
+  } finally { UD_state.busy = false; }
+}
+
+// ---- The confirmation in words, then one Confirm.
+function w1UndoAsk(kind) {
+  const plan = UD_state.plans[kind];
+  if (!plan || !plan.digest) return;
+  bkOpenConfirm({ kind: 'undo', undoKind: kind, digest: plan.digest }, udConfirmText(kind, plan.summary || {}));
+}
+
+// Hook 2: called by the screen's Confirm button for an undo. Sends undoApply once with the digest of the check.
+async function w1UndoConfirm(p) {
+  const r = await callSellerStock('undoApply', { kind: p.undoKind, digest: p.digest });
+  bkClosePanel();
+  if (r && r.ok === true) {
+    udMsg(p.undoKind === 'invoiceCreate' ? UD_TEXT.cancelled : UD_TEXT.undone, false);
+    await w1UndoRefreshKeepMessage();
+    return;
+  }
+  const code = r && (r.error || r.code);
+  if (code === 'nothing_to_undo') { await w1UndoRefreshKeepMessage(); return; }
+  if (code === 'changed') { udMsg(UD_TEXT.newerChange, false); UD_state.busy = false; await w1UndoRefresh(); return; }
+  const text = udRefusalText(p.undoKind, r);
+  // After a save problem or an unconfirmed answer the buttons are hidden until Refresh, so nothing can be tried twice by accident.
+  if (code === 'undo_unavailable' || code === 'save_failed' || code === 'unconfirmed') { const rows = document.getElementById('w1u-rows'); if (rows) rows.textContent = ''; }
+  udMsg(text, true);
+}
+async function w1UndoRefreshKeepMessage() {
+  const el = document.getElementById('w1u-msg');
+  const keep = el ? el.textContent : '';
+  UD_state.busy = false;
+  await w1UndoRefresh();
+  if (keep) udMsg(keep, false);
+}
+</script>
+<!-- w1-undo-buttons:js:end -->
 <!-- w1-menu-gate:js:start -->
 <script>
 // Menu entries of the new screens stay hidden until their door says it is available for this seller (build chat W1).
