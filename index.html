@@ -20687,7 +20687,7 @@ async function w1AcctUndo() {
 // Door: POST /webhook/seller-migrate with { token, action, oldChatId, oldPassword, confirmCode }. "check" writes nothing; "apply" links the login.
 // The OLD password is sent only to that door. It is kept in memory only (never in storage, a URL, a log or the page) and dropped as soon as the flow ends.
 const SELLER_MIGRATE_URL = 'https://sparklly.site/webhook/seller-migrate';
-const W1_MIG = { chatId: '', password: '', email: '', token: '', refresh: '', code: '', account: null, busy: false };
+const W1_MIG = { chatId: '', password: '', email: '', token: '', refresh: '', code: '', account: null, busy: false, busySince: 0 };
 const W1_MIG_TEXT = {
   old_number: 'Old account number', old_password: 'Old password', link_btn: 'Link my old account', continue_btn: 'Continue', cancel: 'Cancel',
   step1_sub: 'Step 1: enter your old account number and old password',
@@ -20716,19 +20716,45 @@ const W1_MIG_TEXT = {
   read_failed: 'Your account could not be read. Nothing was changed. Try again in a moment.',
   unconfirmed: 'We could not confirm the link. Sign in again before you try once more.',
   not_available: 'Linking is not available yet. Please try again later.',
+  not_logged_in: 'Your new login was not accepted. Sign in with it again, then try once more.',
+  bad_input: 'The old account number or the old password is missing or not valid. Check them and try again.',
+  bad_action: 'Something went wrong. Try again.',
+  not_ready: 'Linking is not available yet. Please try again later.',
+  rate_limited: 'Too many tries. Wait a few minutes and try again.',
+  please_wait: 'Please wait a moment, the last step is still running.',
   wrong_ids: 'Something went wrong. Try again.'
 };
 function w1MigText(key) { return W1_MIG_TEXT[key] || W1_MIG_TEXT.wrong_ids; }
+// A message is never skipped: a step that is still running says so, a step stuck for 30 seconds is let go, and an unexpected error shows a plain message.
+function w1MigNote(text) {
+  let box = document.getElementById('login-error');
+  if (!box) {
+    const card = document.getElementById('login-card'); if (!card) return;
+    box = document.createElement('div'); box.id = 'login-error'; box.setAttribute('role', 'alert');
+    const sub = card.querySelector('.login-sub');
+    if (sub && sub.nextSibling) card.insertBefore(box, sub.nextSibling); else card.appendChild(box);
+  }
+  box.textContent = text;
+}
+function w1MigBusy() {
+  if (!W1_MIG.busy) return false;
+  if (Date.now() - (W1_MIG.busySince || 0) > 30000) { W1_MIG.busy = false; return false; }
+  w1MigNote(w1MigText('please_wait'));
+  return true;
+}
 function w1MigForgetOld() { W1_MIG.chatId = ''; W1_MIG.password = ''; W1_MIG.code = ''; W1_MIG.account = null; }
 function w1MigReset() { w1MigForgetOld(); W1_MIG.email = ''; W1_MIG.token = ''; W1_MIG.refresh = ''; W1_MIG.busy = false; }
 function w1MigErrorText(a, status) {
+  if (status === 429) return w1MigText('rate_limited');
   if (status === 503 || status === 404 || status === 502) return w1MigText('not_available');
   const code = a && (a.code || a.error);
   if (code === 'too_many_attempts') {
     const s = Number(a.retryAfterSeconds);
     return s > 0 ? w1MigText('too_many_attempts') + ' (about ' + Math.ceil(s / 60) + ' min)' : w1MigText('too_many_attempts');
   }
-  return W1_MIG_TEXT[code] ? w1MigText(code) : w1MigText('wrong_ids');
+  if (W1_MIG_TEXT[code]) return w1MigText(code);
+  if (a && typeof a.message === 'string' && a.message.trim() && /^[\x20-\x7e]+$/.test(a.message)) return a.message.trim();
+  return w1MigText('wrong_ids');
 }
 async function w1MigPost(body) {
   try {
@@ -20743,7 +20769,8 @@ function w1MigCard(sub, err, inner) {
   const landing = document.getElementById('landing'); if (landing) landing.remove();
   document.getElementById('app').style.display = 'none';
   overlay.innerHTML = '<div id="login-card"><h1>Upgrade your account</h1><p class="login-sub">' + escapeHtml(sub) + '</p>' +
-    (err ? '<div id="login-error">' + escapeHtml(err) + '</div>' : '') + inner + '</div>';
+    (err ? '<div id="login-error" role="alert">' + escapeHtml(err) + '</div>' : '') + inner + '</div>';
+  const box = document.getElementById('login-error'); if (box && box.scrollIntoView) { try { box.scrollIntoView({ block: 'nearest' }); } catch (e) { /* older browsers */ } }
 }
 const W1_MIG_LINK = 'background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;margin-top:2px;';
 function w1MigShow(step, err) {
@@ -20776,12 +20803,12 @@ window.doMigrateStep1 = async function () {
   w1MigShow(2);
 };
 window.doMigrateStep2 = async function () {
-  if (W1_MIG.busy) return;
+  if (w1MigBusy()) return;
   const email = document.getElementById('migrate-email').value.trim();
   const password = document.getElementById('migrate-newpassword').value;
   if (!email || !password || !W1_MIG.chatId) { w1MigShow(2, w1MigText('need_all')); return; }
   if (password.length < 8) { w1MigShow(2, w1MigText('short_password')); return; }
-  W1_MIG.busy = true;
+  W1_MIG.busy = true; W1_MIG.busySince = Date.now();
   const btn = document.getElementById('migrate-step2-btn'); if (btn) { btn.disabled = true; btn.textContent = w1MigText('working'); }
   try {
     const authRes = await fetch(SUPABASE_URL + '/auth/v1/signup', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
@@ -20795,11 +20822,11 @@ window.doMigrateStep2 = async function () {
   } catch (e) { W1_MIG.busy = false; w1MigShow(2, w1MigText('wrong_ids')); }
 };
 async function w1MigSignIn() {
-  if (W1_MIG.busy) return;
+  if (w1MigBusy()) return;
   const email = document.getElementById('migrate-email').value.trim();
   const password = document.getElementById('migrate-newpassword').value;
   if (!email || !password) { w1MigShow(3, w1MigText('need_all')); return; }
-  W1_MIG.busy = true;
+  W1_MIG.busy = true; W1_MIG.busySince = Date.now();
   try {
     const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
     const d = await res.json();
@@ -20811,20 +20838,27 @@ async function w1MigSignIn() {
   } catch (e) { W1_MIG.busy = false; w1MigShow(3, w1MigText('wrong_ids')); }
 }
 async function w1MigCheck(noteText) {
-  if (W1_MIG.busy) return;
-  W1_MIG.busy = true;
+  try { await w1MigCheckRaw(noteText); } catch (e) { W1_MIG.busy = false; w1MigShow(1, w1MigText('wrong_ids')); }
+}
+async function w1MigCheckRaw(noteText) {
+  if (w1MigBusy()) return;
+  W1_MIG.busy = true; W1_MIG.busySince = Date.now();
   const r = await w1MigPost({ token: W1_MIG.token, action: 'check', oldChatId: W1_MIG.chatId, oldPassword: W1_MIG.password });
   W1_MIG.busy = false;
   const a = r.json;
   if (r.status === 200 && a.ok && a.confirmCode) { W1_MIG.code = a.confirmCode; W1_MIG.account = { chatIdEnding: a.chatIdEnding || '', businessName: a.businessName || '' }; w1MigShow('confirm', noteText || ''); return; }
   const code = a && (a.code || a.error);
   const text = w1MigErrorText(a, r.status);
-  if (code === 'wrong_old_credentials' || code === 'too_many_attempts') { W1_MIG.password = ''; W1_MIG.code = ''; w1MigShow(1, text); return; }
+  if (code === 'wrong_old_credentials' || code === 'too_many_attempts' || code === 'bad_input') { W1_MIG.password = ''; W1_MIG.code = ''; w1MigShow(1, text); return; }
+  if (code === 'not_logged_in') { W1_MIG.token = ''; W1_MIG.refresh = ''; W1_MIG.code = ''; w1MigShow(3, text); return; }
   w1MigForgetOld(); w1MigShow(1, text);
 }
 async function w1MigApply() {
-  if (W1_MIG.busy || !W1_MIG.code) return;
-  W1_MIG.busy = true;
+  try { await w1MigApplyRaw(); } catch (e) { W1_MIG.busy = false; w1MigShow(W1_MIG.code ? 'confirm' : 1, w1MigText('wrong_ids')); }
+}
+async function w1MigApplyRaw() {
+  if (!W1_MIG.code || w1MigBusy()) return;
+  W1_MIG.busy = true; W1_MIG.busySince = Date.now();
   const btn = document.getElementById('w1-mig-apply'); if (btn) { btn.disabled = true; btn.textContent = w1MigText('working'); }
   const r = await w1MigPost({ token: W1_MIG.token, action: 'apply', oldChatId: W1_MIG.chatId, oldPassword: W1_MIG.password, confirmCode: W1_MIG.code });
   W1_MIG.busy = false;
