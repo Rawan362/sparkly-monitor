@@ -4157,6 +4157,19 @@
   .ae-list-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
   .ae-choice { margin-top: 8px; }
 /* w1-ads-additions:css:end */
+/* w1-ads-extras:css:start */
+  .ag-ticks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 8px 0 10px; }
+  .ag-ticks label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .ag-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .ag-form select, .ag-form input[type="text"], .ag-form input[type="date"] { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; }
+  .ag-form label.ag-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-muted); }
+  .ag-honest { font-size: 12.5px; color: var(--danger); margin: 6px 0; }
+  .ag-rules { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .ag-scroll { overflow-x: auto; margin-top: 10px; }
+  .ag-table { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+  .ag-table th, .ag-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .ag-warning { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 10px; }
+/* w1-ads-extras:css:end */
 </style>
 </head>
 <body>
@@ -18366,6 +18379,7 @@ function axRender() {
   const rep = axEl('div'); rep.id = 'ax-report';
   box.appendChild(rep);
   if (typeof w1AdsEverything === 'function') w1AdsEverything(box);
+  if (typeof w1AdsSettingsAndReports === 'function') w1AdsSettingsAndReports(box);
   if (typeof w1RoasSection === 'function') box.appendChild(w1RoasSection());
 }
 
@@ -19588,6 +19602,336 @@ async function aeStructure(req) {
 }
 </script>
 <!-- w1-ads-additions:js:end -->
+<!-- w1-ads-extras:js:start -->
+<script>
+// Ads screen extras (build chat W1): a report with a choice of metrics (read only), and "Ad settings": default metrics, the daily ad digest
+// and alert rules. Door: POST /webhook/seller-ads. Settings are changed only through prepare, then the confirm panel, then one confirm;
+// "Undo last change" (already on the Ads screen) puts the previous value back. Words are in AG_TEXT; money words come from the door.
+// HONEST ABOUT ALERT RULES: no automatic check of the rules exists, so no alert will be sent. The screen says so, always, and shows the
+// door's own warning in full in the confirm panel. The digest is sent with the daily sales summary; the screen promises nothing more.
+const AG_TEXT = {
+  reportTitle: 'Detailed report', period: 'Period', level: 'Level', one: 'One item (optional)', onePlaceholder: 'All', oneHelp: 'Leave empty for all, or type the name or the number of one item.',
+  ranges: { today: 'Today', yesterday: 'Yesterday', last_7d: 'Last 7 days', last_30d: 'Last 30 days', last_90d: 'Last 90 days', this_year: 'This year', last_year: 'Last year', custom: 'Choose two dates' },
+  levels: { campaign: 'Campaigns', adset: 'Ad sets', ad: 'Ads' },
+  from: 'From', to: 'To', metricsLabel: 'Metrics (optional; none means your saved metrics, or the standard ones)',
+  show: 'Show report', loading: 'Loading...', name: 'Name',
+  badRange: 'Choose a period, or two dates.',
+  savedUsed: 'Showing your saved metrics.', ignored: 'Left out because they are not known: ',
+  noPurchases: 'no purchases yet', spendSoFar: 'spend so far ',
+  notConnected: 'Your ads account is not connected yet.', notFound: 'We could not find that item.',
+  ambiguous1: 'More than one matches: ', ambiguous2: '. Pick one.',
+  noData: 'No data for this period.', metaError: 'Meta could not give this report: ',
+  unavailable: 'We could not read your data. Try again in a moment.', tryAgain: 'Try again',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Please try again.',
+  settingsTitle: 'Ad settings',
+  defaultMetrics: 'My default metrics', defaultHelp: 'Used when a report is opened without choosing metrics.', save: 'Save',
+  digest: 'Daily ad digest', digestHelp: 'Metrics sent with your daily sales summary.', digestGo: 'Send me this every day',
+  rules: 'Alert rules', addRule: 'Add a rule', metric: 'Metric', condition: 'Condition', threshold: 'Number',
+  above: 'above', below: 'below',
+  honest: 'No automatic check of these rules was found, so no alert will be sent for now. Rules are only saved.',
+  rulesAdded: 'Rules added this time:',
+  savedNow: 'Saved this time: ',
+  badMetrics: 'Choose at least one metric from the list.', badNumber: 'Enter a number.', tooMany: 'You can have at most 50 alert rules.',
+  nothingChanged: 'Nothing was changed. Try again.',
+  metricNames: {
+    spend: 'Spend', impressions: 'Times shown', clicks: 'Clicks', ctr: 'Click rate (%)', cpc: 'Cost per click', cpm: 'Cost per 1,000 shown',
+    reach: 'People reached', frequency: 'Times each person saw it', unique_clicks: 'People who clicked', actions: 'Purchases',
+    messages_started: 'Conversations started', cpa: 'Cost per purchase', cost_per_message: 'Cost per conversation', roas: 'ROAS'
+  },
+  alertMetricNames: { ctr: 'Click rate (%)', cpc: 'Cost per click', cpm: 'Cost per 1,000 shown', spend: 'Spend', cost_per_purchase: 'Cost per purchase' }
+};
+const AG_REPORT_METRICS = ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm', 'reach', 'frequency', 'unique_clicks', 'actions', 'messages_started', 'cpa', 'cost_per_message', 'roas'];
+const AG_DIGEST_METRICS = ['spend', 'clicks', 'ctr', 'cpc', 'cpm', 'reach', 'frequency', 'messages_started', 'actions', 'cpa', 'cost_per_message', 'roas'];
+const AG_ALERT_METRICS = ['ctr', 'cpc', 'cpm', 'spend', 'cost_per_purchase'];
+const AG_SETTING_TYPES = ['set_metrics', 'set_digest', 'add_alert_rule'];
+// What the door can not tell the screen (there is no read action for these settings yet) is remembered only for this visit.
+const AG_state = { lastPrepared: null, ctx: null, savedMetrics: null, savedDigest: null, rules: [], busy: false };
+
+Object.assign(AX_CODE_TEXT, { bad_metrics: AG_TEXT.badMetrics, too_many_rules: AG_TEXT.tooMany });
+if (AX_SHOW_DOOR_MESSAGE.indexOf('bad_alert') < 0) AX_SHOW_DOOR_MESSAGE.push('bad_alert');
+
+// Watches the door calls (the older code is not edited): remembers which change was just prepared, and when a confirm of one of the
+// three settings succeeds, remembers what was saved so the screen can show it.
+const _agCallBefore = callSellerAds;
+callSellerAds = async function(action, extra) {
+  if (action === 'prepare') {
+    const ch = extra && extra.change;
+    AG_state.ctx = ch && AG_SETTING_TYPES.indexOf(ch.type) >= 0 ? ch.type : null;
+  } else if (action !== 'confirm') {
+    AG_state.ctx = null;
+  }
+  const r = await _agCallBefore(action, extra);
+  if (action === 'prepare' && r && r.ok === true && extra && extra.change) AG_state.lastPrepared = extra.change;
+  if (action === 'confirm' && r && r.ok === true && AG_state.lastPrepared && AG_SETTING_TYPES.indexOf(AG_state.lastPrepared.type) >= 0) {
+    const ch = AG_state.lastPrepared;
+    if (ch.type === 'set_metrics') AG_state.savedMetrics = ch.metrics.slice();
+    if (ch.type === 'set_digest') AG_state.savedDigest = ch.metrics.slice();
+    if (ch.type === 'add_alert_rule') AG_state.rules.push(Object.assign({}, ch.alert));
+    AG_state.lastPrepared = null;
+  }
+  return r;
+};
+// For these three settings the older "not saved" and "unavailable" words (about a limit and about Meta) are not right: say what is true.
+const _agErrBefore = axErrorText;
+axErrorText = function(r) {
+  const code = r && r.code;
+  if (AG_state.ctx && (code === 'not_saved' || code === 'unavailable' || code === 'undo_copy_failed')) return AG_TEXT.nothingChanged;
+  return _agErrBefore(r);
+};
+// The confirm panel also shows the door's warning (used for alert rules) in full, in a visible colour. The older panel code is not edited.
+const _agOpenBefore = axOpenConfirm;
+axOpenConfirm = function(r) {
+  _agOpenBefore(r);
+  const box = document.querySelector('#ax-confirm .ax-box');
+  if (!box) return;
+  const old = document.getElementById('ag-warning');
+  if (old) old.remove();
+  const warning = r && r.preview && typeof r.preview.warning === 'string' ? r.preview.warning : '';
+  if (!warning) return;
+  const w = document.createElement('div');
+  w.id = 'ag-warning'; w.className = 'ag-warning'; w.setAttribute('role', 'alert');
+  w.textContent = warning;
+  const summary = document.getElementById('ax-confirm-summary');
+  box.insertBefore(w, summary ? summary.nextSibling : box.firstChild);
+};
+
+function agEl(tag, cls, text) { return axEl(tag, cls, text); }
+function agNum(n, digits) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: digits === undefined ? 2 : digits }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+function agTicks(id, keys, checked) {
+  const grid = agEl('div', 'ag-ticks'); grid.id = id;
+  keys.forEach(function(k) {
+    const lab = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = k; cb.checked = !!(checked && checked.indexOf(k) >= 0);
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(AG_TEXT.metricNames[k]));
+    grid.appendChild(lab);
+  });
+  return grid;
+}
+function agChecked(id) { return Array.prototype.map.call(document.querySelectorAll('#' + id + ' input:checked'), function(i) { return i.value; }); }
+
+// ---- The one hook the Ads screen calls: the detailed report and the Ad settings.
+function w1AdsSettingsAndReports(box) {
+  box.appendChild(agReportSection());
+  box.appendChild(agSettingsSection());
+}
+
+function agSettingsSection() {
+  const sec = agEl('div'); sec.id = 'ag-settings';
+  sec.appendChild(agEl('div', 'ax-section-title', AG_TEXT.settingsTitle));
+  // default metrics
+  const c1 = agEl('div', 'ax-card'); c1.id = 'ag-card-metrics';
+  c1.appendChild(agEl('div', 'ax-name', AG_TEXT.defaultMetrics));
+  c1.appendChild(agEl('div', 'ax-sub', AG_TEXT.defaultHelp));
+  c1.appendChild(agTicks('ag-metrics-ticks', AG_REPORT_METRICS, AG_state.savedMetrics));
+  const s1 = axBtn(AG_TEXT.save, function() { agSaveList('set_metrics', 'ag-metrics-ticks', 'ag-msg-metrics'); }, 'ag-save-metrics');
+  c1.appendChild(s1);
+  const m1 = agEl('div', 'ax-msg'); m1.id = 'ag-msg-metrics'; c1.appendChild(m1);
+  sec.appendChild(c1);
+  // digest
+  const c2 = agEl('div', 'ax-card'); c2.id = 'ag-card-digest';
+  c2.appendChild(agEl('div', 'ax-name', AG_TEXT.digest));
+  c2.appendChild(agEl('div', 'ax-sub', AG_TEXT.digestHelp));
+  c2.appendChild(agTicks('ag-digest-ticks', AG_DIGEST_METRICS, AG_state.savedDigest));
+  const s2 = axBtn(AG_TEXT.digestGo, function() { agSaveList('set_digest', 'ag-digest-ticks', 'ag-msg-digest'); }, 'ag-save-digest');
+  c2.appendChild(s2);
+  const m2 = agEl('div', 'ax-msg'); m2.id = 'ag-msg-digest'; c2.appendChild(m2);
+  sec.appendChild(c2);
+  // alert rules
+  const c3 = agEl('div', 'ax-card'); c3.id = 'ag-card-rules';
+  c3.appendChild(agEl('div', 'ax-name', AG_TEXT.rules));
+  const honest = agEl('div', 'ag-honest', AG_TEXT.honest); honest.id = 'ag-honest'; c3.appendChild(honest);
+  const form = agEl('div', 'ag-form');
+  const metric = document.createElement('select'); metric.id = 'ag-rule-metric';
+  AG_ALERT_METRICS.forEach(function(k) { metric.appendChild(new Option(AG_TEXT.alertMetricNames[k], k)); });
+  const cond = document.createElement('select'); cond.id = 'ag-rule-condition';
+  cond.appendChild(new Option(AG_TEXT.above, 'above')); cond.appendChild(new Option(AG_TEXT.below, 'below'));
+  const num = document.createElement('input'); num.type = 'text'; num.inputMode = 'decimal'; num.id = 'ag-rule-number'; num.placeholder = AG_TEXT.threshold;
+  form.appendChild(metric); form.appendChild(cond); form.appendChild(num);
+  form.appendChild(axBtn(AG_TEXT.addRule, function() { agAddRule(metric, cond, num); }, 'ag-add-rule'));
+  c3.appendChild(form);
+  const m3 = agEl('div', 'ax-msg'); m3.id = 'ag-msg-rules'; c3.appendChild(m3);
+  if (AG_state.rules.length) {
+    c3.appendChild(agEl('div', 'ax-sub', AG_TEXT.rulesAdded));
+    const ul = agEl('ul', 'ag-rules'); ul.id = 'ag-rule-list';
+    AG_state.rules.forEach(function(r) { ul.appendChild(agEl('li', '', (AG_TEXT.alertMetricNames[r.metric] || r.metric) + ' ' + (r.condition === 'below' ? AG_TEXT.below : AG_TEXT.above) + ' ' + agNum(r.threshold))); });
+    c3.appendChild(ul);
+  }
+  sec.appendChild(c3);
+  return sec;
+}
+
+function agSetMsg(id, text, isError) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.className = 'ax-msg' + (isError ? ' error' : ''); }
+}
+
+// A settings change: only prepare here. The confirm panel does the rest.
+async function agPrepare(change, msgId) {
+  if (AG_state.busy || AX_state.busy) return;
+  AG_state.busy = true; AX_state.busy = true;
+  try {
+    agSetMsg(msgId, '', false);
+    const r = await callSellerAds('prepare', { change: change });
+    if (r && r.ok === true && r.needsConfirm === true && r.confirmToken) { axOpenConfirm(r); return; }
+    if (r && AX_REFRESH_CODES.indexOf(r.code) >= 0) { agSetMsg(msgId, axErrorText(r), true); axLoad(); return; }
+    agSetMsg(msgId, axErrorText(r), true);
+  } finally { AG_state.busy = false; AX_state.busy = false; }
+}
+
+function agSaveList(type, ticksId, msgId) {
+  const metrics = agChecked(ticksId);
+  if (!metrics.length) { agSetMsg(msgId, AG_TEXT.badMetrics, true); return; }
+  agPrepare({ type: type, metrics: metrics }, msgId);
+}
+
+function agAddRule(metric, cond, num) {
+  const t = String(num.value || '').trim().replace(',', '.');
+  if (!/^-?[0-9]+(\.[0-9]+)?$/.test(t)) { agSetMsg('ag-msg-rules', AG_TEXT.badNumber, true); return; }
+  agPrepare({ type: 'add_alert_rule', alert: { metric: metric.value, condition: cond.value, threshold: Number(t) } }, 'ag-msg-rules');
+}
+
+// ---- Detailed report (read only).
+function agReportSection() {
+  const sec = agEl('div'); sec.id = 'ag-report-section';
+  sec.appendChild(agEl('div', 'ax-section-title', AG_TEXT.reportTitle));
+  const form = agEl('div', 'ag-form');
+  const periodLab = agEl('label', 'ag-field', AG_TEXT.period);
+  const range = document.createElement('select'); range.id = 'ag-range';
+  Object.keys(AG_TEXT.ranges).forEach(function(k) { range.appendChild(new Option(AG_TEXT.ranges[k], k)); });
+  range.value = 'last_7d'; periodLab.appendChild(range); form.appendChild(periodLab);
+  const dates = agEl('div', 'ag-form'); dates.id = 'ag-dates'; dates.style.display = 'none';
+  const f = agEl('label', 'ag-field', AG_TEXT.from); const since = document.createElement('input'); since.type = 'date'; since.id = 'ag-since'; f.appendChild(since);
+  const t = agEl('label', 'ag-field', AG_TEXT.to); const until = document.createElement('input'); until.type = 'date'; until.id = 'ag-until'; t.appendChild(until);
+  dates.appendChild(f); dates.appendChild(t);
+  range.onchange = function() { dates.style.display = range.value === 'custom' ? 'flex' : 'none'; };
+  form.appendChild(dates);
+  const levelLab = agEl('label', 'ag-field', AG_TEXT.level);
+  const level = document.createElement('select'); level.id = 'ag-level';
+  Object.keys(AG_TEXT.levels).forEach(function(k) { level.appendChild(new Option(AG_TEXT.levels[k], k)); });
+  levelLab.appendChild(level); form.appendChild(levelLab);
+  const oneLab = agEl('label', 'ag-field', AG_TEXT.one);
+  const one = document.createElement('input'); one.type = 'text'; one.id = 'ag-one'; one.maxLength = 120; one.placeholder = AG_TEXT.onePlaceholder;
+  oneLab.appendChild(one); form.appendChild(oneLab);
+  sec.appendChild(form);
+  sec.appendChild(agEl('div', 'ax-msg', AG_TEXT.oneHelp));
+  sec.appendChild(agEl('div', 'ax-msg', AG_TEXT.metricsLabel));
+  sec.appendChild(agTicks('ag-report-ticks', AG_REPORT_METRICS, null));
+  const go = axBtn(AG_TEXT.show, function() { agRunReport(); }, 'ag-show');
+  sec.appendChild(go);
+  const out = agEl('div'); out.id = 'ag-report-out'; sec.appendChild(out);
+  return sec;
+}
+
+function agRequest(nameOverride) {
+  const range = document.getElementById('ag-range').value;
+  const req = { range: range, level: document.getElementById('ag-level').value };
+  if (range === 'custom') {
+    const since = document.getElementById('ag-since').value; const until = document.getElementById('ag-until').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(since) || !/^\d{4}-\d{2}-\d{2}$/.test(until) || since > until) return null;
+    req.since = since; req.until = until;
+  }
+  const name = String(nameOverride !== undefined ? nameOverride : document.getElementById('ag-one').value).trim();
+  if (name) req.nameHint = name;
+  const metrics = agChecked('ag-report-ticks');
+  if (metrics.length) req.metrics = metrics;
+  return req;
+}
+
+function agOut(text, isError, retry) {
+  const out = document.getElementById('ag-report-out');
+  if (!out) return;
+  out.textContent = '';
+  out.appendChild(agEl('div', 'ax-status' + (isError ? ' error' : ''), text));
+  if (retry) out.appendChild(axBtn(AG_TEXT.tryAgain, retry, 'ag-retry'));
+}
+
+function agReportError(r) {
+  const code = r && r.code;
+  if (code === 'relogin' || code === 'not_logged_in') return AG_TEXT.relogin;
+  if (code === 'not_available') return AG_TEXT.notAvailable;
+  if (code === 'network') return AG_TEXT.noConnection;
+  if (code === 'ads_not_connected') return AG_TEXT.notConnected;
+  if (code === 'not_found') return AG_TEXT.notFound;
+  if (code === 'no_data') return AG_TEXT.noData;
+  if (code === 'meta_error') return AG_TEXT.metaError + String((r && r.message) || '');
+  if (code === 'unavailable' || code === 'meta_unavailable') return AG_TEXT.unavailable;
+  if ((code === 'bad_range' || code === 'bad_level' || code === 'bad_metric') && typeof r.message === 'string' && r.message) return r.message;
+  return AG_TEXT.failed;
+}
+
+async function agRunReport(nameOverride) {
+  if (AG_state.busy) return;
+  const req = agRequest(nameOverride);
+  if (!req) { agOut(AG_TEXT.badRange, true); return; }
+  AG_state.busy = true;
+  const go = document.getElementById('ag-show'); if (go) go.disabled = true;
+  agOut(AG_TEXT.loading, false);
+  try {
+    const r = await callSellerAds('report_metrics', { reportMetrics: req });
+    if (!r || r.ok !== true) { agReportFail(r); return; }
+    agShowReport(r);
+  } finally { AG_state.busy = false; if (go) go.disabled = false; }
+}
+
+function agReportFail(r) {
+  if (r && r.code === 'ambiguous' && Array.isArray(r.names) && r.names.length) {
+    agOut(AG_TEXT.ambiguous1 + r.names.join(', ') + AG_TEXT.ambiguous2, true);
+    const out = document.getElementById('ag-report-out');
+    const names = agEl('div', 'ae-more');
+    r.names.forEach(function(n) { const b = axBtn(String(n), function() { document.getElementById('ag-one').value = String(n); agRunReport(String(n)); }); b.className = 'ag-pick'; names.appendChild(b); });
+    out.appendChild(names);
+    return;
+  }
+  const retriable = r && (r.code === 'unavailable' || r.code === 'meta_unavailable');
+  agOut(agReportError(r), true, retriable ? function() { agRunReport(); } : null);
+}
+
+// A value as Meta gave it (text); a money metric gets the currency word from the door, never an assumed one.
+function agCell(metric, row, r) {
+  const values = row.values || {};
+  if (metric === 'cpa') {
+    if (values.cpa === null) return AG_TEXT.noPurchases + (row.cpaSpendSoFar !== undefined && row.cpaSpendSoFar !== null ? ' (' + AG_TEXT.spendSoFar + agNum(row.cpaSpendSoFar) + (r.currency ? ' ' + r.currency : '') + ')' : (values.cpaSpendSoFar !== undefined ? ' (' + AG_TEXT.spendSoFar + agNum(values.cpaSpendSoFar) + (r.currency ? ' ' + r.currency : '') + ')' : ''));
+    if (values.cpa === undefined) return '-';
+  }
+  const v = values[metric];
+  if (v === undefined || v === null || v === '') return '-';
+  const money = Array.isArray(r.moneyMetrics) && r.moneyMetrics.indexOf(metric) >= 0;
+  return String(v) + (money && r.currency ? ' ' + r.currency : '');
+}
+
+function agShowReport(r) {
+  const out = document.getElementById('ag-report-out');
+  if (!out) return;
+  out.textContent = '';
+  if (r.label) out.appendChild(agEl('div', 'ax-sub', String(r.label)));
+  if (r.savedMetricsUsed === true) out.appendChild(agEl('div', 'ax-msg', AG_TEXT.savedUsed));
+  if (Array.isArray(r.ignoredMetrics) && r.ignoredMetrics.length) out.appendChild(agEl('div', 'ax-msg', AG_TEXT.ignored + r.ignoredMetrics.join(', ')));
+  const metrics = Array.isArray(r.metrics) ? r.metrics : [];
+  const rows = Array.isArray(r.rows) ? r.rows : [];
+  if (!rows.length) { out.appendChild(agEl('div', 'ax-status', AG_TEXT.noData)); return; }
+  const wrap = agEl('div', 'ag-scroll');
+  const table = agEl('table', 'ag-table'); table.id = 'ag-table';
+  const head = document.createElement('tr');
+  head.appendChild(agEl('th', '', AG_TEXT.name));
+  metrics.forEach(function(m) { head.appendChild(agEl('th', '', AG_TEXT.metricNames[m] || m)); });
+  table.appendChild(head);
+  rows.forEach(function(row) {
+    const tr = document.createElement('tr');
+    tr.appendChild(agEl('td', '', String(row.name || '')));
+    metrics.forEach(function(m) { tr.appendChild(agEl('td', '', agCell(m, row, r))); });
+    table.appendChild(tr);
+  });
+  wrap.appendChild(table);
+  out.appendChild(wrap);
+}
+</script>
+<!-- w1-ads-extras:js:end -->
 <!-- w1-menu-gate:js:start -->
 <script>
 // Menu entries of the new screens stay hidden until their door says it is available for this seller (build chat W1).

@@ -97,7 +97,7 @@ async function openAds(roasAnswer, calls, token) {
       break;
     } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
   }
-  await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#ax-menu-row');
+  await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#ax-menu-row');
   if (token) await page.waitForSelector('#rs-go'); else await page.waitForSelector('#ax-content .ax-status');
   return { page, errors };
 }
