@@ -4346,6 +4346,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
+      <div id="w1-ai-banner" style="display:none;">
+        <button type="button" id="w1-ai-setup-btn" onclick="w1AiOpen()">Set up your AI</button>
+        <div id="w1-ai-banner-note">Your AI is not set up yet. You can use the rest of the app meanwhile.</div>
+      </div>
       <div id="w1-wa-banner" style="display:none;">
         <button type="button" id="w1-wa-connect-btn" onclick="w1WaOpenGate()">Connect WhatsApp</button>
         <div id="w1-wa-empty" style="display:none;">Connect your WhatsApp to start receiving chats</div>
@@ -9806,6 +9810,10 @@ function showLoginScreen(errorMsg, tone) {
       <button id="login-email-btn" onclick="doLoginWithEmail()">Sign in</button>
       <button type="button" id="forgot-link" onclick="w1ForgotShow()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Forgot password?</button>
       <button type="button" onclick="showSignUpScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Don't have an account? Sign up</button>
+      <!-- w1-migrate-entry:login:start -->
+      <button type="button" id="w1-mige-upgrade" onclick="w1MigeUpgrade()">Upgrade your old account</button>
+      <button type="button" id="w1-mige-have" onclick="w1MigeHaveLogin()">I already created my new login</button>
+      <!-- w1-migrate-entry:login:end -->
       <button id="link-with-code-btn" type="button" onclick="openNewDeviceLinkScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;">Link with a code</button>
       <details style="margin-top:6px;">
         <summary style="font-size:11.5px;color:var(--text-muted);cursor:pointer;">Still using your old chat-ID login?</summary>
@@ -20949,7 +20957,7 @@ const W1_MIG_TEXT = {
   need_all: 'Fill in every box.',
   signup_failed: 'Could not set up the email. It may already be in use.',
   signin_failed: 'The email or password is not correct.',
-  confirm_email: 'Account created. Confirm your email, sign in, then choose Upgrade again and use "I already created my new login".',
+  confirm_email: 'Account created. Confirm your email, then tap "I already created my new login" below. Do not sign in the normal way first.',
   linked: 'Your login is now linked.',
   wrong_old_credentials: 'The old account number or password is not correct.',
   too_many_attempts: 'Too many wrong attempts. Try again later.',
@@ -21498,5 +21506,142 @@ function w1WaNeed() {
 })();
 </script>
 <!-- w1-connect-later:js:end -->
+<!-- w1-ai-later:js:start -->
+<style>
+  /* w1-ai-later:css:start */
+  #w1-ai-banner { margin: 10px 12px 4px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+  #w1-ai-setup-btn { width: 100%; padding: 12px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14.5px; cursor: pointer; }
+  #w1-ai-banner-note { margin-top: 8px; text-align: center; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  #w1-ai-engine { margin: 0 0 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+  #w1-ai-engine p { margin: 0 0 8px; font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+  #w1-ai-engine button { width: 100%; padding: 11px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+  #w1-ai-first { position: fixed; left: 50%; transform: translateX(-50%); bottom: 134px; z-index: 9000; max-width: 92vw; display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+  #w1-ai-first button { border: 1px solid rgba(255,255,255,0.7); background: none; color: #fff; border-radius: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+  /* w1-ai-later:css:end */
+  /* w1-migrate-entry:css:start */
+  #w1-mige-upgrade { width: 100%; padding: 11px; border: 1px solid var(--accent); border-radius: 10px; background: none; color: var(--accent); font-weight: 700; font-size: 14px; cursor: pointer; margin-top: 4px; }
+  #w1-mige-have { background: none; border: none; color: var(--accent); font-size: 12.5px; font-weight: 600; cursor: pointer; margin-top: 2px; }
+  /* w1-migrate-entry:css:end */
+</style>
+<script>
+// New sellers can use the web app BEFORE the AI is set up (build chat W1; same idea as the Connect WhatsApp change). Web app only.
+// The "Set up your AI" popup (showAiSetupWizard) and its key check, Connect and check button and funds check are NOT changed: this block wraps them.
+//   ready      = the existing check says ready                       -> exactly as before (nothing extra on screen)
+//   not_ready  = the existing check says no key, invalid key or no credits
+//   unknown    = the check itself failed -> nothing blocked, nothing extra (as before: "never lock a seller out because the check failed")
+// The popup gets a "Cancel for now" button (closes it, saves nothing, sends nothing). After Cancel it does not open by itself again in this
+// session (kept per tab session, cleared at sign-out; a new login may show it once). A "Set up your AI" button in Chats and in the Engine
+// screen reopens the same popup. Things that need the AI say "Set up your AI first".
+const W1_AI = { state: 'unknown', lastState: 'no_key', cancelled: false, toastTimer: null };
+const W1_AI_DISMISS_KEY = 'sparkly_ai_dismissed_chat_id';   // sessionStorage; the name matches the pattern the sign-out clears
+function w1AiDismissed() { try { return sessionStorage.getItem(W1_AI_DISMISS_KEY) === String(SELLER_CHAT_ID || ''); } catch (e) { return false; } }
+function w1AiDismiss() { try { sessionStorage.setItem(W1_AI_DISMISS_KEY, String(SELLER_CHAT_ID || '')); } catch (e) { /* kept in memory only */ } }
+function w1AiSetState(state, last) {
+  W1_AI.state = state;
+  if (last) W1_AI.lastState = last;
+  w1AiBannerUpdate();
+}
+function w1AiBannerUpdate() {
+  const box = document.getElementById('w1-ai-banner'); if (!box) return;
+  box.style.display = W1_AI.state === 'not_ready' && !document.getElementById('ai-setup-wizard') ? '' : 'none';
+}
+// The same popup as always (the callers' onReady continues the normal start-up once the AI is ready).
+window.w1AiOpen = function() {
+  window.showAiSetupWizard(W1_AI.lastState || 'no_key', typeof checkOnboardingNeeded === 'function' ? checkOnboardingNeeded : undefined);
+};
+window.w1AiCancel = function() {
+  W1_AI.cancelled = true;
+  w1AiDismiss();
+  const m = document.getElementById('ai-setup-wizard'); if (m) m.remove();
+  setTimeout(function() { W1_AI.cancelled = false; }, 0);   // after the observer below has seen this close
+  w1AiBannerUpdate();
+};
+function w1AiBlocked() { return W1_AI.state === 'not_ready'; }
+function w1AiNeed() {
+  let t = document.getElementById('w1-ai-first');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'w1-ai-first'; t.setAttribute('role', 'alert');
+    const msg = document.createElement('span'); msg.id = 'w1-ai-first-msg'; msg.textContent = 'Set up your AI first';
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'w1-ai-first-btn'; b.textContent = 'Set up your AI';
+    b.onclick = function() { t.style.display = 'none'; w1AiOpen(); };
+    t.appendChild(msg); t.appendChild(b); document.body.appendChild(t);
+  }
+  t.style.display = 'flex';
+  clearTimeout(W1_AI.toastTimer);
+  W1_AI.toastTimer = setTimeout(function() { t.style.display = 'none'; }, 5000);
+  return true;
+}
+(function() {
+  // The start-up check, same as before (ready or a failed check: carry on), except that a popup the seller cancelled does not open by itself again.
+  window.ensureAiReady = async function(onReady) {
+    const st = await engineCheckState();
+    if (st === 'ready') { w1AiSetState('ready'); return true; }
+    if (st === 'error') { w1AiSetState('unknown'); return true; }   // never lock a seller out because the check itself failed
+    w1AiSetState('not_ready', st);
+    if (w1AiDismissed()) return false;
+    window.showAiSetupWizard(st, onReady);
+    return false;
+  };
+  // The popup itself is built by the existing function; Cancel for now is added to it, and a successful connection is noticed when it closes.
+  const wizard = window.showAiSetupWizard;
+  window.showAiSetupWizard = function(state) {
+    wizard.apply(this, arguments);
+    const m = document.getElementById('ai-setup-wizard'); if (!m) return;
+    if (state) W1_AI.lastState = state;
+    W1_AI.state = 'not_ready';
+    const inner = m.firstElementChild;
+    if (inner && !document.getElementById('ai-w-cancel')) {
+      const c = document.createElement('button'); c.type = 'button'; c.className = 'eng-btn sec'; c.id = 'ai-w-cancel'; c.textContent = 'Cancel for now';
+      c.onclick = function() { window.w1AiCancel(); };
+      inner.appendChild(c);
+    }
+    w1AiBannerUpdate();
+    if (typeof MutationObserver !== 'undefined') {
+      const obs = new MutationObserver(function() {
+        if (document.getElementById('ai-setup-wizard')) return;
+        obs.disconnect();
+        if (!W1_AI.cancelled) w1AiSetState('ready');   // closed by itself: the key and the credits were checked and are fine
+      });
+      obs.observe(document.body, { childList: true });
+    }
+  };
+  // The Engine screen: a Set up your AI button while the AI is not set up (it follows the state that screen already loaded).
+  const render = window.engineRender;
+  if (typeof render === 'function') window.engineRender = function() {
+    const out = render.apply(this, arguments);
+    try {
+      const st = engineState && engineState.conn && engineState.conn.state;
+      if (st === 'ready') w1AiSetState('ready');
+      else if (st === 'no_key' || st === 'invalid' || st === 'no_credit') w1AiSetState('not_ready', st);
+      const box = document.getElementById('engine-content');
+      const old = document.getElementById('w1-ai-engine'); if (old) old.remove();
+      if (box && W1_AI.state === 'not_ready' && (st === 'no_key' || st === 'invalid' || st === 'no_credit')) {
+        const d = document.createElement('div'); d.id = 'w1-ai-engine';
+        const p = document.createElement('p'); p.textContent = 'Your AI is not set up yet. It starts working when your Anthropic key is connected and your account has credits.';
+        const b = document.createElement('button'); b.type = 'button'; b.id = 'w1-ai-engine-btn'; b.textContent = 'Set up your AI'; b.onclick = function() { w1AiOpen(); };
+        d.appendChild(p); d.appendChild(b); box.insertBefore(d, box.firstChild);
+      }
+    } catch (e) { /* the Engine screen itself is unchanged */ }
+    return out;
+  };
+  // Things that need the AI: a plain red message instead of a failure.
+  ['sendAhmadMessage', 'sendTestModeMessage', 'sendBusinessChatMessage', 'sendOnboardingMessage', 'startOnboardingChat'].forEach(function(name) {
+    const orig = window[name];
+    if (typeof orig !== 'function') return;
+    window[name] = function() { if (w1AiBlocked()) { w1AiNeed(); return Promise.resolve(); } return orig.apply(this, arguments); };
+  });
+})();
+</script>
+<!-- w1-ai-later:js:end -->
+<!-- w1-migrate-entry:js:start -->
+<script>
+// Easier ways into the upgrade of an old chat-ID account (build chat W1). Only entry points and wording: the Seller Migrate door, its calls and
+// the old-password check are not touched (they are in the w1-migrate-door block). The login screen has a visible "Upgrade your old account"
+// button and an "I already created my new login" link, and the sign-up message says exactly what to do next. There is no banner after login:
+// the door refuses a login that already has a business of its own, so a link there would mislead.
+window.w1MigeUpgrade = function () { w1MigReset(); showMigrateAccountScreen(1); };
+window.w1MigeHaveLogin = function () { w1MigReset(); w1MigShow(3); };
+</script>
+<!-- w1-migrate-entry:js:end -->
 </body>
 </html>
