@@ -4288,10 +4288,12 @@
   </div>
 </div>
 <div id="whatsapp-connect-gate" style="display:none;">
+  <button type="button" id="whatsapp-connect-gate-x" aria-label="Close" title="Close" onclick="w1WaCancel()">&times;</button>
   <div id="whatsapp-connect-gate-inner">
     <h1>Connect your WhatsApp</h1>
     <p>Before we teach your AI about your business, let's connect the WhatsApp number your customers will message.</p>
     <button id="whatsapp-connect-gate-btn" onclick="launchWhatsAppSignup()">Connect WhatsApp Number</button>
+    <button type="button" id="whatsapp-connect-gate-cancel" onclick="w1WaCancel()">Cancel</button>
     <span id="whatsapp-connect-gate-status"></span>
   </div>
 </div>
@@ -4343,6 +4345,10 @@
         <button id="new-conversation-btn" onclick="openNewConversationModal()" title="Start a new conversation">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
+      </div>
+      <div id="w1-wa-banner" style="display:none;">
+        <button type="button" id="w1-wa-connect-btn" onclick="w1WaOpenGate()">Connect WhatsApp</button>
+        <div id="w1-wa-empty" style="display:none;">Connect your WhatsApp to start receiving chats</div>
       </div>
       <div id="convo-list"><div id="loading"><div class="spinner"></div>Loading conversations...</div></div>
     </div>
@@ -16751,17 +16757,21 @@ function startApp() {
 // independent calls from startApp) since the onboarding check should only
 // run once we know WhatsApp is actually connected.
 async function checkWhatsAppConnectedThenOnboarding() {
+  let state = 'unknown';
   try {
     const me = await w1MeGet();
-    const isConnected = me && me.hasSeller === true && me.whatsappConnected === true;
-    if (!isConnected) {
-      document.getElementById('app').style.display = 'none';
-      document.getElementById('whatsapp-connect-gate').style.display = 'flex';
-      return;
-    }
+    state = w1WaStateOf(me);
   } catch (e) {
     debugLog('checkWhatsAppConnectedThenOnboarding failed: ' + (e && e.message));
   }
+  w1WaSetState(state);
+  if (state === 'not_connected') {
+    // Not connected yet: the popup asks once per session (Cancel lets the seller into the app); after Cancel the app opens as usual.
+    if (!w1WaDismissed()) { w1WaShowGate(); return; }
+    ensureAiReady(checkOnboardingNeeded).then(ok => { if (ok) checkOnboardingNeeded(); });
+    return;
+  }
+  W1_WA.timers = true;
   ensureAiReady(checkOnboardingNeeded).then(ok => { if (ok) checkOnboardingNeeded(); });
   setTimeout(() => window.refreshCallingStatus(), 4000);
   setTimeout(() => window.saveMediaToDevice(), 9000);
@@ -21376,5 +21386,117 @@ async function w1ResetSave() {
 }
 </script>
 <!-- w1-forgot-password:js:end -->
+<!-- w1-connect-later:js:start -->
+<style>
+  /* w1-connect-later:css:start */
+  #whatsapp-connect-gate-x { position: absolute; top: 14px; right: 16px; width: 40px; height: 40px; border: none; background: none; color: var(--text-muted); font-size: 30px; line-height: 1; cursor: pointer; border-radius: 20px; }
+  #whatsapp-connect-gate-x:hover { background: var(--panel-2); }
+  #whatsapp-connect-gate-cancel { width: 100%; margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: none; color: var(--text); font-weight: 600; font-size: 14.5px; cursor: pointer; }
+  #w1-wa-banner { margin: 10px 12px 4px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+  #w1-wa-connect-btn { width: 100%; padding: 12px; border: none; border-radius: 10px; background: #25D366; color: #fff; font-weight: 700; font-size: 14.5px; cursor: pointer; }
+  #w1-wa-empty { margin-top: 10px; text-align: center; font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+  #w1-wa-first { position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 9000; max-width: 92vw; display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+  #w1-wa-first button { border: 1px solid rgba(255,255,255,0.7); background: none; color: #fff; border-radius: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+  /* w1-connect-later:css:end */
+</style>
+<script>
+// New sellers can use the web app BEFORE connecting WhatsApp (build chat W1). Web app only: the connection flow itself (launchWhatsAppSignup and
+// its popup) is not changed. The truth comes from the own-row door's "me" answer, as the app already uses it:
+//   connected      = me.whatsappConnected is true                      -> exactly as before (nothing extra on screen)
+//   not_connected  = the seller row exists and me says it is NOT connected (flag false, or a phone number id that is empty)
+//   unknown        = anything else (no answer, an error, no seller row yet) -> nothing is blocked and nothing extra is shown
+// Not connected: the popup asks once per session and has Cancel and a close X (both let the seller into the app); a "Connect WhatsApp" button
+// sits at the top of the Chats list and opens the same popup; things that need WhatsApp say "Connect WhatsApp first".
+const W1_WA = { state: 'unknown', timers: false, toastTimer: null };
+const W1_WA_DISMISS_KEY = 'sparkly_wa_dismissed_chat_id';   // sessionStorage; the name matches the pattern the sign-out clears
+function w1WaStateOf(me) {
+  if (!me || me.ok === false || me.hasSeller !== true) return 'unknown';
+  if (me.whatsappConnected === true) return 'connected';
+  if (me.whatsappConnected === false) return 'not_connected';
+  if (Object.prototype.hasOwnProperty.call(me, 'phoneNumberId')) return me.phoneNumberId ? 'connected' : 'not_connected';
+  return 'unknown';
+}
+function w1WaDismissed() { try { return sessionStorage.getItem(W1_WA_DISMISS_KEY) === String(SELLER_CHAT_ID || ''); } catch (e) { return false; } }
+function w1WaDismiss() { try { sessionStorage.setItem(W1_WA_DISMISS_KEY, String(SELLER_CHAT_ID || '')); } catch (e) { /* kept in memory only */ } }
+function w1WaSetState(state) { W1_WA.state = state; w1WaBannerUpdate(); }
+function w1WaBannerUpdate() {
+  const box = document.getElementById('w1-wa-banner'); if (!box) return;
+  const on = W1_WA.state === 'not_connected';
+  box.style.display = on ? '' : 'none';
+  const empty = document.getElementById('w1-wa-empty');
+  if (empty) empty.style.display = on && typeof conversations !== 'undefined' && conversations.length === 0 ? '' : 'none';
+}
+function w1WaShowGate() {
+  const app = document.getElementById('app'); if (app) app.style.display = 'none';
+  document.getElementById('whatsapp-connect-gate').style.display = 'flex';
+}
+// The same popup as always; the banner button and the first-run check both open it.
+window.w1WaOpenGate = function() { w1WaShowGate(); };
+// Cancel and the close X: the popup closes and the seller is in the app; it does not open again by itself in this session.
+window.w1WaCancel = function() {
+  w1WaDismiss();
+  document.getElementById('whatsapp-connect-gate').style.display = 'none';
+  const app = document.getElementById('app'); if (app) app.style.display = 'flex';
+  const st = document.getElementById('whatsapp-connect-gate-status'); if (st) st.textContent = '';
+  w1WaBannerUpdate();
+  if (!W1_WA.afterCancelDone) {
+    W1_WA.afterCancelDone = true;
+    ensureAiReady(checkOnboardingNeeded).then(ok => { if (ok) checkOnboardingNeeded(); });
+  }
+};
+// Things that need WhatsApp: a plain red message instead of failing quietly.
+function w1WaBlocked() { return W1_WA.state === 'not_connected'; }
+function w1WaNeed() {
+  let t = document.getElementById('w1-wa-first');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'w1-wa-first'; t.setAttribute('role', 'alert');
+    const msg = document.createElement('span'); msg.id = 'w1-wa-first-msg'; msg.textContent = 'Connect WhatsApp first';
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'w1-wa-first-btn'; b.textContent = 'Connect WhatsApp';
+    b.onclick = function() { t.style.display = 'none'; w1WaOpenGate(); };
+    t.appendChild(msg); t.appendChild(b); document.body.appendChild(t);
+  }
+  t.style.display = 'flex';
+  clearTimeout(W1_WA.toastTimer);
+  W1_WA.toastTimer = setTimeout(function() { t.style.display = 'none'; }, 5000);
+  return true;
+}
+(function() {
+  // Wraps an existing action: not connected -> the red message and nothing else; otherwise the original runs untouched.
+  const guard = function(name) {
+    const orig = window[name];
+    if (typeof orig !== 'function') return;
+    window[name] = function() { if (w1WaBlocked()) { w1WaNeed(); return Promise.resolve(); } return orig.apply(this, arguments); };
+  };
+  ['sendReply', 'sendAttachment', 'sendLocation', 'sendVoiceNote', 'forwardMessageTo', 'openNewConversationModal', 'checkNewConversationNumber', 'sendNewConversationTemplate'].forEach(guard);
+  // Message templates (Business settings): the red message goes into the templates' own message line.
+  const tplGuard = function(name, onlyOpening) {
+    const orig = window[name];
+    if (typeof orig !== 'function') return;
+    window[name] = function(el) {
+      if (w1WaBlocked() && (!onlyOpening || (el && el.open))) { if (typeof tplSetMsg === 'function') tplSetMsg('Connect WhatsApp first', true); return Promise.resolve(); }
+      return orig.apply(this, arguments);
+    };
+  };
+  tplGuard('tplToggled', true); tplGuard('tplRefresh', false); tplGuard('tplSave', false);
+  // The empty-state line follows the Chats list.
+  const render = window.renderConvoList;
+  if (typeof render === 'function') window.renderConvoList = function() { const out = render.apply(this, arguments); w1WaBannerUpdate(); return out; };
+  // A successful connection (the existing flow writes "Connected" into its status line): the button, the popup and the guards go away.
+  const connected = function() {
+    if (W1_WA.state === 'connected') return;
+    W1_WA.state = 'connected';
+    if (typeof w1MeForget === 'function') w1MeForget();
+    w1WaBannerUpdate();
+    const gate = document.getElementById('whatsapp-connect-gate'); if (gate) gate.style.display = 'none';
+    const t = document.getElementById('w1-wa-first'); if (t) t.style.display = 'none';
+    if (!W1_WA.timers) { W1_WA.timers = true; setTimeout(function() { if (window.refreshCallingStatus) window.refreshCallingStatus(); }, 4000); setTimeout(function() { if (window.saveMediaToDevice) window.saveMediaToDevice(); }, 9000); }
+  };
+  ['whatsapp-connect-gate-status', 'whatsapp-connect-status'].forEach(function(id) {
+    const el = document.getElementById(id); if (!el || typeof MutationObserver === 'undefined') return;
+    new MutationObserver(function() { if (W1_WA.state === 'not_connected' && /^Connected/.test(el.textContent || '')) connected(); }).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+})();
+</script>
+<!-- w1-connect-later:js:end -->
 </body>
 </html>
