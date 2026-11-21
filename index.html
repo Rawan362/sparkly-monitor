@@ -4123,6 +4123,86 @@
   .dx-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 14px; }
   .dx-table th, .dx-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
 /* w1-delete-screen:css:end */
+/* w1-alert-check:css:start */
+  #ac-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #ac-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #ac-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #ac-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #ac-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .ac-card { background: var(--panel-2); border-radius: 10px; padding: 14px; }
+  .ac-go { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 14px; cursor: pointer; }
+  .ac-go:disabled { opacity: 0.5; cursor: wait; }
+  .ac-result { margin-top: 14px; }
+  .ac-status { color: var(--text-muted); font-size: 13.5px; padding: 6px 0; }
+  .ac-status.error { color: var(--danger); }
+  .ac-ok { font-size: 14px; padding: 6px 0; }
+/* w1-alert-check:css:end */
+/* w1-roas:css:start */
+  .rs-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .rs-form select, .rs-form input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 13px; }
+  .rs-form label { font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+  .rs-net { font-size: 24px; font-weight: 700; font-family: var(--font-display); margin: 6px 0 10px; }
+  .rs-net.positive { color: var(--accent-2); }
+  .rs-net.negative { color: var(--danger); }
+  .rs-note { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+  .rs-names { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* w1-roas:css:end */
+/* w1-ads-additions:css:start */
+  .ae-more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+  .ae-more button, .ae-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 12.5px; cursor: pointer; }
+  .ae-more input { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; width: 180px; }
+  .ae-ads-of { margin-top: 10px; }
+  .ae-ad { border-top: 1px solid var(--border); padding: 8px 0; }
+  .ae-last { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--text-muted); }
+  .ae-list-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .ae-choice { margin-top: 8px; }
+/* w1-ads-additions:css:end */
+/* w1-ads-extras:css:start */
+  .ag-ticks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 8px 0 10px; }
+  .ag-ticks label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .ag-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .ag-form select, .ag-form input[type="text"], .ag-form input[type="date"] { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; }
+  .ag-form label.ag-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-muted); }
+  .ag-honest { font-size: 12.5px; color: var(--danger); margin: 6px 0; }
+  .ag-rules { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .ag-scroll { overflow-x: auto; margin-top: 10px; }
+  .ag-table { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+  .ag-table th, .ag-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .ag-warning { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 10px; }
+/* w1-ads-extras:css:end */
+/* w1-import-barcode:css:start */
+  #bk-tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; position: relative; }
+  #bk-header-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #bk-header-row button { border: none; background: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+  #bk-title { font-weight: 700; font-size: 17px; font-family: var(--font-display); flex: 1; text-align: center; }
+  #bk-content { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  .bk-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 4px 0 10px; }
+  .bk-card { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .bk-p { font-size: 13.5px; line-height: 1.45; margin: 0 0 10px; }
+  .bk-small { font-size: 12.5px; color: var(--text-muted); margin: 6px 0; }
+  .bk-msg { font-size: 13px; margin: 8px 0; color: var(--text-muted); }
+  .bk-msg.error { color: var(--danger); }
+  .bk-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .bk-row button, .bk-btn { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer; }
+  .bk-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .bk-row input[type="text"], .bk-row select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 13px; }
+  .bk-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+  .bk-count { background: var(--panel); border-radius: 8px; padding: 8px; text-align: center; }
+  .bk-count b { display: block; font-size: 18px; }
+  .bk-count span { font-size: 11.5px; color: var(--text-muted); }
+  .bk-list { margin: 6px 0; padding-left: 18px; font-size: 12.5px; }
+  .bk-table { border-collapse: collapse; font-size: 12.5px; }
+  .bk-table th, .bk-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .bk-scroll { overflow-x: auto; }
+  #bk-video { width: 100%; max-height: 240px; border-radius: 8px; background: #000; }
+  #bk-confirm { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 5; }
+  #bk-confirm .bk-box { background: var(--panel); border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; }
+  #bk-confirm-summary { font-size: 16px; line-height: 1.4; margin-bottom: 10px; }
+  #bk-confirm .bk-buttons { display: flex; gap: 10px; margin-top: 12px; }
+  #bk-confirm .bk-buttons button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 14px; cursor: pointer; }
+  #bk-confirm .bk-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #bk-confirm-go { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* w1-import-barcode:css:end */
 </style>
 </head>
 <body>
@@ -4606,6 +4686,41 @@
       <div id="dx-content"></div>
     </div>
     <!-- w1-delete-screen:html:end -->
+    <!-- w1-alert-check:html:start -->
+    <div id="ac-tab-content" style="display:none;">
+      <div id="ac-header-row">
+        <button type="button" onclick="closeAlertCheck()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="ac-title">Alert check</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="ac-content">
+        <div class="ac-card">
+          <button type="button" class="ac-go" id="ac-go" onclick="acCheckNow()">Check now</button>
+          <div class="ac-result" id="ac-result"></div>
+        </div>
+      </div>
+    </div>
+    <!-- w1-alert-check:html:end -->
+    <!-- w1-import-barcode:html:start -->
+    <div id="bk-tab-content" style="display:none;">
+      <div id="bk-header-row">
+        <button type="button" onclick="closeImportBarcode()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <span id="bk-title">Import and barcodes</span>
+        <span style="width:32px;"></span>
+      </div>
+      <div id="bk-content"></div>
+      <div id="bk-confirm" role="dialog" aria-modal="true">
+        <div class="bk-box">
+          <div id="bk-confirm-summary"></div>
+          <div class="bk-small">Nothing changes until you press Confirm. A safety copy is saved first.</div>
+          <div class="bk-buttons">
+            <button type="button" id="bk-confirm-cancel" onclick="bkCancelConfirm()">Cancel</button>
+            <button type="button" id="bk-confirm-go" onclick="bkPressConfirm()">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- w1-import-barcode:html:end -->
     <div id="debts-tab-content" style="display:none;">
       <div id="debts-list-view">
         <div id="debts-header-row">
@@ -4894,6 +5009,18 @@
         <span id="ax-menu-label">Ads</span>
       </div>
       <!-- w1-ads-screen:row:end -->
+      <!-- w1-alert-check:row:start -->
+      <div class="settings-row" id="ac-menu-row" onclick="openAlertCheck()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <span id="ac-menu-label">Alert check</span>
+      </div>
+      <!-- w1-alert-check:row:end -->
+      <!-- w1-import-barcode:row:start -->
+      <div class="settings-row" id="bk-menu-row" onclick="openImportBarcode()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M16 5v14"/><path d="M20 5v14"/></svg>
+        <span id="bk-menu-label">Import and barcodes</span>
+      </div>
+      <!-- w1-import-barcode:row:end -->
       <div class="settings-row" onclick="openDebtsPanel()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span id="settings-label-debts-row">Customer Debts</span>
@@ -12759,6 +12886,53 @@ const NOTIFICATION_TYPE_LABELS = {
   customer_question: 'Needs your answer'
 };
 
+// w1-notice-types:js:start
+// The eight notice types the Seller Alerts door writes into seller_notifications (title and message come in English from the door).
+// They get a label and a small icon. Tapping "customer needs you" or "not a customer" opens the chats list. The older types are not
+// listed here, so they look and behave exactly as before (no icon, same tap action).
+Object.assign(NOTIFICATION_TYPE_LABELS, {
+  order_confirmed: 'Order confirmed',
+  customer_needs_you: 'Customer needs you',
+  new_vip_customer: 'New VIP customer',
+  not_a_customer: 'Not a customer',
+  whatsapp_not_connected: 'WhatsApp not connected',
+  overdue_orders: 'Overdue orders',
+  silent_customers: 'Silent customers',
+  cod_not_collected: 'Cash on delivery not collected'
+});
+const W1_NOTICE_ICON_PATHS = {
+  order_confirmed: '<polyline points="20 6 9 17 4 12"/>',
+  customer_needs_you: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  new_vip_customer: '<polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/>',
+  not_a_customer: '<circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>',
+  whatsapp_not_connected: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.7 11.1A9 9 0 0 0 9.2 5.4"/><path d="M5 12.6a9 9 0 0 0 4.2 2.4"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+  overdue_orders: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  silent_customers: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+  cod_not_collected: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'
+};
+const W1_NOTICE_OPENS_CHATS = ['customer_needs_you', 'not_a_customer'];
+// The icon in front of the type label; an empty string for every older type.
+function w1NoticeIcon(type) {
+  const path = Object.prototype.hasOwnProperty.call(W1_NOTICE_ICON_PATHS, type) ? W1_NOTICE_ICON_PATHS[type] : '';
+  if (!path) return '';
+  return '<svg class="w1-notice-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;">' + path + '</svg>';
+}
+// The tap action for a new type that opens the chats list; an empty string for everything else (the older rules then decide).
+function w1NoticeTap(n) {
+  return W1_NOTICE_OPENS_CHATS.indexOf(n && n.type) >= 0 ? 'w1OpenChatsFromNotice(' + Number(n.id) + ')' : '';
+}
+// Marks the notice as read (as the other notice taps do), then shows the chats list.
+window.w1OpenChatsFromNotice = async function(id) {
+  try {
+    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+  } catch (e) { /* the list still opens */ }
+  try { checkNotificationsDot(); } catch (e) { /* not important */ }
+  closeNotificationsPanel();
+  goToChats();
+};
+// w1-notice-types:js:end
+
 function formatNotificationTime(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
@@ -12808,9 +12982,9 @@ function renderNotificationItem(n) {
     <div class="notification-item${unreadClass}" data-id="${n.id}">
       <div class="notification-item-row">
         <input type="checkbox" class="notification-item-checkbox" data-id="${n.id}" onclick="event.stopPropagation(); onNotificationCheckboxChange()">
-        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : ((n.type === 'customer_question' && n.question_id) ? `openQuestionFromNotification(${n.id}, ${Number(n.question_id)})` : `discussNotification(${n.id})`)}">
+        <div class="notification-item-body" onclick="${(n.type === 'customer_escalation' && n.customer_phone) ? `openEscalationChat(${n.id}, '${escapeHtml(String(n.customer_phone))}')` : ((n.type === 'customer_question' && n.question_id) ? `openQuestionFromNotification(${n.id}, ${Number(n.question_id)})` : (w1NoticeTap(n) || `discussNotification(${n.id})`))}">
           <div class="notification-item-top">
-            <span class="notification-item-type">${escapeHtml(typeLabel)}</span>
+            <span class="notification-item-type">${w1NoticeIcon(n.type)}${escapeHtml(typeLabel)}</span>
             <span class="notification-item-title">${escapeHtml(n.title)}</span>
           </div>
           <div class="notification-item-message">${escapeHtml(n.message)}</div>
@@ -18227,6 +18401,7 @@ function axRender() {
   box.appendChild(sum);
   const top = axEl('div', 'ax-msg'); top.setAttribute('data-ax-msg', 'top');
   box.appendChild(top);
+  if (typeof w1AdsHeaderExtras === 'function') w1AdsHeaderExtras(box);
 
   const objects = Array.isArray(o.objects) ? o.objects : [];
   const campaigns = objects.filter(function(x) { return x.level === 'campaign'; });
@@ -18246,6 +18421,9 @@ function axRender() {
   box.appendChild(axReportButtons());
   const rep = axEl('div'); rep.id = 'ax-report';
   box.appendChild(rep);
+  if (typeof w1AdsEverything === 'function') w1AdsEverything(box);
+  if (typeof w1AdsSettingsAndReports === 'function') w1AdsSettingsAndReports(box);
+  if (typeof w1RoasSection === 'function') box.appendChild(w1RoasSection());
 }
 
 function axObjectCard(o, child) {
@@ -18283,6 +18461,7 @@ function axObjectCard(o, child) {
     actions.appendChild(b);
   }
   if (actions.childNodes.length) card.appendChild(actions);
+  if (typeof w1AdsCardExtras === 'function') w1AdsCardExtras(card, o);
   const msg = axEl('div', 'ax-msg'); msg.setAttribute('data-ax-msg', String(o.id));
   card.appendChild(msg);
   return card;
@@ -18904,6 +19083,1517 @@ window.closeDeleteScreen = function() {
 };
 </script>
 <!-- w1-delete-screen:js:end -->
+<!-- w1-alert-check:js:start -->
+<script>
+// Alert check screen (build chat W1). READ ONLY: one button, "Check now", asks the Seller Alerts door for the numbers behind the old
+// panel's alerts command. Door: POST /webhook/seller-alerts with { token, action: 'scan' }. The door counts at most 10 overdue orders and
+// at most 5 silent customers and 5 uncollected cash-on-delivery orders, so a count at its limit is shown as "N or more".
+// Words are in AC_TEXT. The money label comes from the door (the seller's own); nothing assumes a currency, language or country.
+const SELLER_ALERTS_URL = 'https://sparklly.site/webhook/seller-alerts';
+const AC_LIMITS = { overdueOrders: 10, silentCustomers: 5, codCount: 5 };
+const AC_TEXT = {
+  checking: 'Checking...',
+  allGood: 'All good, no alerts right now',
+  overdue: 'Overdue orders',
+  silent: 'Silent customers',
+  cod: 'Cash on delivery not collected',
+  orMore: ' or more',
+  learned: 'The AI learned from ',
+  conversations: ' conversations',
+  closeRate: 'Close rate',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not read your numbers right now. Please try again.'
+};
+const AC_DOOR_MESSAGE_CODES = ['lookup_failed', 'no_seller', 'read_failed'];
+let _acBusy = false;
+
+function acNum(n) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: 2 }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+function acCount(n, limit) { return acNum(n) + (Number(n) >= limit ? AC_TEXT.orMore : ''); }
+
+async function callSellerAlerts(action) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, error: 'not_logged_in' };
+  try {
+    const r = await fetch(SELLER_ALERTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, action: action })
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+
+function acErrorText(r) {
+  const code = r && (r.error || r.code);
+  if (code === 'not_logged_in' || code === 'relogin') return AC_TEXT.relogin;
+  if (code === 'not_available') return AC_TEXT.notAvailable;
+  if (code === 'network') return AC_TEXT.noConnection;
+  if (AC_DOOR_MESSAGE_CODES.indexOf(code) >= 0 && typeof r.message === 'string' && r.message) return r.message;
+  return AC_TEXT.failed;
+}
+
+function acLine(label, value) {
+  const row = document.createElement('div');
+  row.className = 'report-list-row';
+  const a = document.createElement('span'); a.className = 'label'; a.textContent = label;
+  const b = document.createElement('span'); b.className = 'value'; b.textContent = value;
+  row.appendChild(a); row.appendChild(b);
+  return row;
+}
+
+function acShow(text, cls) {
+  const box = document.getElementById('ac-result');
+  if (!box) return null;
+  box.textContent = '';
+  const d = document.createElement('div');
+  d.className = cls; d.textContent = text;
+  box.appendChild(d);
+  return box;
+}
+
+function acRender(r) {
+  const s = r.scan || {};
+  const cur = r.currency ? ' ' + r.currency : '';
+  const box = document.getElementById('ac-result');
+  if (!box) return;
+  box.textContent = '';
+  const overdue = Number(s.overdueOrders) || 0;
+  const silent = Number(s.silentCustomers) || 0;
+  const cod = s.codNotCollected || { count: 0, total: 0 };
+  const codCount = Number(cod.count) || 0;
+  const learning = s.salesIntelligence || null;
+  if (overdue > 0) box.appendChild(acLine(AC_TEXT.overdue, acCount(overdue, AC_LIMITS.overdueOrders)));
+  if (silent > 0) box.appendChild(acLine(AC_TEXT.silent, acCount(silent, AC_LIMITS.silentCustomers)));
+  if (codCount > 0) box.appendChild(acLine(AC_TEXT.cod, acCount(codCount, AC_LIMITS.codCount) + ' (' + acNum(cod.total) + cur + ')'));
+  if (overdue === 0 && silent === 0 && codCount === 0) {
+    const ok = document.createElement('div'); ok.className = 'ac-ok'; ok.textContent = AC_TEXT.allGood;
+    box.appendChild(ok);
+  }
+  if (learning) {
+    box.appendChild(acLine(AC_TEXT.learned + acNum(learning.conversations) + AC_TEXT.conversations, ''));
+    box.appendChild(acLine(AC_TEXT.closeRate, acNum(learning.closeRatePercent) + '%'));
+  }
+}
+
+window.acCheckNow = async function() {
+  if (_acBusy) return;
+  _acBusy = true;
+  const go = document.getElementById('ac-go');
+  if (go) go.disabled = true;
+  acShow(AC_TEXT.checking, 'ac-status');
+  try {
+    const r = await callSellerAlerts('scan');
+    if (!r || r.ok !== true || !r.scan) { acShow(acErrorText(r), 'ac-status error'); return; }
+    acRender(r);
+  } finally {
+    _acBusy = false;
+    if (go) go.disabled = false;
+  }
+};
+
+window.openAlertCheck = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('ac-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  const box = document.getElementById('ac-result');
+  if (box) box.textContent = '';
+};
+
+window.closeAlertCheck = function() {
+  document.getElementById('ac-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-alert-check:js:end -->
+<!-- w1-roas:js:start -->
+<script>
+// Real profit (ROAS) section of the Ads screen (build chat W1). READ ONLY: no confirm panel, nothing can change.
+// Door: POST /webhook/seller-ads with { token, action: 'roas', roas: { range, since, until, nameHint, level } }. The login decides the seller.
+// The door answers numbers; the words are here (RS_TEXT). The currency word comes from the answer and is never assumed: when the door
+// sends none, only the number is shown. The Ads screen calls w1RoasSection() once when it draws itself.
+const RS_TEXT = {
+  title: 'Real profit',
+  period: 'Period',
+  ranges: { today: 'Today', yesterday: 'Yesterday', last_7d: 'Last 7 days', last_30d: 'Last 30 days', last_90d: 'Last 90 days', this_year: 'This year', last_year: 'Last year', custom: 'Choose two dates' },
+  from: 'From', to: 'To',
+  adLabel: 'One ad (optional)',
+  adPlaceholder: 'All my ads',
+  adHelp: 'Leave empty for all your ads, or type the name or the number of one ad.',
+  show: 'Show real profit',
+  loading: 'Working it out...',
+  revenue: 'Revenue', knownCosts: 'Known product costs', adSpend: 'Ad spend', netProfit: 'Net profit',
+  trueRoas: 'True ROAS (after real costs)', standardRoas: 'Standard ROAS (like Meta shows, before costs)',
+  unknownCost1: ' of ', unknownCost2: ' orders have no cost price set, so this is an approximation. Set the cost price on each product in Products.',
+  precise1: ' of these orders used the exact items; the rest used a simpler estimate.',
+  mapped: 'This matches orders to the product the ad is linked to. It is not exact per-click tracking.',
+  badRange: 'Choose a period, or two dates.',
+  notConnected: 'Your ads account is not connected yet.',
+  notFound: 'We could not find that ad.',
+  ambiguous1: 'More than one ad matches: ', ambiguous2: '. Pick one.',
+  notAnAd: 'Real profit works for one ad at a time. Pick an ad, not a campaign.',
+  notLinked1: '', notLinked2: ' is not linked to a product yet, so real profit cannot be worked out for it.',
+  noSpend: 'No ad spend in this period.',
+  noOrders: 'No completed orders in this period to work out real profit.',
+  unavailable: 'We could not read your data. Try again in a moment.',
+  tryAgain: 'Try again',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Please try again.'
+};
+let _rsBusy = false;
+
+function rsNum(n, digits) {
+  const v = Number(n);
+  const d = digits === undefined ? 2 : digits;
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { minimumFractionDigits: d, maximumFractionDigits: d }); } catch (e) { return (isFinite(v) ? v : 0).toFixed(d); }
+}
+// Money with the currency word from the answer only. Never falls back to another currency.
+function rsMoney(n, currency) { return rsNum(n, 2) + (currency ? ' ' + currency : ''); }
+function rsRatio(n) { return n === null || n === undefined || !isFinite(Number(n)) ? '-' : rsNum(n, 2) + 'x'; }
+function rsEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function rsMessage(text, isError, retry) {
+  const box = document.getElementById('rs-result');
+  if (!box) return;
+  box.textContent = '';
+  box.appendChild(rsEl('div', 'ax-status' + (isError ? ' error' : ''), text));
+  if (retry) { const b = rsEl('button', 'ax-btn', RS_TEXT.tryAgain); b.type = 'button'; b.id = 'rs-retry'; b.onclick = retry; box.appendChild(b); }
+}
+function rsErrorText(r) {
+  const code = r && r.code;
+  if (code === 'relogin' || code === 'not_logged_in') return RS_TEXT.relogin;
+  if (code === 'not_available') return RS_TEXT.notAvailable;
+  if (code === 'network') return RS_TEXT.noConnection;
+  if (code === 'ads_not_connected') return RS_TEXT.notConnected;
+  if (code === 'bad_range') return RS_TEXT.badRange;
+  if (code === 'not_found') return RS_TEXT.notFound;
+  if (code === 'not_an_ad') return RS_TEXT.notAnAd;
+  if (code === 'not_linked') return RS_TEXT.notLinked1 + String((r && r.adName) || '') + RS_TEXT.notLinked2;
+  if (code === 'no_spend') return RS_TEXT.noSpend;
+  if (code === 'no_orders') return RS_TEXT.noOrders;
+  if (code === 'unavailable' || code === 'meta_unavailable') return RS_TEXT.unavailable;
+  if ((code === 'wrong_seller' || code === 'bad_level') && typeof r.message === 'string' && r.message) return r.message;
+  return RS_TEXT.failed;
+}
+
+function w1RoasSection() {
+  const wrap = rsEl('div');
+  wrap.id = 'rs-section';
+  wrap.appendChild(rsEl('div', 'ax-section-title', RS_TEXT.title));
+  const form = rsEl('div', 'rs-form');
+  const periodLabel = rsEl('label', '', RS_TEXT.period);
+  const sel = document.createElement('select'); sel.id = 'rs-range';
+  Object.keys(RS_TEXT.ranges).forEach(function(k) { sel.appendChild(new Option(RS_TEXT.ranges[k], k)); });
+  sel.value = 'last_7d';
+  periodLabel.appendChild(sel);
+  form.appendChild(periodLabel);
+  const dates = rsEl('div', 'rs-form'); dates.id = 'rs-dates'; dates.style.display = 'none';
+  const fromLabel = rsEl('label', '', RS_TEXT.from); const since = document.createElement('input'); since.type = 'date'; since.id = 'rs-since'; fromLabel.appendChild(since);
+  const toLabel = rsEl('label', '', RS_TEXT.to); const until = document.createElement('input'); until.type = 'date'; until.id = 'rs-until'; toLabel.appendChild(until);
+  dates.appendChild(fromLabel); dates.appendChild(toLabel);
+  sel.onchange = function() { dates.style.display = sel.value === 'custom' ? 'flex' : 'none'; };
+  form.appendChild(dates);
+  const adLabel = rsEl('label', '', RS_TEXT.adLabel);
+  const ad = document.createElement('input'); ad.type = 'text'; ad.id = 'rs-ad'; ad.placeholder = RS_TEXT.adPlaceholder; ad.maxLength = 120;
+  adLabel.appendChild(ad);
+  form.appendChild(adLabel);
+  wrap.appendChild(form);
+  wrap.appendChild(rsEl('div', 'ax-msg', RS_TEXT.adHelp));
+  const go = rsEl('button', 'ax-btn', RS_TEXT.show); go.type = 'button'; go.id = 'rs-go';
+  go.onclick = function() { rsRun(); };
+  wrap.appendChild(go);
+  const result = rsEl('div'); result.id = 'rs-result';
+  wrap.appendChild(result);
+  return wrap;
+}
+
+// Builds the request from the form. Returns null (and says so) when the period is not valid. Never contains a seller id.
+function rsRequest(nameOverride) {
+  const range = document.getElementById('rs-range').value;
+  const roas = { range: range };
+  if (range === 'custom') {
+    const since = document.getElementById('rs-since').value;
+    const until = document.getElementById('rs-until').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(since) || !/^\d{4}-\d{2}-\d{2}$/.test(until) || since > until) return null;
+    roas.since = since; roas.until = until;
+  }
+  const name = String(nameOverride !== undefined ? nameOverride : document.getElementById('rs-ad').value).trim();
+  if (name) { roas.nameHint = name; roas.level = 'ad'; }
+  return roas;
+}
+
+async function rsRun(nameOverride) {
+  if (_rsBusy) return;
+  const roas = rsRequest(nameOverride);
+  if (!roas) { rsMessage(RS_TEXT.badRange, true); return; }
+  _rsBusy = true;
+  const go = document.getElementById('rs-go');
+  if (go) go.disabled = true;
+  rsMessage(RS_TEXT.loading, false);
+  try {
+    const r = await callSellerAds('roas', { roas: roas });
+    if (!r || r.ok !== true) { rsFail(r, roas); return; }
+    rsShow(r);
+  } finally {
+    _rsBusy = false;
+    if (go) go.disabled = false;
+  }
+}
+
+function rsFail(r, roas) {
+  const code = r && r.code;
+  if (code === 'ambiguous' && Array.isArray(r.names) && r.names.length) {
+    rsMessage(RS_TEXT.ambiguous1 + r.names.join(', ') + RS_TEXT.ambiguous2, true);
+    const box = document.getElementById('rs-result');
+    const names = rsEl('div', 'rs-names');
+    r.names.forEach(function(nm) {
+      const b = rsEl('button', 'ax-btn', String(nm)); b.type = 'button'; b.className = 'ax-btn rs-name';
+      b.onclick = function() { document.getElementById('rs-ad').value = String(nm); rsRun(String(nm)); };
+      names.appendChild(b);
+    });
+    box.appendChild(names);
+    return;
+  }
+  const retriable = code === 'unavailable' || code === 'meta_unavailable';
+  rsMessage(rsErrorText(r), true, retriable ? function() { rsRun(); } : null);
+}
+
+function rsLine(label, value) {
+  const row = rsEl('div', 'report-list-row');
+  row.appendChild(rsEl('span', 'label', label));
+  row.appendChild(rsEl('span', 'value', value));
+  return row;
+}
+
+function rsShow(r) {
+  const box = document.getElementById('rs-result');
+  if (!box) return;
+  box.textContent = '';
+  const cur = r.currency || '';
+  const card = rsEl('div', 'ax-card');
+  card.id = 'rs-card';
+  card.appendChild(rsEl('div', 'ax-name', RS_TEXT.title + (r.label ? ' - ' + r.label : '')));
+  if (r.adName) card.appendChild(rsEl('div', 'ax-sub', String(r.adName)));
+  card.appendChild(rsLine(RS_TEXT.revenue, rsMoney(r.revenue, cur)));
+  card.appendChild(rsLine(RS_TEXT.knownCosts, rsMoney(r.knownCosts, cur)));
+  card.appendChild(rsLine(RS_TEXT.adSpend, rsMoney(r.adSpend, cur)));
+  const net = Number(r.netProfit) || 0;
+  const netRow = rsEl('div');
+  netRow.appendChild(rsEl('div', 'ax-sub', RS_TEXT.netProfit));
+  netRow.appendChild(rsEl('div', 'rs-net' + (net > 0 ? ' positive' : (net < 0 ? ' negative' : '')), rsMoney(net, cur)));
+  netRow.id = 'rs-net';
+  card.appendChild(netRow);
+  card.appendChild(rsLine(RS_TEXT.trueRoas, rsRatio(r.trueRoas)));
+  card.appendChild(rsLine(RS_TEXT.standardRoas, rsRatio(r.standardRoas)));
+  box.appendChild(card);
+  const orders = Number(r.orders) || 0;
+  const unknown = Number(r.ordersWithUnknownCost) || 0;
+  const precise = Number(r.ordersWithPreciseCost) || 0;
+  if (unknown > 0) box.appendChild(rsEl('div', 'rs-note', rsNum(unknown, 0) + RS_TEXT.unknownCost1 + rsNum(orders, 0) + RS_TEXT.unknownCost2));
+  if (precise > 0 && precise < orders) box.appendChild(rsEl('div', 'rs-note', rsNum(precise, 0) + RS_TEXT.precise1));
+  if (r.mappedToProduct === true) box.appendChild(rsEl('div', 'rs-note', RS_TEXT.mapped));
+}
+</script>
+<!-- w1-roas:js:end -->
+<!-- w1-ads-additions:js:start -->
+<script>
+// Ads screen additions (build chat W1): rename, single ads, a budget change that goes to one of a campaign's ad sets, "undo last change"
+// and a read-only "Everything" list. Same door (POST /webhook/seller-ads), same confirm panel: every change is "prepare", then the
+// seller presses Confirm. The older buttons are left exactly as they are; these are extra buttons in a second row of each card.
+// The Ads screen calls three small hooks: w1AdsCardExtras, w1AdsHeaderExtras and w1AdsEverything. Words are in AE_TEXT.
+const AE_TEXT = {
+  rename: 'Rename', renameReview: 'Review change', newName: 'New name',
+  showAds: 'Show ads', hideAds: 'Hide ads', noAds: 'No ads in this ad set.', loading: 'Loading...',
+  changeBudget: 'Change budget', budgetReview: 'Review change', daily: 'New daily budget',
+  lastChange: 'Last change', undoLast: 'Undo last change', nothingToUndo: 'Nothing to undo.',
+  ad: 'Ad', running: 'Running', paused: 'Paused', pause: 'Pause', resume: 'Resume',
+  badName: 'The name must have 1 to 200 characters.',
+  badNumber: 'Enter a number above zero.',
+  pickAdset: 'This campaign has no budget of its own. Pick the ad set whose budget you want to change:',
+  everything: 'Everything', campaigns: 'Campaigns', adsets: 'Ad sets', ads: 'Ads', open: 'Open',
+  youHave: 'You have ', nothingFound: 'Nothing found.', inParent: ' in ',
+  campaignWord: ['campaign', 'campaigns'], adsetWord: ['ad set', 'ad sets'], adWord: ['ad', 'ads'],
+  ambiguous: 'More than one matches. Pick one:',
+  notFound: 'We could not find that.',
+  undoCopyFailed: 'A safety copy could not be saved, so nothing was changed. Try again.',
+  noAdsets: 'This campaign has no ad sets, so there is no budget to change.',
+  failed: 'Something went wrong. Check your ads in Meta Ads Manager before you try again.'
+};
+// Plain words for the new door codes, added to the Ads screen's own tables (the older entries are not touched).
+Object.assign(AX_CODE_TEXT, { undo_copy_failed: AE_TEXT.undoCopyFailed, bad_name: AE_TEXT.badName });
+['no_adsets', 'nothing_to_undo', 'cannot_undo', 'budget_not_on_ads', 'bad_level'].forEach(function(c) { if (AX_SHOW_DOOR_MESSAGE.indexOf(c) < 0) AX_SHOW_DOOR_MESSAGE.push(c); });
+
+const AE_state = { openAdsets: {}, depth: 0 };
+
+function aeEl(tag, cls, text) { return axEl(tag, cls, text); }
+function aeBtn(label, onclick, id) {
+  const b = axEl('button', '', label);
+  b.type = 'button'; if (id) b.id = id; b.onclick = onclick;
+  return b;
+}
+function aeStatusWord(s) { return s === 'ACTIVE' ? AE_TEXT.running : (s === 'PAUSED' ? AE_TEXT.paused : String(s || '')); }
+function aeNoun(level, n) { const w = level === 'campaign' ? AE_TEXT.campaignWord : (level === 'adset' ? AE_TEXT.adsetWord : AE_TEXT.adWord); return n === 1 ? w[0] : w[1]; }
+
+// One prepare call. Only the confirm panel changes anything; this never writes. adset_choice shows the ad sets to pick from.
+async function aePrepare(change, key, onChoice) {
+  if (AX_state.busy) return;
+  AX_state.busy = true;
+  try {
+    axRowMessage(key, '', false);
+    const r = await callSellerAds('prepare', { change: change });
+    if (r && r.ok === true && r.needsConfirm === true && r.confirmToken) { axOpenConfirm(r); return; }
+    if (r && r.code === 'adset_choice' && onChoice) { onChoice(r); return; }
+    if (r && (r.code === 'meta_unavailable' || r.code === 'unavailable')) { axRowMessage(key, AX_TEXT.metaDown + ' ' + AX_TEXT.tryAgain + '.', true); return; }
+    if (r && r.code === 'no_cap') { axRowMessage('cap', AX_TEXT.noCap, true); return; }
+    if (r && AX_REFRESH_CODES.indexOf(r.code) >= 0) { axRowMessage(key, axErrorText(r), true); axLoad(); return; }
+    axRowMessage(key, axErrorText(r), true);
+  } finally { AX_state.busy = false; }
+}
+
+function aeNameForm(host, o, level) {
+  const input = document.createElement('input');
+  input.type = 'text'; input.className = 'ae-name-input'; input.maxLength = 200; input.placeholder = AE_TEXT.newName; input.value = String(o.name || '');
+  const go = aeBtn(AE_TEXT.renameReview, function() {
+    const name = input.value.trim();
+    if (name.length < 1 || name.length > 200) { axRowMessage(String(o.id), AE_TEXT.badName, true); return; }
+    aePrepare({ type: 'rename', targetId: String(o.id), level: level, newName: name }, String(o.id));
+  });
+  go.className = 'ae-review-rename';
+  host.appendChild(input); host.appendChild(go);
+  input.focus();
+}
+
+function aeBudgetForm(host, campaign) {
+  const input = document.createElement('input');
+  input.type = 'text'; input.inputMode = 'decimal'; input.className = 'ae-budget-input'; input.placeholder = AE_TEXT.daily;
+  const go = aeBtn(AE_TEXT.budgetReview, function() {
+    const v = axParseAmount(input.value);
+    if (v === null) { axRowMessage(String(campaign.id), AE_TEXT.badNumber, true); return; }
+    aePrepare({ type: 'set_budget', targetId: String(campaign.id), newBudget: v }, String(campaign.id), function(r) { aeShowChoice(campaign, v, r); });
+  });
+  go.className = 'ae-review-budget';
+  host.appendChild(input); host.appendChild(go);
+  input.focus();
+}
+
+// The campaign has several ad sets: show them (matched by name from the overview) and send the change for the one the seller picks.
+function aeShowChoice(campaign, amount, r) {
+  const card = document.querySelector('[data-ax-id="' + String(campaign.id).replace(/"/g, '') + '"]');
+  if (!card) return;
+  const old = card.querySelector('.ae-choice');
+  if (old) old.remove();
+  const box = aeEl('div', 'ae-choice');
+  box.appendChild(aeEl('div', 'ax-msg', AE_TEXT.pickAdset));
+  const names = Array.isArray(r.names) ? r.names : [];
+  const objects = AX_state.overview && Array.isArray(AX_state.overview.objects) ? AX_state.overview.objects : [];
+  const sets = objects.filter(function(x) { return x.level === 'adset' && String(x.campaignId) === String(campaign.id) && (!names.length || names.indexOf(x.name) >= 0); });
+  const row = aeEl('div', 'ae-more');
+  sets.forEach(function(s) {
+    const b = aeBtn(String(s.name), function() { aePrepare({ type: 'set_budget', targetId: String(s.id), newBudget: amount }, String(campaign.id)); });
+    b.className = 'ae-pick-adset';
+    row.appendChild(b);
+  });
+  box.appendChild(row);
+  card.appendChild(box);
+}
+
+// ---- Hook 1: extra buttons in a second row of each campaign and ad set card.
+function w1AdsCardExtras(card, o) {
+  const more = aeEl('div', 'ae-more');
+  const level = o.level === 'adset' ? 'adset' : 'campaign';
+  const rename = aeBtn(AE_TEXT.rename, function() { rename.style.display = 'none'; aeNameForm(more, o, level); });
+  rename.className = 'ae-rename';
+  more.appendChild(rename);
+  // A campaign with no budget of its own (and no lifetime budget): the budget lives on its ad sets.
+  const noOwn = o.level === 'campaign' && (o.dailyBudget === null || o.dailyBudget === undefined) && o.lifetimeBudget !== true;
+  if (noOwn) {
+    const b = aeBtn(AE_TEXT.changeBudget, function() { b.style.display = 'none'; aeBudgetForm(more, o); });
+    b.className = 'ae-budget';
+    more.appendChild(b);
+  }
+  if (o.level === 'adset') {
+    const toggle = aeBtn(AE_TEXT.showAds, function() {
+      const id = String(o.id);
+      if (AE_state.openAdsets[id]) { delete AE_state.openAdsets[id]; host.textContent = ''; toggle.textContent = AE_TEXT.showAds; return; }
+      AE_state.openAdsets[id] = true; toggle.textContent = AE_TEXT.hideAds; aeLoadAds(o, host);
+    });
+    toggle.className = 'ae-show-ads';
+    more.appendChild(toggle);
+  }
+  card.appendChild(more);
+  let host = null;
+  if (o.level === 'adset') {
+    host = aeEl('div', 'ae-ads-of');
+    card.appendChild(host);
+    if (AE_state.openAdsets[String(o.id)]) { const t = more.querySelector('.ae-show-ads'); if (t) t.textContent = AE_TEXT.hideAds; aeLoadAds(o, host); }
+  }
+}
+
+async function aeLoadAds(adset, host) {
+  host.textContent = '';
+  host.appendChild(aeEl('div', 'ax-msg', AE_TEXT.loading));
+  const r = await callSellerAds('structure', { structure: { level: 'ad', parentHint: String(adset.id) } });
+  host.textContent = '';
+  if (!r || r.ok !== true) { host.appendChild(aeEl('div', 'ax-msg error', axErrorText(r))); return; }
+  const items = Array.isArray(r.items) ? r.items : [];
+  if (!items.length) { host.appendChild(aeEl('div', 'ax-msg', AE_TEXT.noAds)); return; }
+  items.forEach(function(ad) { host.appendChild(aeAdRow(ad)); });
+}
+
+// An ad has a name and a status only: no budget and no Change budget button.
+function aeAdRow(ad) {
+  const row = aeEl('div', 'ae-ad');
+  row.setAttribute('data-ax-id', String(ad.id));
+  row.setAttribute('data-ae-ad', '1');
+  const head = aeEl('div', 'ax-name', String(ad.name || ''));
+  head.appendChild(aeEl('span', 'ax-badge', aeStatusWord(ad.status)));
+  row.appendChild(head);
+  const actions = aeEl('div', 'ae-more');
+  if (ad.status === 'ACTIVE') actions.appendChild(aeBtn(AE_TEXT.pause, function() { aePrepare({ type: 'pause', targetId: String(ad.id), level: 'ad' }, String(ad.id)); }));
+  if (ad.status === 'PAUSED') actions.appendChild(aeBtn(AE_TEXT.resume, function() { aePrepare({ type: 'resume', targetId: String(ad.id), level: 'ad' }, String(ad.id)); }));
+  const rn = aeBtn(AE_TEXT.rename, function() { rn.style.display = 'none'; aeNameForm(actions, ad, 'ad'); });
+  rn.className = 'ae-rename';
+  actions.appendChild(rn);
+  row.appendChild(actions);
+  const msg = aeEl('div', 'ax-msg'); msg.setAttribute('data-ax-msg', String(ad.id));
+  row.appendChild(msg);
+  return row;
+}
+
+// ---- Hook 2: the "Last change" line with the Undo button under the summary.
+function w1AdsHeaderExtras(box) {
+  const line = aeEl('div', 'ae-last');
+  line.id = 'ae-last';
+  line.appendChild(aeEl('span', '', AE_TEXT.lastChange));
+  const b = aeBtn(AE_TEXT.undoLast, function() { aePrepare({ type: 'undo_last' }, 'undo'); }, 'ae-undo-last');
+  line.appendChild(b);
+  const msg = aeEl('span', 'ax-msg'); msg.setAttribute('data-ax-msg', 'undo');
+  line.appendChild(msg);
+  box.appendChild(line);
+}
+
+// ---- Hook 3: the read-only "Everything" list (what exists), one level at a time.
+function w1AdsEverything(box) {
+  const sec = aeEl('div');
+  sec.id = 'ae-everything';
+  sec.appendChild(aeEl('div', 'ax-section-title', AE_TEXT.everything));
+  const row = aeEl('div', 'ae-more');
+  [['campaign', AE_TEXT.campaigns], ['adset', AE_TEXT.adsets], ['ad', AE_TEXT.ads]].forEach(function(p) {
+    const b = aeBtn(p[1], function() { aeStructure({ level: p[0] }); });
+    b.setAttribute('data-ae-level', p[0]);
+    row.appendChild(b);
+  });
+  sec.appendChild(row);
+  const out = aeEl('div'); out.id = 'ae-structure';
+  sec.appendChild(out);
+  box.appendChild(sec);
+}
+
+async function aeStructure(req) {
+  const out = document.getElementById('ae-structure');
+  if (!out) return;
+  out.textContent = '';
+  out.appendChild(aeEl('div', 'ax-msg', AE_TEXT.loading));
+  const r = await callSellerAds('structure', { structure: req });
+  const again = document.getElementById('ae-structure');
+  if (!again) return;
+  again.textContent = '';
+  if (!r || r.ok !== true) {
+    if (r && r.code === 'ambiguous' && Array.isArray(r.names) && r.names.length) {
+      again.appendChild(aeEl('div', 'ax-msg error', AE_TEXT.ambiguous));
+      const picks = aeEl('div', 'ae-more');
+      r.names.forEach(function(n) { const b = aeBtn(String(n), function() { aeStructure({ level: req.level, parentHint: String(n) }); }); b.className = 'ae-pick'; picks.appendChild(b); });
+      again.appendChild(picks);
+      return;
+    }
+    again.appendChild(aeEl('div', 'ax-msg error', r && r.code === 'not_found' ? AE_TEXT.notFound : axErrorText(r)));
+    return;
+  }
+  const items = Array.isArray(r.items) ? r.items : [];
+  const count = Number.isFinite(Number(r.count)) ? Number(r.count) : items.length;
+  if (count === 0 || !items.length) { again.appendChild(aeEl('div', 'ax-msg', AE_TEXT.nothingFound)); return; }
+  again.appendChild(aeEl('div', 'ax-sub', AE_TEXT.youHave + axInt(count) + ' ' + aeNoun(r.level || req.level, count) + (r.parent ? AE_TEXT.inParent + String(r.parent) : '')));
+  items.forEach(function(it) {
+    const line = aeEl('div', 'ae-list-row');
+    line.appendChild(aeEl('span', '', String(it.name || '')));
+    const right = aeEl('span', '');
+    right.appendChild(aeEl('span', 'ax-badge', aeStatusWord(it.status)));
+    const next = (r.level || req.level) === 'campaign' ? 'adset' : ((r.level || req.level) === 'adset' ? 'ad' : null);
+    if (next) {
+      const open = aeBtn(AE_TEXT.open, function() { aeStructure({ level: next, parentHint: String(it.id) }); });
+      open.className = 'ae-btn ae-open';
+      right.appendChild(open);
+    }
+    line.appendChild(right);
+    again.appendChild(line);
+  });
+}
+</script>
+<!-- w1-ads-additions:js:end -->
+<!-- w1-ads-extras:js:start -->
+<script>
+// Ads screen extras (build chat W1): a report with a choice of metrics (read only), and "Ad settings": default metrics, the daily ad digest
+// and alert rules. Door: POST /webhook/seller-ads. Settings are changed only through prepare, then the confirm panel, then one confirm;
+// "Undo last change" (already on the Ads screen) puts the previous value back. Words are in AG_TEXT; money words come from the door.
+// HONEST ABOUT ALERT RULES: no automatic check of the rules exists, so no alert will be sent. The screen says so, always, and shows the
+// door's own warning in full in the confirm panel. The digest is sent with the daily sales summary; the screen promises nothing more.
+const AG_TEXT = {
+  reportTitle: 'Detailed report', period: 'Period', level: 'Level', one: 'One item (optional)', onePlaceholder: 'All', oneHelp: 'Leave empty for all, or type the name or the number of one item.',
+  ranges: { today: 'Today', yesterday: 'Yesterday', last_7d: 'Last 7 days', last_30d: 'Last 30 days', last_90d: 'Last 90 days', this_year: 'This year', last_year: 'Last year', custom: 'Choose two dates' },
+  levels: { campaign: 'Campaigns', adset: 'Ad sets', ad: 'Ads' },
+  from: 'From', to: 'To', metricsLabel: 'Metrics (optional; none means your saved metrics, or the standard ones)',
+  show: 'Show report', loading: 'Loading...', name: 'Name',
+  badRange: 'Choose a period, or two dates.',
+  savedUsed: 'Showing your saved metrics.', ignored: 'Left out because they are not known: ',
+  noPurchases: 'no purchases yet', spendSoFar: 'spend so far ',
+  notConnected: 'Your ads account is not connected yet.', notFound: 'We could not find that item.',
+  ambiguous1: 'More than one matches: ', ambiguous2: '. Pick one.',
+  noData: 'No data for this period.', metaError: 'Meta could not give this report: ',
+  unavailable: 'We could not read your data. Try again in a moment.', tryAgain: 'Try again',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Please try again.',
+  settingsTitle: 'Ad settings',
+  defaultMetrics: 'My default metrics', defaultHelp: 'Used when a report is opened without choosing metrics.', save: 'Save',
+  digest: 'Daily ad digest', digestHelp: 'Metrics sent with your daily sales summary.', digestGo: 'Send me this every day',
+  rules: 'Alert rules', addRule: 'Add a rule', metric: 'Metric', condition: 'Condition', threshold: 'Number',
+  above: 'above', below: 'below',
+  honest: 'No automatic check of these rules was found, so no alert will be sent for now. Rules are only saved.',
+  rulesAdded: 'Rules added this time:',
+  savedNow: 'Saved this time: ',
+  badMetrics: 'Choose at least one metric from the list.', badNumber: 'Enter a number.', tooMany: 'You can have at most 50 alert rules.',
+  nothingChanged: 'Nothing was changed. Try again.',
+  metricNames: {
+    spend: 'Spend', impressions: 'Times shown', clicks: 'Clicks', ctr: 'Click rate (%)', cpc: 'Cost per click', cpm: 'Cost per 1,000 shown',
+    reach: 'People reached', frequency: 'Times each person saw it', unique_clicks: 'People who clicked', actions: 'Purchases',
+    messages_started: 'Conversations started', cpa: 'Cost per purchase', cost_per_message: 'Cost per conversation', roas: 'ROAS'
+  },
+  alertMetricNames: { ctr: 'Click rate (%)', cpc: 'Cost per click', cpm: 'Cost per 1,000 shown', spend: 'Spend', cost_per_purchase: 'Cost per purchase' }
+};
+const AG_REPORT_METRICS = ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm', 'reach', 'frequency', 'unique_clicks', 'actions', 'messages_started', 'cpa', 'cost_per_message', 'roas'];
+const AG_DIGEST_METRICS = ['spend', 'clicks', 'ctr', 'cpc', 'cpm', 'reach', 'frequency', 'messages_started', 'actions', 'cpa', 'cost_per_message', 'roas'];
+const AG_ALERT_METRICS = ['ctr', 'cpc', 'cpm', 'spend', 'cost_per_purchase'];
+const AG_SETTING_TYPES = ['set_metrics', 'set_digest', 'add_alert_rule'];
+// What the door can not tell the screen (there is no read action for these settings yet) is remembered only for this visit.
+const AG_state = { lastPrepared: null, ctx: null, savedMetrics: null, savedDigest: null, rules: [], busy: false };
+
+Object.assign(AX_CODE_TEXT, { bad_metrics: AG_TEXT.badMetrics, too_many_rules: AG_TEXT.tooMany });
+if (AX_SHOW_DOOR_MESSAGE.indexOf('bad_alert') < 0) AX_SHOW_DOOR_MESSAGE.push('bad_alert');
+
+// Watches the door calls (the older code is not edited): remembers which change was just prepared, and when a confirm of one of the
+// three settings succeeds, remembers what was saved so the screen can show it.
+const _agCallBefore = callSellerAds;
+callSellerAds = async function(action, extra) {
+  if (action === 'prepare') {
+    const ch = extra && extra.change;
+    AG_state.ctx = ch && AG_SETTING_TYPES.indexOf(ch.type) >= 0 ? ch.type : null;
+  } else if (action !== 'confirm') {
+    AG_state.ctx = null;
+  }
+  const r = await _agCallBefore(action, extra);
+  if (action === 'prepare' && r && r.ok === true && extra && extra.change) AG_state.lastPrepared = extra.change;
+  if (action === 'confirm' && r && r.ok === true && AG_state.lastPrepared && AG_SETTING_TYPES.indexOf(AG_state.lastPrepared.type) >= 0) {
+    const ch = AG_state.lastPrepared;
+    if (ch.type === 'set_metrics') AG_state.savedMetrics = ch.metrics.slice();
+    if (ch.type === 'set_digest') AG_state.savedDigest = ch.metrics.slice();
+    if (ch.type === 'add_alert_rule') AG_state.rules.push(Object.assign({}, ch.alert));
+    AG_state.lastPrepared = null;
+  }
+  return r;
+};
+// For these three settings the older "not saved" and "unavailable" words (about a limit and about Meta) are not right: say what is true.
+const _agErrBefore = axErrorText;
+axErrorText = function(r) {
+  const code = r && r.code;
+  if (AG_state.ctx && (code === 'not_saved' || code === 'unavailable' || code === 'undo_copy_failed')) return AG_TEXT.nothingChanged;
+  return _agErrBefore(r);
+};
+// The confirm panel also shows the door's warning (used for alert rules) in full, in a visible colour. The older panel code is not edited.
+const _agOpenBefore = axOpenConfirm;
+axOpenConfirm = function(r) {
+  _agOpenBefore(r);
+  const box = document.querySelector('#ax-confirm .ax-box');
+  if (!box) return;
+  const old = document.getElementById('ag-warning');
+  if (old) old.remove();
+  const warning = r && r.preview && typeof r.preview.warning === 'string' ? r.preview.warning : '';
+  if (!warning) return;
+  const w = document.createElement('div');
+  w.id = 'ag-warning'; w.className = 'ag-warning'; w.setAttribute('role', 'alert');
+  w.textContent = warning;
+  const summary = document.getElementById('ax-confirm-summary');
+  box.insertBefore(w, summary ? summary.nextSibling : box.firstChild);
+};
+
+function agEl(tag, cls, text) { return axEl(tag, cls, text); }
+function agNum(n, digits) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: digits === undefined ? 2 : digits }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+function agTicks(id, keys, checked) {
+  const grid = agEl('div', 'ag-ticks'); grid.id = id;
+  keys.forEach(function(k) {
+    const lab = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = k; cb.checked = !!(checked && checked.indexOf(k) >= 0);
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(AG_TEXT.metricNames[k]));
+    grid.appendChild(lab);
+  });
+  return grid;
+}
+function agChecked(id) { return Array.prototype.map.call(document.querySelectorAll('#' + id + ' input:checked'), function(i) { return i.value; }); }
+
+// ---- The one hook the Ads screen calls: the detailed report and the Ad settings.
+function w1AdsSettingsAndReports(box) {
+  box.appendChild(agReportSection());
+  box.appendChild(agSettingsSection());
+}
+
+function agSettingsSection() {
+  const sec = agEl('div'); sec.id = 'ag-settings';
+  sec.appendChild(agEl('div', 'ax-section-title', AG_TEXT.settingsTitle));
+  // default metrics
+  const c1 = agEl('div', 'ax-card'); c1.id = 'ag-card-metrics';
+  c1.appendChild(agEl('div', 'ax-name', AG_TEXT.defaultMetrics));
+  c1.appendChild(agEl('div', 'ax-sub', AG_TEXT.defaultHelp));
+  c1.appendChild(agTicks('ag-metrics-ticks', AG_REPORT_METRICS, AG_state.savedMetrics));
+  const s1 = axBtn(AG_TEXT.save, function() { agSaveList('set_metrics', 'ag-metrics-ticks', 'ag-msg-metrics'); }, 'ag-save-metrics');
+  c1.appendChild(s1);
+  const m1 = agEl('div', 'ax-msg'); m1.id = 'ag-msg-metrics'; c1.appendChild(m1);
+  sec.appendChild(c1);
+  // digest
+  const c2 = agEl('div', 'ax-card'); c2.id = 'ag-card-digest';
+  c2.appendChild(agEl('div', 'ax-name', AG_TEXT.digest));
+  c2.appendChild(agEl('div', 'ax-sub', AG_TEXT.digestHelp));
+  c2.appendChild(agTicks('ag-digest-ticks', AG_DIGEST_METRICS, AG_state.savedDigest));
+  const s2 = axBtn(AG_TEXT.digestGo, function() { agSaveList('set_digest', 'ag-digest-ticks', 'ag-msg-digest'); }, 'ag-save-digest');
+  c2.appendChild(s2);
+  const m2 = agEl('div', 'ax-msg'); m2.id = 'ag-msg-digest'; c2.appendChild(m2);
+  sec.appendChild(c2);
+  // alert rules
+  const c3 = agEl('div', 'ax-card'); c3.id = 'ag-card-rules';
+  c3.appendChild(agEl('div', 'ax-name', AG_TEXT.rules));
+  const honest = agEl('div', 'ag-honest', AG_TEXT.honest); honest.id = 'ag-honest'; c3.appendChild(honest);
+  const form = agEl('div', 'ag-form');
+  const metric = document.createElement('select'); metric.id = 'ag-rule-metric';
+  AG_ALERT_METRICS.forEach(function(k) { metric.appendChild(new Option(AG_TEXT.alertMetricNames[k], k)); });
+  const cond = document.createElement('select'); cond.id = 'ag-rule-condition';
+  cond.appendChild(new Option(AG_TEXT.above, 'above')); cond.appendChild(new Option(AG_TEXT.below, 'below'));
+  const num = document.createElement('input'); num.type = 'text'; num.inputMode = 'decimal'; num.id = 'ag-rule-number'; num.placeholder = AG_TEXT.threshold;
+  form.appendChild(metric); form.appendChild(cond); form.appendChild(num);
+  form.appendChild(axBtn(AG_TEXT.addRule, function() { agAddRule(metric, cond, num); }, 'ag-add-rule'));
+  c3.appendChild(form);
+  const m3 = agEl('div', 'ax-msg'); m3.id = 'ag-msg-rules'; c3.appendChild(m3);
+  if (AG_state.rules.length) {
+    c3.appendChild(agEl('div', 'ax-sub', AG_TEXT.rulesAdded));
+    const ul = agEl('ul', 'ag-rules'); ul.id = 'ag-rule-list';
+    AG_state.rules.forEach(function(r) { ul.appendChild(agEl('li', '', (AG_TEXT.alertMetricNames[r.metric] || r.metric) + ' ' + (r.condition === 'below' ? AG_TEXT.below : AG_TEXT.above) + ' ' + agNum(r.threshold))); });
+    c3.appendChild(ul);
+  }
+  sec.appendChild(c3);
+  return sec;
+}
+
+function agSetMsg(id, text, isError) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.className = 'ax-msg' + (isError ? ' error' : ''); }
+}
+
+// A settings change: only prepare here. The confirm panel does the rest.
+async function agPrepare(change, msgId) {
+  if (AG_state.busy || AX_state.busy) return;
+  AG_state.busy = true; AX_state.busy = true;
+  try {
+    agSetMsg(msgId, '', false);
+    const r = await callSellerAds('prepare', { change: change });
+    if (r && r.ok === true && r.needsConfirm === true && r.confirmToken) { axOpenConfirm(r); return; }
+    if (r && AX_REFRESH_CODES.indexOf(r.code) >= 0) { agSetMsg(msgId, axErrorText(r), true); axLoad(); return; }
+    agSetMsg(msgId, axErrorText(r), true);
+  } finally { AG_state.busy = false; AX_state.busy = false; }
+}
+
+function agSaveList(type, ticksId, msgId) {
+  const metrics = agChecked(ticksId);
+  if (!metrics.length) { agSetMsg(msgId, AG_TEXT.badMetrics, true); return; }
+  agPrepare({ type: type, metrics: metrics }, msgId);
+}
+
+function agAddRule(metric, cond, num) {
+  const t = String(num.value || '').trim().replace(',', '.');
+  if (!/^-?[0-9]+(\.[0-9]+)?$/.test(t)) { agSetMsg('ag-msg-rules', AG_TEXT.badNumber, true); return; }
+  agPrepare({ type: 'add_alert_rule', alert: { metric: metric.value, condition: cond.value, threshold: Number(t) } }, 'ag-msg-rules');
+}
+
+// ---- Detailed report (read only).
+function agReportSection() {
+  const sec = agEl('div'); sec.id = 'ag-report-section';
+  sec.appendChild(agEl('div', 'ax-section-title', AG_TEXT.reportTitle));
+  const form = agEl('div', 'ag-form');
+  const periodLab = agEl('label', 'ag-field', AG_TEXT.period);
+  const range = document.createElement('select'); range.id = 'ag-range';
+  Object.keys(AG_TEXT.ranges).forEach(function(k) { range.appendChild(new Option(AG_TEXT.ranges[k], k)); });
+  range.value = 'last_7d'; periodLab.appendChild(range); form.appendChild(periodLab);
+  const dates = agEl('div', 'ag-form'); dates.id = 'ag-dates'; dates.style.display = 'none';
+  const f = agEl('label', 'ag-field', AG_TEXT.from); const since = document.createElement('input'); since.type = 'date'; since.id = 'ag-since'; f.appendChild(since);
+  const t = agEl('label', 'ag-field', AG_TEXT.to); const until = document.createElement('input'); until.type = 'date'; until.id = 'ag-until'; t.appendChild(until);
+  dates.appendChild(f); dates.appendChild(t);
+  range.onchange = function() { dates.style.display = range.value === 'custom' ? 'flex' : 'none'; };
+  form.appendChild(dates);
+  const levelLab = agEl('label', 'ag-field', AG_TEXT.level);
+  const level = document.createElement('select'); level.id = 'ag-level';
+  Object.keys(AG_TEXT.levels).forEach(function(k) { level.appendChild(new Option(AG_TEXT.levels[k], k)); });
+  levelLab.appendChild(level); form.appendChild(levelLab);
+  const oneLab = agEl('label', 'ag-field', AG_TEXT.one);
+  const one = document.createElement('input'); one.type = 'text'; one.id = 'ag-one'; one.maxLength = 120; one.placeholder = AG_TEXT.onePlaceholder;
+  oneLab.appendChild(one); form.appendChild(oneLab);
+  sec.appendChild(form);
+  sec.appendChild(agEl('div', 'ax-msg', AG_TEXT.oneHelp));
+  sec.appendChild(agEl('div', 'ax-msg', AG_TEXT.metricsLabel));
+  sec.appendChild(agTicks('ag-report-ticks', AG_REPORT_METRICS, null));
+  const go = axBtn(AG_TEXT.show, function() { agRunReport(); }, 'ag-show');
+  sec.appendChild(go);
+  const out = agEl('div'); out.id = 'ag-report-out'; sec.appendChild(out);
+  return sec;
+}
+
+function agRequest(nameOverride) {
+  const range = document.getElementById('ag-range').value;
+  const req = { range: range, level: document.getElementById('ag-level').value };
+  if (range === 'custom') {
+    const since = document.getElementById('ag-since').value; const until = document.getElementById('ag-until').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(since) || !/^\d{4}-\d{2}-\d{2}$/.test(until) || since > until) return null;
+    req.since = since; req.until = until;
+  }
+  const name = String(nameOverride !== undefined ? nameOverride : document.getElementById('ag-one').value).trim();
+  if (name) req.nameHint = name;
+  const metrics = agChecked('ag-report-ticks');
+  if (metrics.length) req.metrics = metrics;
+  return req;
+}
+
+function agOut(text, isError, retry) {
+  const out = document.getElementById('ag-report-out');
+  if (!out) return;
+  out.textContent = '';
+  out.appendChild(agEl('div', 'ax-status' + (isError ? ' error' : ''), text));
+  if (retry) out.appendChild(axBtn(AG_TEXT.tryAgain, retry, 'ag-retry'));
+}
+
+function agReportError(r) {
+  const code = r && r.code;
+  if (code === 'relogin' || code === 'not_logged_in') return AG_TEXT.relogin;
+  if (code === 'not_available') return AG_TEXT.notAvailable;
+  if (code === 'network') return AG_TEXT.noConnection;
+  if (code === 'ads_not_connected') return AG_TEXT.notConnected;
+  if (code === 'not_found') return AG_TEXT.notFound;
+  if (code === 'no_data') return AG_TEXT.noData;
+  if (code === 'meta_error') return AG_TEXT.metaError + String((r && r.message) || '');
+  if (code === 'unavailable' || code === 'meta_unavailable') return AG_TEXT.unavailable;
+  if ((code === 'bad_range' || code === 'bad_level' || code === 'bad_metric') && typeof r.message === 'string' && r.message) return r.message;
+  return AG_TEXT.failed;
+}
+
+async function agRunReport(nameOverride) {
+  if (AG_state.busy) return;
+  const req = agRequest(nameOverride);
+  if (!req) { agOut(AG_TEXT.badRange, true); return; }
+  AG_state.busy = true;
+  const go = document.getElementById('ag-show'); if (go) go.disabled = true;
+  agOut(AG_TEXT.loading, false);
+  try {
+    const r = await callSellerAds('report_metrics', { reportMetrics: req });
+    if (!r || r.ok !== true) { agReportFail(r); return; }
+    agShowReport(r);
+  } finally { AG_state.busy = false; if (go) go.disabled = false; }
+}
+
+function agReportFail(r) {
+  if (r && r.code === 'ambiguous' && Array.isArray(r.names) && r.names.length) {
+    agOut(AG_TEXT.ambiguous1 + r.names.join(', ') + AG_TEXT.ambiguous2, true);
+    const out = document.getElementById('ag-report-out');
+    const names = agEl('div', 'ae-more');
+    r.names.forEach(function(n) { const b = axBtn(String(n), function() { document.getElementById('ag-one').value = String(n); agRunReport(String(n)); }); b.className = 'ag-pick'; names.appendChild(b); });
+    out.appendChild(names);
+    return;
+  }
+  const retriable = r && (r.code === 'unavailable' || r.code === 'meta_unavailable');
+  agOut(agReportError(r), true, retriable ? function() { agRunReport(); } : null);
+}
+
+// A value as Meta gave it (text); a money metric gets the currency word from the door, never an assumed one.
+function agCell(metric, row, r) {
+  const values = row.values || {};
+  if (metric === 'cpa') {
+    if (values.cpa === null) return AG_TEXT.noPurchases + (row.cpaSpendSoFar !== undefined && row.cpaSpendSoFar !== null ? ' (' + AG_TEXT.spendSoFar + agNum(row.cpaSpendSoFar) + (r.currency ? ' ' + r.currency : '') + ')' : (values.cpaSpendSoFar !== undefined ? ' (' + AG_TEXT.spendSoFar + agNum(values.cpaSpendSoFar) + (r.currency ? ' ' + r.currency : '') + ')' : ''));
+    if (values.cpa === undefined) return '-';
+  }
+  const v = values[metric];
+  if (v === undefined || v === null || v === '') return '-';
+  const money = Array.isArray(r.moneyMetrics) && r.moneyMetrics.indexOf(metric) >= 0;
+  return String(v) + (money && r.currency ? ' ' + r.currency : '');
+}
+
+function agShowReport(r) {
+  const out = document.getElementById('ag-report-out');
+  if (!out) return;
+  out.textContent = '';
+  if (r.label) out.appendChild(agEl('div', 'ax-sub', String(r.label)));
+  if (r.savedMetricsUsed === true) out.appendChild(agEl('div', 'ax-msg', AG_TEXT.savedUsed));
+  if (Array.isArray(r.ignoredMetrics) && r.ignoredMetrics.length) out.appendChild(agEl('div', 'ax-msg', AG_TEXT.ignored + r.ignoredMetrics.join(', ')));
+  const metrics = Array.isArray(r.metrics) ? r.metrics : [];
+  const rows = Array.isArray(r.rows) ? r.rows : [];
+  if (!rows.length) { out.appendChild(agEl('div', 'ax-status', AG_TEXT.noData)); return; }
+  const wrap = agEl('div', 'ag-scroll');
+  const table = agEl('table', 'ag-table'); table.id = 'ag-table';
+  const head = document.createElement('tr');
+  head.appendChild(agEl('th', '', AG_TEXT.name));
+  metrics.forEach(function(m) { head.appendChild(agEl('th', '', AG_TEXT.metricNames[m] || m)); });
+  table.appendChild(head);
+  rows.forEach(function(row) {
+    const tr = document.createElement('tr');
+    tr.appendChild(agEl('td', '', String(row.name || '')));
+    metrics.forEach(function(m) { tr.appendChild(agEl('td', '', agCell(m, row, r))); });
+    table.appendChild(tr);
+  });
+  wrap.appendChild(table);
+  out.appendChild(wrap);
+}
+</script>
+<!-- w1-ads-extras:js:end -->
+<!-- w1-import-barcode:js:start -->
+<script>
+// Import and barcodes screen (build chat W1). Door: POST /webhook/seller-stock-invoices with { token, action, ... }.
+// Import: "csvCheck" is a dry run that writes nothing and shows exactly what would be saved; "csvApply" saves only those rows and needs the
+// digest of the check, so the seller confirms what was shown. Barcode: "barcodeFind" reads; "barcodeLink" writes one code to one product.
+// Every write goes through the confirm panel of this screen (one Confirm press, never repeated). A safety copy is saved by the door first;
+// there is no undo button because the door has none yet, so the screen does not promise one. Words are in BK_TEXT.
+const SELLER_STOCK_URL = 'https://sparklly.site/webhook/seller-stock-invoices';
+const BK_MAX_CHARS = 200000;
+const BK_TEXT = {
+  importTitle: 'Import products from a file', barcodeTitle: 'Barcode',
+  importHelp: 'Choose a CSV file with one product per line. The first line holds the column names. Nothing is saved until you confirm.',
+  chooseFile: 'Choose a file', check: 'Check the file', checking: 'Checking...',
+  willImport: 'Will import', skipped: 'Skipped', refused: 'Refused', lines: 'Lines',
+  problems: 'Problems', line: 'Line', moreProblems: 'There are more problems than are shown here.',
+  sample: 'The first products that will be saved', colName: 'Name', colCategory: 'Category', colWholesale: 'Wholesale', colRetail: 'Retail', colCost: 'Cost', colStock: 'Stock', colThreshold: 'Low stock at', colBarcode: 'Barcode',
+  unused: 'Columns that were not used. Choose what each one is, then check again.', notUsed: 'Not used', checkAgain: 'Check again with these choices',
+  importN1: 'Import ', importN2: ' products', importOne: 'Import 1 product',
+  confirmImport1: 'Import ', confirmImport2: ' products from this file? Lines that were skipped or refused are not imported.', confirmImportOne: 'Import 1 product from this file? Lines that were skipped or refused are not imported.',
+  imported: 'Products imported: ', importedSkipped: ' Skipped: ', importedRefused: ' Refused: ',
+  checkAgainNeeded: 'The file or your products changed since the check. Check the file again and confirm what it shows.',
+  tooBig: 'The file is too big. Split it into smaller files.',
+  noFile: 'Choose a file first.',
+  readFailed: 'The file could not be read.',
+  fields: { product_name: 'Product name', product_category: 'Category', wholesale_price: 'Wholesale price', retail_price: 'Retail price', cost_price: 'Cost price', stock_quantity: 'Stock quantity', low_stock_threshold: 'Low stock alert number', barcode: 'Barcode' },
+  reasons: {
+    missing_name: 'The product name is empty.', name_too_long: 'The product name is longer than 200 characters.', bad_text: 'A text has a control character or is too long.',
+    bad_number: 'A price or quantity is not a plain number.', too_many_cells: 'The line has more cells than the column names.',
+    duplicate_in_file: 'The same product name appears earlier in the file.', already_exists: 'You already have an active product with this name.',
+    bad_barcode: 'The barcode must be 4 to 64 letters, digits, dots, dashes or underscores.', barcode_in_use: 'This barcode is already used by another product or earlier in the file.'
+  },
+  barcodeHelp: 'Type or scan a barcode to find the product it belongs to, or link it to a product.',
+  codePlaceholder: 'Barcode', find: 'Look up', scan: 'Scan with the camera', stopScan: 'Stop scanning', cameraFailed: 'The camera could not be opened. Type the code instead.',
+  foundProduct: 'This barcode belongs to: ', ambiguous1: 'More than one of your products has this barcode (', ambiguous2: ').',
+  notFound: 'No product has this barcode yet. Choose the product to link it to.', pickProduct: 'Choose a product', link: 'Link to this product',
+  confirmLink1: 'Link the barcode ', confirmLink2: ' to ', linked: 'Barcode linked.', linkedAlready: 'This barcode was already linked to that product.',
+  wholesale: 'Wholesale', retail: 'Retail', stockWord: 'Stock', loadingProducts: 'Loading your products...', noProducts: 'You have no products to link to.',
+  confirm: 'Confirm', working: 'Working...',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This screen is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Check your products before you try again.',
+  codes: {
+    csv_empty: 'The file is empty. It needs a line of column names and at least one product line.',
+    csv_too_big: 'The file is too big. Split it into smaller files.',
+    too_many_rows: 'The file has too many lines. Split it into smaller files.',
+    csv_unreadable: 'The file could not be read as a CSV file (a quote may be missing its end).',
+    bad_mapping: 'The column choice is not valid.',
+    no_name_column: 'No column holds the product name. Choose the name column.',
+    no_barcode_field: 'Your products have no barcode field yet, so barcodes cannot be used. Nothing was changed.',
+    too_many_products: 'You have more active products than an import can check against. Contact support.',
+    nothing_to_import: 'There is nothing to import: no line passed the check.',
+    too_many_to_import: 'More than 500 products would be imported at once. Split the file into smaller files.',
+    undo_unavailable: 'Nothing was changed, because a safe copy of the old data could not be saved. Try again later.',
+    bad_barcode: 'The barcode must be 4 to 64 letters, digits, dots, dashes or underscores.',
+    barcode_in_use: 'This barcode is already linked to another product. Nothing was changed.',
+    no_product: 'That product was not found (it may have been removed). Refresh and try again.',
+    save_failed: 'The change could not be saved. Check your products before you try again.',
+    unconfirmed: 'We did not get a confirmation in time. Check your products before you try again, so nothing is done twice.',
+    read_failed: 'We could not read your data right now. Try again in a moment.'
+  }
+};
+const BK_state = { csv: '', mapping: {}, digest: '', willImport: 0, pending: null, busy: false, confirming: false, code: '', products: null, scan: null };
+
+function bkEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function bkBtn(label, onclick, id) {
+  const b = bkEl('button', '', label);
+  b.type = 'button'; if (id) b.id = id; b.onclick = onclick;
+  return b;
+}
+function bkNum(n) {
+  const v = Number(n);
+  try { return (isFinite(v) ? v : 0).toLocaleString(currentLang, { maximumFractionDigits: 2 }); } catch (e) { return String(isFinite(v) ? v : 0); }
+}
+
+async function callSellerStock(action, extra) {
+  const token = await getValidAuthToken();
+  if (!token) return { ok: false, error: 'relogin' };
+  try {
+    const r = await fetch(SELLER_STOCK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { ok: false, error: 'not_available' };
+    const j = await r.json();
+    return j && typeof j === 'object' ? j : { ok: false, error: 'failed' };
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+
+function bkErrorText(r) {
+  const code = r && (r.error || r.code);
+  if (code === 'relogin' || code === 'not_logged_in' || code === 'no_seller') return BK_TEXT.relogin;
+  if (code === 'not_available') return BK_TEXT.notAvailable;
+  if (code === 'network') return BK_TEXT.noConnection;
+  if (code === 'changed') return BK_TEXT.checkAgainNeeded;
+  if (BK_TEXT.codes[code]) return BK_TEXT.codes[code];
+  return BK_TEXT.failed;
+}
+
+function bkSet(id, text, isError) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.className = 'bk-msg' + (isError ? ' error' : ''); }
+}
+
+// ---------------------------------------------------------------- the screen
+function bkRender() {
+  const box = document.getElementById('bk-content');
+  if (!box) return;
+  box.textContent = '';
+  box.appendChild(bkEl('div', 'bk-title', BK_TEXT.importTitle));
+  const card = bkEl('div', 'bk-card');
+  card.appendChild(bkEl('p', 'bk-p', BK_TEXT.importHelp));
+  const row = bkEl('div', 'bk-row');
+  const file = document.createElement('input');
+  file.type = 'file'; file.id = 'bk-file'; file.accept = '.csv,text/csv,text/plain';
+  file.onchange = function() { BK_state.csv = ''; BK_state.digest = ''; BK_state.mapping = {}; bkSet('bk-import-msg', '', false); const r = document.getElementById('bk-check-result'); if (r) r.textContent = ''; };
+  row.appendChild(file);
+  row.appendChild(bkBtn(BK_TEXT.check, function() { bkCheck(); }, 'bk-check'));
+  card.appendChild(row);
+  const msg = bkEl('div', 'bk-msg'); msg.id = 'bk-import-msg'; card.appendChild(msg);
+  const res = bkEl('div'); res.id = 'bk-check-result'; card.appendChild(res);
+  box.appendChild(card);
+
+  box.appendChild(bkEl('div', 'bk-title', BK_TEXT.barcodeTitle));
+  const bc = bkEl('div', 'bk-card');
+  bc.appendChild(bkEl('p', 'bk-p', BK_TEXT.barcodeHelp));
+  const r2 = bkEl('div', 'bk-row');
+  const code = document.createElement('input');
+  code.type = 'text'; code.id = 'bk-code'; code.placeholder = BK_TEXT.codePlaceholder; code.maxLength = 64; code.autocomplete = 'off';
+  r2.appendChild(code);
+  r2.appendChild(bkBtn(BK_TEXT.find, function() { bkFind(); }, 'bk-find'));
+  if (bkCanScan()) r2.appendChild(bkBtn(BK_TEXT.scan, function() { bkScan(); }, 'bk-scan'));
+  bc.appendChild(r2);
+  const video = bkEl('div'); video.id = 'bk-scan-area'; bc.appendChild(video);
+  const m2 = bkEl('div', 'bk-msg'); m2.id = 'bk-barcode-msg'; bc.appendChild(m2);
+  const res2 = bkEl('div'); res2.id = 'bk-barcode-result'; bc.appendChild(res2);
+  box.appendChild(bc);
+  if (typeof w1UndoSection === 'function') box.appendChild(w1UndoSection());
+}
+
+// ---------------------------------------------------------------- import
+function bkReadFile(file) {
+  return new Promise(function(resolve, reject) {
+    const fr = new FileReader();
+    fr.onload = function() { resolve(String(fr.result || '')); };
+    fr.onerror = function() { reject(new Error('read')); };
+    fr.readAsText(file);
+  });
+}
+
+async function bkCheck() {
+  if (BK_state.busy) return;
+  const input = document.getElementById('bk-file');
+  if (!BK_state.csv) {
+    const f = input && input.files && input.files[0];
+    if (!f) { bkSet('bk-import-msg', BK_TEXT.noFile, true); return; }
+    try { BK_state.csv = await bkReadFile(f); } catch (e) { bkSet('bk-import-msg', BK_TEXT.readFailed, true); return; }
+  }
+  if (BK_state.csv.length > BK_MAX_CHARS) { BK_state.csv = ''; bkSet('bk-import-msg', BK_TEXT.tooBig, true); return; }
+  BK_state.busy = true;
+  bkSet('bk-import-msg', BK_TEXT.checking, false);
+  const holder = document.getElementById('bk-check-result'); if (holder) holder.textContent = '';
+  try {
+    const extra = { csv: BK_state.csv };
+    if (Object.keys(BK_state.mapping).length) extra.mapping = Object.assign({}, BK_state.mapping);
+    const r = await callSellerStock('csvCheck', extra);
+    if (!r || r.ok !== true) { BK_state.digest = ''; bkSet('bk-import-msg', bkErrorText(r), true); return; }
+    bkSet('bk-import-msg', '', false);
+    BK_state.digest = String(r.digest || ''); BK_state.willImport = Number(r.willImport) || 0;
+    bkShowCheck(r);
+  } finally { BK_state.busy = false; }
+}
+
+function bkCount(n, label) {
+  const c = bkEl('div', 'bk-count');
+  c.appendChild(bkEl('b', '', bkNum(n)));
+  c.appendChild(bkEl('span', '', label));
+  return c;
+}
+
+function bkShowCheck(r) {
+  const holder = document.getElementById('bk-check-result');
+  if (!holder) return;
+  holder.textContent = '';
+  const counts = bkEl('div', 'bk-counts'); counts.id = 'bk-counts';
+  counts.appendChild(bkCount(r.willImport, BK_TEXT.willImport));
+  counts.appendChild(bkCount(r.skipped, BK_TEXT.skipped));
+  counts.appendChild(bkCount(r.errors, BK_TEXT.refused));
+  counts.appendChild(bkCount(r.total, BK_TEXT.lines));
+  holder.appendChild(counts);
+  const problems = Array.isArray(r.problems) ? r.problems : [];
+  if (problems.length) {
+    holder.appendChild(bkEl('div', 'bk-small', BK_TEXT.problems));
+    const ul = bkEl('ul', 'bk-list'); ul.id = 'bk-problems';
+    problems.forEach(function(p) {
+      const kind = p.status === 'skipped' ? BK_TEXT.skipped : BK_TEXT.refused;
+      ul.appendChild(bkEl('li', '', BK_TEXT.line + ' ' + bkNum(p.line) + ' (' + kind + '): ' + (BK_TEXT.reasons[p.reason] || String(p.message || p.reason || ''))));
+    });
+    holder.appendChild(ul);
+    if (r.problemsCut === true) holder.appendChild(bkEl('div', 'bk-small', BK_TEXT.moreProblems));
+  }
+  const sample = Array.isArray(r.sample) ? r.sample : [];
+  if (sample.length) {
+    holder.appendChild(bkEl('div', 'bk-small', BK_TEXT.sample));
+    const wrap = bkEl('div', 'bk-scroll');
+    const table = bkEl('table', 'bk-table'); table.id = 'bk-sample';
+    const head = document.createElement('tr');
+    [BK_TEXT.colName, BK_TEXT.colCategory, BK_TEXT.colWholesale, BK_TEXT.colRetail, BK_TEXT.colCost, BK_TEXT.colStock, BK_TEXT.colThreshold, BK_TEXT.colBarcode].forEach(function(h) { head.appendChild(bkEl('th', '', h)); });
+    table.appendChild(head);
+    sample.forEach(function(s) {
+      const tr = document.createElement('tr');
+      ['product_name', 'product_category', 'wholesale_price', 'retail_price', 'cost_price', 'stock_quantity', 'low_stock_threshold', 'barcode'].forEach(function(k) {
+        const v = s[k];
+        tr.appendChild(bkEl('td', '', v === undefined || v === null || v === '' ? '-' : (typeof v === 'number' ? bkNum(v) : String(v))));
+      });
+      table.appendChild(tr);
+    });
+    wrap.appendChild(table); holder.appendChild(wrap);
+  }
+  const ignored = Array.isArray(r.ignoredColumns) ? r.ignoredColumns : [];
+  if (ignored.length) holder.appendChild(bkMapping(ignored));
+  const go = bkBtn(r.willImport === 1 ? BK_TEXT.importOne : BK_TEXT.importN1 + bkNum(r.willImport) + BK_TEXT.importN2, function() { bkAskImport(); }, 'bk-import');
+  go.disabled = !(r.willImport > 0);
+  const row = bkEl('div', 'bk-row'); row.appendChild(go);
+  holder.appendChild(row);
+}
+
+// The columns the door did not use: the seller picks what each one is (header -> field), then checks again. Nothing is guessed.
+function bkMapping(ignored) {
+  const box = bkEl('div'); box.id = 'bk-mapping';
+  box.appendChild(bkEl('div', 'bk-small', BK_TEXT.unused));
+  const selects = [];
+  ignored.forEach(function(h) {
+    const row = bkEl('div', 'bk-row');
+    row.appendChild(bkEl('span', '', String(h)));
+    const sel = document.createElement('select'); sel.setAttribute('data-header', String(h));
+    sel.appendChild(new Option(BK_TEXT.notUsed, ''));
+    Object.keys(BK_TEXT.fields).forEach(function(f) { sel.appendChild(new Option(BK_TEXT.fields[f], f)); });
+    if (BK_state.mapping[h]) sel.value = BK_state.mapping[h];
+    row.appendChild(sel); selects.push(sel); box.appendChild(row);
+  });
+  const again = bkBtn(BK_TEXT.checkAgain, function() {
+    const next = Object.assign({}, BK_state.mapping);
+    selects.forEach(function(s) { const h = s.getAttribute('data-header'); if (s.value) next[h] = s.value; else delete next[h]; });
+    BK_state.mapping = next;
+    bkCheck();
+  }, 'bk-check-again');
+  const row = bkEl('div', 'bk-row'); row.appendChild(again); box.appendChild(row);
+  return box;
+}
+
+function bkAskImport() {
+  if (!BK_state.digest || !(BK_state.willImport > 0)) return;
+  const n = BK_state.willImport;
+  bkOpenConfirm({ kind: 'import' }, n === 1 ? BK_TEXT.confirmImportOne : BK_TEXT.confirmImport1 + bkNum(n) + BK_TEXT.confirmImport2);
+}
+
+// ---------------------------------------------------------------- barcode
+function bkValidCode(code) { return /^[A-Za-z0-9._-]{4,64}$/.test(code); }
+
+async function bkFind() {
+  if (BK_state.busy) return;
+  const code = String(document.getElementById('bk-code').value || '').trim();
+  const res = document.getElementById('bk-barcode-result'); if (res) res.textContent = '';
+  if (!bkValidCode(code)) { bkSet('bk-barcode-msg', BK_TEXT.codes.bad_barcode, true); return; }
+  BK_state.busy = true; BK_state.code = code;
+  bkSet('bk-barcode-msg', BK_TEXT.working, false);
+  try {
+    const r = await callSellerStock('barcodeFind', { code: code });
+    if (!r || r.ok !== true) { bkSet('bk-barcode-msg', bkErrorText(r), true); return; }
+    bkSet('bk-barcode-msg', '', false);
+    if (r.found === true && r.ambiguous === true) { bkSet('bk-barcode-msg', BK_TEXT.ambiguous1 + bkNum(r.count) + BK_TEXT.ambiguous2, true); return; }
+    if (r.found === true && r.product) { bkShowFound(r.product); return; }
+    await bkShowNotFound();
+  } finally { BK_state.busy = false; }
+}
+
+function bkShowFound(p) {
+  const res = document.getElementById('bk-barcode-result'); if (!res) return;
+  res.textContent = '';
+  res.appendChild(bkEl('p', 'bk-p', BK_TEXT.foundProduct + String(p.name || '')));
+  const parts = [];
+  if (p.wholesalePrice !== null && p.wholesalePrice !== undefined) parts.push(BK_TEXT.wholesale + ' ' + bkNum(p.wholesalePrice));
+  if (p.retailPrice !== null && p.retailPrice !== undefined) parts.push(BK_TEXT.retail + ' ' + bkNum(p.retailPrice));
+  if (p.trackStock && p.stockQuantity !== null && p.stockQuantity !== undefined) parts.push(BK_TEXT.stockWord + ' ' + bkNum(p.stockQuantity));
+  if (parts.length) res.appendChild(bkEl('div', 'bk-small', parts.join(' - ')));
+}
+
+async function bkShowNotFound() {
+  const res = document.getElementById('bk-barcode-result'); if (!res) return;
+  res.textContent = '';
+  res.appendChild(bkEl('p', 'bk-p', BK_TEXT.notFound));
+  res.appendChild(bkEl('div', 'bk-small', BK_TEXT.loadingProducts));
+  if (!BK_state.products) {
+    const r = await callSellerStock('stockList');
+    if (!r || r.ok !== true) { res.textContent = ''; bkSet('bk-barcode-msg', bkErrorText(r), true); return; }
+    BK_state.products = [].concat(Array.isArray(r.products) ? r.products : [], Array.isArray(r.untracked) ? r.untracked : []).map(function(p) { return { id: String(p.id), name: String(p.name || '') }; });
+  }
+  res.textContent = '';
+  res.appendChild(bkEl('p', 'bk-p', BK_TEXT.notFound));
+  if (!BK_state.products.length) { res.appendChild(bkEl('div', 'bk-small', BK_TEXT.noProducts)); return; }
+  const row = bkEl('div', 'bk-row');
+  const sel = document.createElement('select'); sel.id = 'bk-product';
+  sel.appendChild(new Option(BK_TEXT.pickProduct, ''));
+  BK_state.products.forEach(function(p) { sel.appendChild(new Option(p.name, p.id)); });
+  const link = bkBtn(BK_TEXT.link, function() {
+    const id = sel.value;
+    if (!id) return;
+    const prod = BK_state.products.filter(function(p) { return p.id === id; })[0];
+    bkOpenConfirm({ kind: 'link', code: BK_state.code, productId: id }, BK_TEXT.confirmLink1 + BK_state.code + BK_TEXT.confirmLink2 + (prod ? prod.name : '') + '?');
+  }, 'bk-link');
+  link.disabled = true;
+  sel.onchange = function() { link.disabled = !sel.value; };
+  row.appendChild(sel); row.appendChild(link);
+  res.appendChild(row);
+}
+
+// ---------------------------------------------------------------- optional camera scan (typing always works)
+function bkCanScan() { return !!(window.BarcodeDetector && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+async function bkScan() {
+  const area = document.getElementById('bk-scan-area');
+  if (!area || BK_state.scan) return;
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); } catch (e) { bkSet('bk-barcode-msg', BK_TEXT.cameraFailed, true); return; }
+  const video = document.createElement('video');
+  video.id = 'bk-video'; video.setAttribute('playsinline', ''); video.muted = true; video.srcObject = stream;
+  area.textContent = '';
+  area.appendChild(video);
+  area.appendChild(bkBtn(BK_TEXT.stopScan, function() { bkStopScan(); }, 'bk-stop-scan'));
+  try { const started = video.play(); if (started && started.catch) started.catch(function() { /* the picture may still arrive */ }); } catch (e) { /* the picture may still arrive */ }
+  let detector;
+  try { detector = new window.BarcodeDetector(); } catch (e) { bkStopScan(); bkSet('bk-barcode-msg', BK_TEXT.cameraFailed, true); return; }
+  const timer = setInterval(async function() {
+    try {
+      const found = await detector.detect(video);
+      if (found && found.length && found[0].rawValue) {
+        const value = String(found[0].rawValue).trim();
+        bkStopScan();
+        const input = document.getElementById('bk-code'); if (input) input.value = value;
+      }
+    } catch (e) { /* try again on the next tick */ }
+  }, 400);
+  BK_state.scan = { stream: stream, timer: timer };
+}
+
+function bkStopScan() {
+  const s = BK_state.scan;
+  if (s) { clearInterval(s.timer); try { s.stream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) { /* already stopped */ } }
+  BK_state.scan = null;
+  const area = document.getElementById('bk-scan-area'); if (area) area.textContent = '';
+}
+
+// ---------------------------------------------------------------- the confirm panel (one press, never repeated)
+function bkOpenConfirm(pending, summary) {
+  BK_state.pending = pending; BK_state.confirming = false;
+  document.getElementById('bk-confirm-summary').textContent = summary;
+  document.getElementById('bk-confirm-go').disabled = false;
+  document.getElementById('bk-confirm').style.display = 'flex';
+}
+function bkClosePanel() {
+  BK_state.pending = null; BK_state.confirming = false;
+  const p = document.getElementById('bk-confirm'); if (p) p.style.display = 'none';
+}
+window.bkCancelConfirm = function() { bkClosePanel(); };
+
+window.bkPressConfirm = async function() {
+  const p = BK_state.pending;
+  if (!p || BK_state.confirming) return;
+  BK_state.confirming = true;
+  document.getElementById('bk-confirm-go').disabled = true;
+  BK_state.pending = null;
+  if (p.kind === 'undo' && typeof w1UndoConfirm === 'function') { await w1UndoConfirm(p); return; }
+  if (p.kind === 'import') {
+    const extra = { csv: BK_state.csv, digest: BK_state.digest };
+    if (Object.keys(BK_state.mapping).length) extra.mapping = Object.assign({}, BK_state.mapping);
+    const r = await callSellerStock('csvApply', extra);
+    bkClosePanel();
+    if (r && r.ok === true) {
+      BK_state.digest = ''; BK_state.willImport = 0;
+      const holder = document.getElementById('bk-check-result'); if (holder) holder.textContent = '';
+      bkSet('bk-import-msg', BK_TEXT.imported + bkNum(r.imported) + BK_TEXT.importedSkipped + bkNum(r.skipped) + BK_TEXT.importedRefused + bkNum(r.errors), false);
+      if (typeof w1UndoRefresh === 'function') w1UndoRefresh();
+      return;
+    }
+    if (r && (r.error === 'changed')) { BK_state.digest = ''; const imp = document.getElementById('bk-import'); if (imp) imp.disabled = true; }
+    let text = bkErrorText(r);
+    if (r && r.error === 'save_failed' && r.saved && r.saved.products !== undefined) text += ' (' + bkNum(r.saved.products) + ')';
+    bkSet('bk-import-msg', text, true);
+    return;
+  }
+  if (p.kind === 'link') {
+    const r = await callSellerStock('barcodeLink', { code: p.code, productId: p.productId });
+    bkClosePanel();
+    if (r && r.ok === true) {
+      const res = document.getElementById('bk-barcode-result'); if (res) res.textContent = '';
+      bkSet('bk-barcode-msg', r.unchanged === true ? BK_TEXT.linkedAlready : BK_TEXT.linked, false);
+      if (typeof w1UndoRefresh === 'function') w1UndoRefresh();
+      return;
+    }
+    bkSet('bk-barcode-msg', bkErrorText(r), true);
+  }
+};
+
+window.openImportBarcode = function() {
+  document.getElementById('settings-tab-content').style.display = 'none';
+  const panel = document.getElementById('bk-tab-content');
+  panel.style.display = 'flex';
+  panel.classList.remove('screen-transition');
+  void panel.offsetWidth;
+  panel.classList.add('screen-transition');
+  bkClosePanel();
+  BK_state.csv = ''; BK_state.digest = ''; BK_state.mapping = {}; BK_state.products = null;
+  bkRender();
+};
+
+window.closeImportBarcode = function() {
+  bkStopScan();
+  bkClosePanel();
+  document.getElementById('bk-tab-content').style.display = 'none';
+  document.getElementById('settings-tab-content').style.display = 'block';
+};
+</script>
+<!-- w1-import-barcode:js:end -->
+<!-- w1-undo-buttons:js:start -->
+<script>
+// Undo section of the Import and barcodes screen (build chat W1). Door: POST /webhook/seller-stock-invoices, actions undoCheck and undoApply.
+// Four undo buttons, each one only while there is something to undo: the last CSV import (hides the imported products, never deletes),
+// the last barcode link (puts the old code back), the last stock change, and the last invoice ("Cancel this invoice": a soft cancel that
+// marks the order CANCELLED and keeps the order and its lines; it works only while the invoice has not been numbered, sent or paid).
+// Every undo shows its dry run first (undoCheck writes nothing), then asks in words, then one Confirm sends undoApply with the digest.
+// Words are in UD_TEXT. Counts only: no values are ever shown from a refusal.
+const UD_KINDS = ['csvApply', 'barcodeLink', 'stockSet', 'invoiceCreate'];
+const UD_TEXT = {
+  title: 'Undo', refresh: 'Refresh', checking: 'Checking...',
+  none: 'Nothing to undo right now.',
+  buttons: { csvApply: 'Undo last import', barcodeLink: 'Undo last barcode link', stockSet: 'Undo last stock change', invoiceCreate: 'Cancel this invoice' },
+  hide1: 'Hide the ', hide2: ' products you imported?', hideOne: 'Hide the 1 product you imported?', hideNote: ' They are hidden, not deleted.',
+  summaryImport1: 'Last import: ', summaryImport2: ' products, ',
+  summaryLink1: 'Last barcode link: ', summaryLink2: ' (', summaryLink3: ' to ', noCode: 'no barcode',
+  putBackCode1: 'Put the old barcode back on ', putBackCode2: '?', putBackNone: 'Take the barcode off ',
+  summaryStock1: 'Last stock change: ', summaryStock2: ', ', summaryStock3: ' to ',
+  putBackStock1: 'Put the stock of ', putBackStock2: ' back to ', putBackStock3: '?', putBackNotTracked: ' back to not tracked?',
+  notTracked: 'not tracked',
+  summaryInvoice1: 'Last invoice: order ', summaryInvoice2: ', ', summaryInvoice3: ' lines, total ',
+  cancelConfirm: 'Mark this order as cancelled. The order and its lines are kept.',
+  cancelRule: 'Cancel only works while the invoice has not been numbered, sent or paid. Nothing is deleted.',
+  undone: 'The change was undone.',
+  cancelled: 'The order was cancelled. Nothing was deleted: the order and its lines are kept and the order shows as cancelled.',
+  changedSinceImport1: ' of ', changedSinceImport2: ' products were changed after the import, so it cannot be undone automatically.',
+  changedSinceGeneric: 'Cannot be undone any more: the products were changed after it. Nothing was changed.',
+  invoiceBlocked: 'This order was already changed, sent or paid, so it cannot be cancelled here. Correct it in the invoice system.',
+  invoiceWhy: ' Why: ', whyChanged: 'it was changed or numbered', whySent: 'it was sent', whyPaid: 'a payment was recorded', whyMissing: 'it is gone',
+  barcodeInUse: 'The old barcode now belongs to another product, so this cannot be undone. Nothing was changed.',
+  newerChange: 'A newer change appeared. Checking again.',
+  refreshFirst: 'Nothing was changed, or it is not known. Press Refresh and look at your list before you try again.',
+  doNotRetry: 'We did not get a confirmation in time. Do not try again: press Refresh and look at your list first.',
+  notAvailable: 'Not available yet.',
+  relogin: 'Please sign out and sign in again, then try once more.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Something went wrong. Press Refresh and look at your list before you try again.'
+};
+const UD_state = { plans: {}, busy: false, loaded: false };
+
+function udEl(tag, cls, text) { return bkEl(tag, cls, text); }
+function udMsg(text, isError) {
+  const el = document.getElementById('w1u-msg');
+  if (el) { el.textContent = text; el.className = 'bk-msg' + (isError ? ' error' : ''); }
+}
+
+function udRefusalText(kind, r) {
+  const code = r && (r.error || r.code);
+  const c = (r && r.counts) || {};
+  if (code === 'relogin' || code === 'not_logged_in' || code === 'no_seller') return UD_TEXT.relogin;
+  if (code === 'not_available') return UD_TEXT.notAvailable;
+  if (code === 'network') return UD_TEXT.noConnection;
+  if (code === 'barcode_in_use') return UD_TEXT.barcodeInUse;
+  if (code === 'changed') return UD_TEXT.newerChange;
+  if (code === 'unconfirmed') return UD_TEXT.doNotRetry;
+  if (code === 'undo_unavailable' || code === 'save_failed') return UD_TEXT.refreshFirst;
+  if (code === 'changed_since') {
+    if (kind === 'invoiceCreate') {
+      const why = [];
+      if (Number(c.changed) === 1) why.push(UD_TEXT.whyChanged);
+      if (Number(c.sent) === 1) why.push(UD_TEXT.whySent);
+      if (Number(c.paid) === 1) why.push(UD_TEXT.whyPaid);
+      if (Number(c.missing) === 1) why.push(UD_TEXT.whyMissing);
+      return UD_TEXT.invoiceBlocked + (why.length ? UD_TEXT.invoiceWhy + why.join(', ') + '.' : '');
+    }
+    if (kind === 'csvApply' && Number(c.total) > 0) return bkNum((Number(c.changed) || 0) + (Number(c.missing) || 0)) + UD_TEXT.changedSinceImport1 + bkNum(c.total) + UD_TEXT.changedSinceImport2;
+    return UD_TEXT.changedSinceGeneric;
+  }
+  return UD_TEXT.failed;
+}
+
+function udSummaryText(kind, s) {
+  if (kind === 'csvApply') return UD_TEXT.summaryImport1 + bkNum(s.products) + UD_TEXT.summaryImport2 + udDate(s.changedAt);
+  if (kind === 'barcodeLink') return UD_TEXT.summaryLink1 + String(s.productName || '') + UD_TEXT.summaryLink2 + (s.from ? String(s.from) : UD_TEXT.noCode) + UD_TEXT.summaryLink3 + String(s.to || '') + '), ' + udDate(s.changedAt);
+  if (kind === 'stockSet') return UD_TEXT.summaryStock1 + String(s.productName || '') + UD_TEXT.summaryStock2 + udStock(s.to) + UD_TEXT.summaryStock3 + udStock(s.from) + ', ' + udDate(s.changedAt);
+  return UD_TEXT.summaryInvoice1 + String(s.orderId) + UD_TEXT.summaryInvoice2 + bkNum(s.lines) + UD_TEXT.summaryInvoice3 + (s.total === null || s.total === undefined ? '-' : bkNum(s.total)) + ', ' + udDate(s.changedAt);
+}
+function udStock(side) {
+  if (!side || side.tracked === false || side.quantity === null || side.quantity === undefined) return UD_TEXT.notTracked;
+  return bkNum(side.quantity);
+}
+function udDate(iso) {
+  const ms = Date.parse(iso);
+  if (!isFinite(ms)) return '';
+  try { return new Date(ms).toLocaleString(currentLang, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return new Date(ms).toISOString(); }
+}
+
+// What the seller is asked to confirm, in words (the door's summary has the exact numbers).
+function udConfirmText(kind, s) {
+  if (kind === 'csvApply') return (Number(s.products) === 1 ? UD_TEXT.hideOne : UD_TEXT.hide1 + bkNum(s.products) + UD_TEXT.hide2) + UD_TEXT.hideNote;
+  if (kind === 'barcodeLink') return (s.from ? UD_TEXT.putBackCode1 + String(s.productName || '') + UD_TEXT.putBackCode2 : UD_TEXT.putBackNone + String(s.productName || '') + '?');
+  if (kind === 'stockSet') {
+    const from = s.from || {};
+    return from.tracked === false || from.quantity === null || from.quantity === undefined
+      ? UD_TEXT.putBackStock1 + String(s.productName || '') + UD_TEXT.putBackNotTracked
+      : UD_TEXT.putBackStock1 + String(s.productName || '') + UD_TEXT.putBackStock2 + bkNum(from.quantity) + UD_TEXT.putBackStock3;
+  }
+  return UD_TEXT.cancelConfirm + ' ' + UD_TEXT.cancelRule;
+}
+
+// ---- Hook 1: the section drawn by the Import and barcodes screen.
+function w1UndoSection() {
+  const wrap = udEl('div'); wrap.id = 'w1u-section';
+  wrap.appendChild(udEl('div', 'bk-title', UD_TEXT.title));
+  const card = udEl('div', 'bk-card');
+  const rows = udEl('div'); rows.id = 'w1u-rows'; card.appendChild(rows);
+  card.appendChild(udEl('div', 'bk-small', UD_TEXT.cancelRule));
+  const msg = udEl('div', 'bk-msg'); msg.id = 'w1u-msg'; card.appendChild(msg);
+  const row = udEl('div', 'bk-row'); row.appendChild(bkBtn(UD_TEXT.refresh, function() { w1UndoRefresh(); }, 'w1u-refresh')); card.appendChild(row);
+  wrap.appendChild(card);
+  setTimeout(function() { w1UndoRefresh(); }, 0);
+  return wrap;
+}
+
+// Asks the door, for each of the four kinds, what the last change was (a dry run: nothing is written), and shows a button only where
+// there is something to undo. A kind with nothing to undo is hidden.
+async function w1UndoRefresh() {
+  if (UD_state.busy) return;
+  UD_state.busy = true;
+  udMsg(UD_TEXT.checking, false);
+  const rows = document.getElementById('w1u-rows');
+  try {
+    UD_state.plans = {};
+    const results = [];
+    for (const kind of UD_KINDS) results.push({ kind: kind, r: await callSellerStock('undoCheck', { kind: kind }) });
+    if (!document.getElementById('w1u-rows')) return;
+    rows.textContent = '';
+    let shown = 0; let hardError = '';
+    results.forEach(function(x) {
+      const code = x.r && (x.r.error || x.r.code);
+      if (x.r && x.r.ok === true && x.r.canUndo) {
+        UD_state.plans[x.kind] = x.r;
+        shown++;
+        const line = udEl('div', 'bk-row');
+        line.setAttribute('data-w1u-kind', x.kind);
+        line.appendChild(udEl('span', '', udSummaryText(x.kind, x.r.summary || {})));
+        const b = bkBtn(UD_TEXT.buttons[x.kind], function() { w1UndoAsk(x.kind); });
+        b.className = 'w1u-button'; b.setAttribute('data-w1u-kind', x.kind);
+        line.appendChild(b);
+        rows.appendChild(line);
+        return;
+      }
+      if (code === 'nothing_to_undo') return;
+      if (code === 'not_available' || code === 'relogin' || code === 'network' || code === 'not_logged_in') { hardError = udRefusalText(x.kind, x.r); return; }
+      // The last change exists but can not be undone any more: say so plainly (counts only), with no button.
+      shown++;
+      const line = udEl('div', 'bk-msg error');
+      line.setAttribute('data-w1u-kind', x.kind);
+      line.textContent = UD_TEXT.buttons[x.kind] + ': ' + udRefusalText(x.kind, x.r);
+      rows.appendChild(line);
+    });
+    if (hardError) { rows.textContent = ''; udMsg(hardError, true); return; }
+    udMsg(shown ? '' : UD_TEXT.none, false);
+  } finally { UD_state.busy = false; }
+}
+
+// ---- The confirmation in words, then one Confirm.
+function w1UndoAsk(kind) {
+  const plan = UD_state.plans[kind];
+  if (!plan || !plan.digest) return;
+  bkOpenConfirm({ kind: 'undo', undoKind: kind, digest: plan.digest }, udConfirmText(kind, plan.summary || {}));
+}
+
+// Hook 2: called by the screen's Confirm button for an undo. Sends undoApply once with the digest of the check.
+async function w1UndoConfirm(p) {
+  const r = await callSellerStock('undoApply', { kind: p.undoKind, digest: p.digest });
+  bkClosePanel();
+  if (r && r.ok === true) {
+    udMsg(p.undoKind === 'invoiceCreate' ? UD_TEXT.cancelled : UD_TEXT.undone, false);
+    await w1UndoRefreshKeepMessage();
+    return;
+  }
+  const code = r && (r.error || r.code);
+  if (code === 'nothing_to_undo') { await w1UndoRefreshKeepMessage(); return; }
+  if (code === 'changed') { udMsg(UD_TEXT.newerChange, false); UD_state.busy = false; await w1UndoRefresh(); return; }
+  const text = udRefusalText(p.undoKind, r);
+  // After a save problem or an unconfirmed answer the buttons are hidden until Refresh, so nothing can be tried twice by accident.
+  if (code === 'undo_unavailable' || code === 'save_failed' || code === 'unconfirmed') { const rows = document.getElementById('w1u-rows'); if (rows) rows.textContent = ''; }
+  udMsg(text, true);
+}
+async function w1UndoRefreshKeepMessage() {
+  const el = document.getElementById('w1u-msg');
+  const keep = el ? el.textContent : '';
+  UD_state.busy = false;
+  await w1UndoRefresh();
+  if (keep) udMsg(keep, false);
+}
+</script>
+<!-- w1-undo-buttons:js:end -->
 <!-- w1-menu-gate:js:start -->
 <script>
 // Menu entries of the new screens stay hidden until their door says it is available for this seller (build chat W1).
@@ -18952,6 +20642,18 @@ w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overv
 w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-business', 'request', { confirmText: 'w1-gate-probe-not-a-phrase' });
 </script>
 <!-- w1-menu-gate-delete:js:end -->
+<!-- w1-menu-gate-alerts:js:start -->
+<script>
+// Hides the Alert check menu entry until its door answers (see the w1-menu-gate block).
+w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'availability');
+</script>
+<!-- w1-menu-gate-alerts:js:end -->
+<!-- w1-menu-gate-import:js:start -->
+<script>
+// Hides the Import and barcodes menu entry until its door answers (see the w1-menu-gate block).
+w1GateRegister('bk-menu-row', 'https://sparklly.site/webhook/seller-stock-invoices', 'availability');
+</script>
+<!-- w1-menu-gate-import:js:end -->
 <!-- w1-ad-account-id:js:start -->
 <script>
 // The Meta Ad Account ID box (Business settings) is now saved through the Ads door (POST /webhook/seller-ads, action prepare then confirm,
