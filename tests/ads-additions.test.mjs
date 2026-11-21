@@ -113,7 +113,7 @@ async function openAds(answer, calls) {
       break;
     } catch (e) { if (attempt === 5) throw e; await page.waitForTimeout(500); }
   }
-  await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#ax-menu-row');
+  await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.evaluate(() => { const r = document.getElementById('ax-menu-row'); (r.closest('.dx-zone') || r).style.display = ''; }); await page.click('#ax-menu-row');
   await page.waitForSelector('#ax-summary');
   return { page, errors };
 }
