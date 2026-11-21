@@ -1921,6 +1921,7 @@
   }
   /* w1-login-notice:css:start */
   #login-ok { background: rgba(31, 157, 85, 0.10); color: #17803d; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; margin-bottom: 2px; }
+  #login-error .w1-fp-link { background: none; border: none; color: var(--danger); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
   html[data-theme="dark"] #login-ok { background: rgba(95, 211, 141, 0.12); color: #5fd38d; }
   /* w1-login-notice:css:end */
   #login-card input {
@@ -9673,6 +9674,7 @@ function initAuth() {
   applyLanguageDirection();
   applyTheme();
   document.getElementById('app').style.display = 'none';
+  if (w1ResetBoot()) return;
 
   if (localStorage.getItem('sparkly_is_admin') === 'true') {
     startAdminApp();
@@ -9792,10 +9794,11 @@ function showLoginScreen(errorMsg, tone) {
       <div id="login-logo"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
       <h1>Sparkly AI</h1>
       <p class="login-sub">Sign in to your dashboard</p>
-      ${errorMsg ? (tone === 'ok' ? `<div id="login-ok" role="status">${escapeHtml(errorMsg)}</div>` : `<div id="login-error" role="alert">${escapeHtml(errorMsg)}</div>`) : ''}
+      ${errorMsg ? (tone === 'ok' ? `<div id="login-ok" role="status">${escapeHtml(errorMsg)}</div>` : (tone === 'wrong' || tone === 'forgot') ? w1FpErr(errorMsg, true) : `<div id="login-error" role="alert">${escapeHtml(errorMsg)}</div>`) : ''}
       <input id="login-email" type="email" placeholder="Email" autocomplete="email">
       <input id="login-password2" type="password" placeholder="Password" autocomplete="current-password">
       <button id="login-email-btn" onclick="doLoginWithEmail()">Sign in</button>
+      <button type="button" id="forgot-link" onclick="w1ForgotShow()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Forgot password?</button>
       <button type="button" onclick="showSignUpScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Don't have an account? Sign up</button>
       <button id="link-with-code-btn" type="button" onclick="openNewDeviceLinkScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;">Link with a code</button>
       <details style="margin-top:6px;">
@@ -9811,6 +9814,7 @@ function showLoginScreen(errorMsg, tone) {
       <button type="button" onclick="showLoginDebugLog()" style="background:none;border:none;color:var(--text-muted);font-size:10.5px;text-decoration:underline;cursor:pointer;margin-top:2px;">Debug Log</button>
     </div>
   `;
+  if (tone === 'wrong' && window.w1LastLoginEmail) document.getElementById('login-email').value = window.w1LastLoginEmail;
   document.getElementById('login-email').focus();
   document.addEventListener('keydown', loginKeyHandler);
   applyTranslations();
@@ -9972,10 +9976,19 @@ window.doLoginWithEmail = async function() {
     });
     const authData = await authRes.json();
     if (!authRes.ok || !authData.access_token) {
-      showLoginScreen('Incorrect email or password.');
+      window.w1LastLoginEmail = email;
+      showLoginScreen('Incorrect email or password.', 'wrong');
       return;
     }
 
+    await w1LoginAfterAuth(authData, email);
+  } catch (e) {
+    showLoginScreen('Something went wrong — try again.');
+  }
+};
+
+// What happens after a successful sign-in (also used after a password reset): admin or seller, then the app.
+async function w1LoginAfterAuth(authData, email) {
     // Admin accounts are checked first and are completely separate from
     // seller accounts — an admin login has no chat_id/seller profile at all,
     // it goes straight to the platform-wide admin chat instead.
@@ -9997,10 +10010,7 @@ window.doLoginWithEmail = async function() {
     const sellerChatId = await w1ResolveSeller(authData, email);
     if (!sellerChatId) return;
     w1FinishLogin(authData, sellerChatId);
-  } catch (e) {
-    showLoginScreen('Something went wrong — try again.');
-  }
-};
+}
 
 // Upgrade flow for an old chat-ID account: the screens and the Seller Migrate door calls are in the w1-migrate-door block below.
 function showMigrateAccountScreen(step, errorMsg) { w1MigShow(step === 2 ? 2 : 1, errorMsg); }
@@ -20977,5 +20987,137 @@ window.w1SubmitBusinessName = async function() {
 };
 </script>
 <!-- w1-signup-create-seller:js:end -->
+<!-- w1-forgot-password:js:start -->
+<script>
+// Forgot password (build chat W1). Two parts, both through Supabase Auth with the sign-in service the app already uses:
+// 1) "Forgot password?" on the login screen asks for the email and sends a reset email (POST /auth/v1/recover). The answer is ALWAYS the same
+//    green message, whether or not the email has an account, so nobody can find out which emails are registered.
+// 2) The reset email opens this app at the redirect address below. The page reads the one-time link from the address, asks for the new
+//    password twice, saves it (PUT /auth/v1/user), signs in with it and goes into the app. The link is removed from the address at once.
+// The redirect address the reset email needs (it must be allowed in Supabase Auth, URL configuration): the app's own address, with a slash.
+const W1_FP_TEXT = {
+  forgot_link: 'Forgot password?',
+  forgot_sub: 'Enter your email and we will send you a link to set a new password.',
+  send_btn: 'Send reset link', back: 'Back to sign in', email: 'Email',
+  same_message: 'If this email has an account, a reset link was sent. Check your inbox and spam folder.',
+  need_email: 'Enter your email address.',
+  too_many: 'Too many requests. Wait a minute and try again.',
+  no_connection: 'Could not reach the server. Check your internet connection and try again.',
+  send_failed: 'We could not send the email right now. Try again in a minute.',
+  reset_title: 'Set a new password', reset_sub: 'Type your new password twice.',
+  pw1: 'New password (min 8 characters)', pw2: 'Type the new password again', save_btn: 'Save new password', saving: 'Saving...',
+  short: 'Password must be at least 8 characters.', mismatch: 'The two passwords are not the same.',
+  expired: 'This link has expired or was already used. Ask for a new reset link below.',
+  same_password: 'Choose a password you have not used before.',
+  weak: 'That password is too easy to guess. Choose a longer or less common one.',
+  save_failed: 'The new password could not be saved. Ask for a new reset link and try again.',
+  saved_signin: 'Your password was saved. Sign in with your new password.',
+  wrong_password: 'Incorrect email or password.'
+};
+function w1FpRedirect() { return window.location.origin + '/'; }
+function w1FpCard(title, sub, msgHtml, inner) {
+  const landing = document.getElementById('landing'); if (landing) landing.remove();
+  const app = document.getElementById('app'); if (app) app.style.display = 'none';
+  let overlay = document.getElementById('login-overlay');
+  if (!overlay) { overlay = document.createElement('div'); overlay.id = 'login-overlay'; document.body.appendChild(overlay); }
+  overlay.innerHTML = '<div id="login-card"><h1>' + escapeHtml(title) + '</h1><p class="login-sub">' + escapeHtml(sub) + '</p>' + msgHtml + inner + '</div>';
+}
+function w1FpErr(text, withLink) {
+  return '<div id="login-error" role="alert">' + escapeHtml(text) + (withLink ? ' <button type="button" class="w1-fp-link" onclick="w1ForgotShow()">' + escapeHtml(W1_FP_TEXT.forgot_link) + '</button>' : '') + '</div>';
+}
+const W1_FP_LINK_STYLE = 'background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;';
+function w1ForgotShow(prefill, errText) {
+  const typed = typeof prefill === 'string' ? prefill : (((document.getElementById('login-email') || {}).value) || window.w1LastLoginEmail || '');
+  w1FpCard('Forgot password', W1_FP_TEXT.forgot_sub, errText ? w1FpErr(errText, false) : '',
+    '<input id="forgot-email" type="email" placeholder="' + W1_FP_TEXT.email + '" autocomplete="email" value="' + escapeHtml(typed.trim()) + '">' +
+    '<button id="forgot-send-btn" onclick="w1ForgotSend()">' + escapeHtml(W1_FP_TEXT.send_btn) + '</button>' +
+    '<button type="button" id="forgot-back" onclick="showLoginScreen()" style="' + W1_FP_LINK_STYLE + 'color:var(--text-muted);">' + escapeHtml(W1_FP_TEXT.back) + '</button>');
+  const e = document.getElementById('forgot-email'); if (e) e.focus();
+}
+let w1FpBusy = false;
+async function w1ForgotSend() {
+  if (w1FpBusy) return;
+  const email = (document.getElementById('forgot-email').value || '').trim();
+  if (!email || email.indexOf('@') < 1) { w1ForgotShow(email, W1_FP_TEXT.need_email); return; }
+  w1FpBusy = true;
+  const btn = document.getElementById('forgot-send-btn'); if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(SUPABASE_URL + '/auth/v1/recover?redirect_to=' + encodeURIComponent(w1FpRedirect()), {
+      method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email })
+    });
+    if (res.status === 429) { w1FpBusy = false; w1ForgotShow(email, W1_FP_TEXT.too_many); return; }
+    if (res.status >= 500) { w1FpBusy = false; w1ForgotShow(email, W1_FP_TEXT.send_failed); return; }
+    // Every other answer (sent, or no such email, or a refused address) gets the SAME green message.
+    w1FpBusy = false;
+    showLoginScreen(W1_FP_TEXT.same_message, 'ok');
+  } catch (e) { w1FpBusy = false; w1ForgotShow(email, W1_FP_TEXT.no_connection); }
+}
+// ---- The reset page, opened from the link in the email: the address carries #access_token=...&refresh_token=...&type=recovery
+// (or #error=...&error_code=otp_expired when the link is expired or already used).
+function w1ResetParse() {
+  const raw = (window.location.hash || '').replace(/^#/, '');
+  if (!raw) return null;
+  const p = new URLSearchParams(raw);
+  if (p.get('type') === 'recovery' && p.get('access_token')) return { kind: 'link', token: p.get('access_token'), refresh: p.get('refresh_token') || '' };
+  if (p.get('error_code') || (p.get('error') && /otp|expired|invalid/i.test(p.get('error_description') || ''))) return { kind: 'bad' };
+  return null;
+}
+function w1ResetClearAddress() { try { window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) { /* address kept */ } }
+function w1ResetBoot() {
+  const r = w1ResetParse();
+  if (!r) return false;
+  if (r.kind === 'bad') {
+    showLoginScreen(W1_FP_TEXT.expired, 'forgot');
+    const drop = function() { w1ResetClearAddress(); document.removeEventListener('click', drop, true); document.removeEventListener('keydown', drop, true); };
+    document.addEventListener('click', drop, true); document.addEventListener('keydown', drop, true);
+    return true;
+  }
+  w1ResetShow(r.token, r.refresh);
+  return true;
+}
+const W1_RESET = { token: '', refresh: '', busy: false };
+function w1ResetShow(token, refresh, errText) {
+  if (token !== undefined) { W1_RESET.token = token; W1_RESET.refresh = refresh || ''; }
+  w1FpCard(W1_FP_TEXT.reset_title, W1_FP_TEXT.reset_sub, errText ? w1FpErr(errText, false) : '',
+    '<input id="reset-pw1" type="password" placeholder="' + W1_FP_TEXT.pw1 + '" autocomplete="new-password">' +
+    '<input id="reset-pw2" type="password" placeholder="' + W1_FP_TEXT.pw2 + '" autocomplete="new-password">' +
+    '<button id="reset-save-btn" onclick="w1ResetSave()">' + escapeHtml(W1_FP_TEXT.save_btn) + '</button>');
+  const e = document.getElementById('reset-pw1'); if (e) e.focus();
+}
+async function w1ResetSave() {
+  if (W1_RESET.busy) return;
+  const p1 = document.getElementById('reset-pw1').value; const p2 = document.getElementById('reset-pw2').value;
+  if (p1.length < 8) { w1ResetShow(undefined, undefined, W1_FP_TEXT.short); return; }
+  if (p1 !== p2) { w1ResetShow(undefined, undefined, W1_FP_TEXT.mismatch); return; }
+  W1_RESET.busy = true;
+  const btn = document.getElementById('reset-save-btn'); if (btn) { btn.disabled = true; btn.textContent = W1_FP_TEXT.saving; }
+  try {
+    const res = await fetch(SUPABASE_URL + '/auth/v1/user', {
+      method: 'PUT', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + W1_RESET.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: p1 })
+    });
+    let j = {}; try { j = await res.json(); } catch (e) { j = {}; }
+    if (!res.ok) {
+      W1_RESET.busy = false;
+      const code = String(j.error_code || j.code || '');
+      if (res.status === 401 || res.status === 403) { W1_RESET.token = ''; w1ResetClearAddress(); showLoginScreen(W1_FP_TEXT.expired, 'forgot'); return; }
+      if (code === 'same_password') { w1ResetShow(undefined, undefined, W1_FP_TEXT.same_password); return; }
+      if (code === 'weak_password') { w1ResetShow(undefined, undefined, W1_FP_TEXT.weak); return; }
+      w1ResetShow(undefined, undefined, W1_FP_TEXT.save_failed); return;
+    }
+    const email = String(j.email || '');
+    W1_RESET.token = ''; W1_RESET.refresh = ''; w1ResetClearAddress();
+    // Sign in with the new password so the seller goes straight into the app (the normal login path from here on).
+    const sign = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+      method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: p1 })
+    });
+    const authData = await sign.json();
+    W1_RESET.busy = false;
+    if (!sign.ok || !authData.access_token) { showLoginScreen(W1_FP_TEXT.saved_signin, 'ok'); return; }
+    if (typeof clearAllAuthStorage === 'function') clearAllAuthStorage();
+    await w1LoginAfterAuth(authData, email);
+  } catch (e) { W1_RESET.busy = false; w1ResetShow(undefined, undefined, W1_FP_TEXT.no_connection); }
+}
+</script>
+<!-- w1-forgot-password:js:end -->
 </body>
 </html>

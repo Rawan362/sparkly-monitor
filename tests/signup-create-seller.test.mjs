@@ -230,7 +230,7 @@ test('the older messages are unchanged: a wrong password, and an email that alre
   const calls = [];
   const wrong = await openApp(doorOk(), calls, { token: null }, []);
   await fillLogin(wrong.page, 'a@example.test');
-  assert.equal(await loginError(wrong.page), 'Incorrect email or password.');
+  assert.match(await loginError(wrong.page), /^Incorrect email or password\. Forgot password\?$/);
   const dup = await openApp(doorOk(), calls, { signup: { user: { id: USER.id, identities: [] } } }, []);
   await fillSignUp(dup.page, 'Corner Shop', 'a@example.test');
   assert.equal(await loginError(dup.page), 'This email already has an account. Sign in below instead of creating a new one.');
