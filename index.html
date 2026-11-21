@@ -16616,7 +16616,9 @@ async function ensureSession() {
     localStorage.setItem('sparkly_session_token', token);
   }
   try {
-    await w1SessionsCall('ensure', { sessionToken: token, deviceLabel: detectDeviceLabel() });
+    if (await w1SessionReturning(token)) return;   // a device that is already registered must not be registered again after a remote sign-out
+    const r = await w1SessionsCall('ensure', { sessionToken: token, deviceLabel: detectDeviceLabel() });
+    if (r && r.ok === true) localStorage.setItem(W1_SESSW_FLAG, '1');
   } catch (e) {}
 }
 
@@ -16626,16 +16628,7 @@ async function heartbeatSession() {
   if (!token) return;
   sessionCheckCounter++;
   if (sessionCheckCounter % 6 !== 0) return; // roughly every ~48s, not every poll
-  try {
-    // The door moves last_seen_at and says whether this device still has a session (active false: signed out from another device).
-    const r = await w1SessionsCall('heartbeat', { sessionToken: token });
-    if (r && r.ok === true && r.active === false) {
-      clearAllAuthStorage();
-      alert('You were signed out from this device.');
-      location.reload();
-      return;
-    }
-  } catch (e) {}
+  try { await w1SessionCheck(true); } catch (e) {}
 }
 
 const ADMIN_CHAT_WEBHOOK_URL = 'https://sparklly.site/webhook/web-admin-chat';
@@ -18271,6 +18264,57 @@ async function w1SessionsCall(action, extra) {
 }
 </script>
 <!-- w1-sessions-door:js:end -->
+<!-- w1-sessions-signout:js:start -->
+<script>
+// A device signed out from another device is logged out within a few seconds of its next action (build chat W1).
+// Before: the device only asked about its session about once a minute from a timer (timers slow down in a background tab), and a device
+// that had already been signed out was REGISTERED AGAIN by the next page start ("ensure" creates a row for a token it does not know).
+// Now: (1) a device that already has a registered session asks first ("heartbeat") and logs out when it has none, instead of registering
+// again; (2) the first click, key press, touch, return to the tab or window focus checks the session (at most once every 5 seconds).
+// A device linked with a code has no login token: it makes no call here, as before.
+const W1_SESSW_FLAG = 'sparkly_session_token_registered';
+const W1_SESSW_GAP_MS = 5000;
+const W1_SESSW = { last: 0, busy: false };
+function w1SessionSignedOutHere() {
+  clearAllAuthStorage();
+  alert('You were signed out from this device.');
+  location.reload();
+}
+// Asks the door once. 'signed_out' (and the local logout) when the door says this device has no session; 'ok' when it has one; 'skip' otherwise.
+async function w1SessionCheck(force) {
+  const token = localStorage.getItem('sparkly_session_token');
+  if (!token) return 'skip';
+  if (!force) {
+    if (localStorage.getItem(W1_SESSW_FLAG) !== '1') return 'skip';   // only a device whose registration is known is checked on its actions
+    if (W1_SESSW.busy || Date.now() - W1_SESSW.last < W1_SESSW_GAP_MS) return 'skip';
+    if (typeof SELLER_CHAT_ID === 'undefined' || !SELLER_CHAT_ID) return 'skip';
+  }
+  W1_SESSW.busy = true; W1_SESSW.last = Date.now();
+  try {
+    // The door moves last_seen_at and says whether this device still has a session (active false: signed out from another device).
+    const r = await w1SessionsCall('heartbeat', { sessionToken: token });
+    if (r && r.ok === true && r.active === false) { w1SessionSignedOutHere(); return 'signed_out'; }
+    return r && r.ok === true ? 'ok' : 'skip';
+  } finally { W1_SESSW.busy = false; }
+}
+// At app start for a device that already has a registered session: true when nothing more has to be done (it is signed out, or still has its session).
+async function w1SessionReturning(token) {
+  if (localStorage.getItem(W1_SESSW_FLAG) !== '1') return false;
+  const r = await w1SessionsCall('heartbeat', { sessionToken: token });
+  W1_SESSW.last = Date.now();
+  if (r && r.ok === true && r.active === false) { w1SessionSignedOutHere(); return true; }
+  if (r && r.ok === true) return true;
+  if (r && r.error === 'no_login') return true;        // a device linked with a code: nothing to do, as before
+  return true;                                          // not available right now: keep working, do not register again
+}
+(function() {
+  const act = function() { w1SessionCheck(false).catch(function() { /* never blocks the app */ }); };
+  ['pointerdown', 'keydown', 'touchstart'].forEach(function(ev) { document.addEventListener(ev, act, { passive: true, capture: true }); });
+  document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') act(); });
+  window.addEventListener('focus', act);
+})();
+</script>
+<!-- w1-sessions-signout:js:end -->
 <!-- w1-ads-screen:js:start -->
 <script>
 // Ads screen (build chat W1, screen 2). Door: POST /webhook/seller-ads with { token, action, ... }. The login decides the seller.
