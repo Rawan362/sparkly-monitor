@@ -86,7 +86,7 @@ async function run(browser, base, kind, doorAnswer) {
   await page.fill('#signup-password', 'password123');
   await page.evaluate(() => doSignUp());
   await page.waitForTimeout(400);
-  const text = await page.evaluate(() => (document.getElementById('login-error') || {}).textContent || '');
+  const text = await page.evaluate(() => ((document.getElementById('login-error') || document.getElementById('login-ok')) || {}).textContent || '');
   const screen = await page.evaluate(() => (document.querySelector('#login-card h1') || {}).textContent || '');
   await page.close();
   return { calls, text, screen, pageErrors };

@@ -105,7 +105,7 @@ async function openApp(opts) {
 const door = (reqs, action) => reqs.filter((r) => /seller-migrate$/.test(r.url)).map((r) => JSON.parse(r.body)).filter((b) => !action || b.action === action);
 const step1 = async (page, id, pw) => { await page.fill('#migrate-chatid', id || OLD_ID); await page.fill('#migrate-password', pw || OLD_PW); await page.click('#migrate-step1-btn'); };
 const step2 = async (page, email, pw) => { await page.waitForSelector('#migrate-step2-btn'); await page.fill('#migrate-email', email || 'new@example.com'); await page.fill('#migrate-newpassword', pw || NEW_PW); await page.click('#migrate-step2-btn'); };
-const err = (page) => page.$eval('#login-error', (e) => e.textContent).catch(() => '');
+const err = (page) => page.$eval('#login-error, #login-ok', (e) => e.textContent).catch(() => '');
 
 test('the happy path: signup, check, confirm screen, apply; the old password only goes to the door, in exactly two requests', { skip }, async () => {
   const { page, reqs, logs } = await openApp();
@@ -158,7 +158,7 @@ test('boxes left empty or a short new password are refused before any call', { s
 test('a sign-up that gives no login token (email not confirmed yet) makes no door call and keeps nothing', { skip }, async () => {
   const { page, reqs } = await openApp({ signup: { user: { id: 'new-user' } } });
   await step1(page); await step2(page);
-  await page.waitForSelector('#login-error');
+  await page.waitForSelector('#login-error, #login-ok');
   assert.match(await err(page), /Confirm your email, sign in, then choose Upgrade again/);
   assert.equal(door(reqs).length, 0);
   assert.equal(await page.evaluate(() => W1_MIG.password + W1_MIG.chatId + W1_MIG.token), '');

@@ -58,9 +58,11 @@ test.after(async () => { if (browser) await browser.close(); if (server) server.
 const listOf = (templates) => ({ json: { ok: true, connected: true, templates, languages: LANGS, businessName: 'Corner Shop' } });
 
 // `door(body)` answers the template door; `starts` collects what the app asks the Start New Conversation door.
+const waitForCalls = async (calls, n, ms = 15000) => { const t0 = Date.now(); while (calls.length < n) { if (Date.now() - t0 > ms) throw new Error('timed out waiting for ' + n + ' calls'); await new Promise((r) => setTimeout(r, 50)); } };
+
 async function openScreen(door, calls, starts, o = {}) {
   const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
-  await page.route('**/*', (route) => {
+  await page.route('**/*', async (route) => {
     const u = route.request().url();
     if (u.startsWith(base)) return route.continue();
     const h = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
@@ -69,6 +71,7 @@ async function openScreen(door, calls, starts, o = {}) {
       const body = JSON.parse(route.request().postData() || '{}');
       if (body.action !== 'sending_status') calls.push(body);   // the read-only payment status check is covered by tests/payment-block.test.mjs
       const a = door(body);
+      if (o.slowAfter && calls.length > o.slowAfter) await new Promise((r) => setTimeout(r, o.slowMs || 500));   // a slow answer: the refresh is still on its way
       return route.fulfill({ status: a.status || 200, contentType: 'application/json', headers: h, body: JSON.stringify(a.json || {}) });
     }
     if (/\/webhook\/start-new-conversation$/.test(u)) {
@@ -265,12 +268,24 @@ test('closing the screen stops the automatic checking', { skip }, async () => {
   const calls = []; const starts = [];
   const { page } = await openScreen(() => listOf([PENDING_EN]), calls, starts, { pollMs: 200 });
   await settled(page);
-  await page.waitForFunction(() => true);
-  await page.waitForTimeout(700);
-  assert.ok(calls.length >= 3, 'it checks again by itself while open');
+  await waitForCalls(calls, 3);
   await page.evaluate(() => window.closeNewConversationModal());
+  await page.waitForTimeout(400);   // let a request that was already on its way arrive and be counted
   const n = calls.length;
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(900);
   assert.equal(calls.length, n);
+  await page.close();
+});
+
+test('a refresh that is still on its way when the screen closes does not start the automatic checking again', { skip }, async () => {
+  const calls = []; const starts = [];
+  const { page } = await openScreen(() => listOf([PENDING_EN]), calls, starts, { pollMs: 200, slowAfter: 1, slowMs: 600 });
+  await settled(page);
+  await waitForCalls(calls, 3);   // a slow refresh is in flight
+  await page.evaluate(() => window.closeNewConversationModal());
+  await page.waitForTimeout(250);
+  const n = calls.length;
+  await page.waitForTimeout(1800);   // the slow answers arrive during this time
+  assert.equal(calls.length, n, 'no new check after the screen was closed');
   await page.close();
 });
