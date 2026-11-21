@@ -156,7 +156,10 @@ for (const st of ['delivered', 'read', 'played', 'failed']) {
     w.answer = (u, m) => { const r = orig(u, m); if (m === 'POST' && /seller-send-media$/.test(u)) w.setReceipt(r.waMessageId, st, 1000); return r; };
     await sendMedia(page, 'video'); await sendText(page, 'next');
     await waitFor(() => w.reqs.length >= 2);
-    assert.ok(w.reqs[1].at - (w.receipts[w.reqs[0].id].at - w.t0) < 1800);
+    // released by the receipt: not before it, and soon after it (a slow runner needs room; the shortened limit in the next test shows it is the receipt, not the timeout)
+    const afterReceipt = w.reqs[1].at - (w.receipts[w.reqs[0].id].at - w.t0);
+    assert.ok(afterReceipt >= -50, 'not before the receipt: ' + afterReceipt);
+    assert.ok(afterReceipt < 4000, 'right after the receipt: ' + afterReceipt);
     await page.close();
   });
 }

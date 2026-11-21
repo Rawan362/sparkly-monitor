@@ -123,11 +123,13 @@ test('ensureSession makes the token in the browser and sends it to the door with
   assert.deepEqual(errors, []);
 });
 
-test('the same device keeps its token: a second ensure sends the same sessionToken', { skip }, async () => {
+test('the same device keeps its token: the second start sends a heartbeat with the same sessionToken, not a second ensure', { skip }, async () => {
   const calls = [];
   const { page } = await openApp(null, calls, []);
-  await page.evaluate(async () => { localStorage.removeItem('sparkly_session_token'); await ensureSession(); await ensureSession(); });
-  assert.equal(asked(calls, 'ensure')[0].sessionToken, asked(calls, 'ensure')[1].sessionToken);
+  await page.evaluate(async () => { localStorage.removeItem('sparkly_session_token'); localStorage.removeItem('sparkly_session_token_registered'); await ensureSession(); await ensureSession(); });
+  // the first start registers the device (ensure); the next start of an already registered device asks first (heartbeat) and does not register again
+  assert.equal(asked(calls, 'ensure').length, 1);
+  assert.equal(asked(calls, 'heartbeat')[0].sessionToken, asked(calls, 'ensure')[0].sessionToken);
 });
 
 test('the heartbeat asks the door about every sixth poll, and a device the door says is signed out logs itself out', { skip }, async () => {
