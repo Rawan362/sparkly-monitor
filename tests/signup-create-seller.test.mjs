@@ -113,7 +113,7 @@ const doorOk = (over) => (b) => {
 };
 const fillSignUp = (page, name, email) => page.evaluate(([n, e]) => { showSignUpScreen(); document.getElementById('signup-business').value = n; document.getElementById('signup-email').value = e; document.getElementById('signup-password').value = 'long-enough-password'; return doSignUp(); }, [name, email]);
 const fillLogin = (page, email) => page.evaluate((e) => { showLoginScreen(); document.getElementById('login-email').value = e; document.getElementById('login-password2').value = 'long-enough-password'; return doLoginWithEmail(); }, email);
-const loginError = (page) => page.$eval('#login-error', (e) => e.textContent).catch(() => '');
+const loginError = (page) => page.$eval('#login-error, #login-ok', (e) => e.textContent).catch(() => '');
 const pending = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('sparkly_pending_business') || 'null'));
 
 test('sign-up with a login token: createSeller is sent with the new login and the typed name, nothing goes to the sellers table, and the app starts as that seller', { skip }, async () => {
