@@ -159,7 +159,7 @@ test('a sign-up that gives no login token (email not confirmed yet) makes no doo
   const { page, reqs } = await openApp({ signup: { user: { id: 'new-user' } } });
   await step1(page); await step2(page);
   await page.waitForSelector('#login-error, #login-ok');
-  assert.match(await err(page), /Confirm your email, sign in, then choose Upgrade again/);
+  assert.match(await err(page), /Confirm your email, then tap/);
   assert.equal(door(reqs).length, 0);
   assert.equal(await page.evaluate(() => W1_MIG.password + W1_MIG.chatId + W1_MIG.token), '');
 });
