@@ -9810,6 +9810,10 @@ function showLoginScreen(errorMsg, tone) {
       <button id="login-email-btn" onclick="doLoginWithEmail()">Sign in</button>
       <button type="button" id="forgot-link" onclick="w1ForgotShow()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Forgot password?</button>
       <button type="button" onclick="showSignUpScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px;">Don't have an account? Sign up</button>
+      <!-- w1-migrate-entry:login:start -->
+      <button type="button" id="w1-mige-upgrade" onclick="w1MigeUpgrade()">Upgrade your old account</button>
+      <button type="button" id="w1-mige-have" onclick="w1MigeHaveLogin()">I already created my new login</button>
+      <!-- w1-migrate-entry:login:end -->
       <button id="link-with-code-btn" type="button" onclick="openNewDeviceLinkScreen()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;">Link with a code</button>
       <details style="margin-top:6px;">
         <summary style="font-size:11.5px;color:var(--text-muted);cursor:pointer;">Still using your old chat-ID login?</summary>
@@ -20953,7 +20957,7 @@ const W1_MIG_TEXT = {
   need_all: 'Fill in every box.',
   signup_failed: 'Could not set up the email. It may already be in use.',
   signin_failed: 'The email or password is not correct.',
-  confirm_email: 'Account created. Confirm your email, sign in, then choose Upgrade again and use "I already created my new login".',
+  confirm_email: 'Account created. Confirm your email, then tap "I already created my new login" below. Do not sign in the normal way first.',
   linked: 'Your login is now linked.',
   wrong_old_credentials: 'The old account number or password is not correct.',
   too_many_attempts: 'Too many wrong attempts. Try again later.',
@@ -21514,6 +21518,10 @@ function w1WaNeed() {
   #w1-ai-first { position: fixed; left: 50%; transform: translateX(-50%); bottom: 134px; z-index: 9000; max-width: 92vw; display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
   #w1-ai-first button { border: 1px solid rgba(255,255,255,0.7); background: none; color: #fff; border-radius: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
   /* w1-ai-later:css:end */
+  /* w1-migrate-entry:css:start */
+  #w1-mige-upgrade { width: 100%; padding: 11px; border: 1px solid var(--accent); border-radius: 10px; background: none; color: var(--accent); font-weight: 700; font-size: 14px; cursor: pointer; margin-top: 4px; }
+  #w1-mige-have { background: none; border: none; color: var(--accent); font-size: 12.5px; font-weight: 600; cursor: pointer; margin-top: 2px; }
+  /* w1-migrate-entry:css:end */
 </style>
 <script>
 // New sellers can use the web app BEFORE the AI is set up (build chat W1; same idea as the Connect WhatsApp change). Web app only.
@@ -21625,5 +21633,15 @@ function w1AiNeed() {
 })();
 </script>
 <!-- w1-ai-later:js:end -->
+<!-- w1-migrate-entry:js:start -->
+<script>
+// Easier ways into the upgrade of an old chat-ID account (build chat W1). Only entry points and wording: the Seller Migrate door, its calls and
+// the old-password check are not touched (they are in the w1-migrate-door block). The login screen has a visible "Upgrade your old account"
+// button and an "I already created my new login" link, and the sign-up message says exactly what to do next. There is no banner after login:
+// the door refuses a login that already has a business of its own, so a link there would mislead.
+window.w1MigeUpgrade = function () { w1MigReset(); showMigrateAccountScreen(1); };
+window.w1MigeHaveLogin = function () { w1MigReset(); w1MigShow(3); };
+</script>
+<!-- w1-migrate-entry:js:end -->
 </body>
 </html>
