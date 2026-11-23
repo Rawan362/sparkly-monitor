@@ -12872,6 +12872,9 @@ function openTestModeCommon(fromScreen, fromPanelId) {
 }
 
 const ANSWER_INBOX_WEBHOOK_URL = 'https://sparklly.site/webhook/answer-inbox-question';
+// The person's own login token goes in the body of every answer. The door ignores it while its login switch is off and checks it when the switch is on.
+// With no token the answer is still sent as before (the door decides), so nothing changes for a seller whose token cannot be read.
+async function w1InboxToken() { try { return (await getValidAuthToken()) || ''; } catch (e) { return ''; } }
 let inboxCurrentQuestion = null;
 let inboxSelectedScope = 'this_customer';
 let inboxPollTimer = null;
@@ -13460,7 +13463,9 @@ window.agentSaveAdjust = async function() {
     if (wantSend) {
       const msg = document.getElementById('inbox-agent-draft').value.trim();
       if (!msg) { alert('The message to the customer is empty.'); return; }
-      const res = await fetch(ANSWER_INBOX_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, answerText: msg, scope: 'this_customer' }) });
+      const sendBody = { questionId: q.id, answerText: msg, scope: 'this_customer' };
+      const sendToken = await w1InboxToken(); if (sendToken) sendBody.token = sendToken;
+      const res = await fetch(ANSWER_INBOX_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sendBody) });
       const data = await res.json();
       if (!data || !data.success) throw new Error((data && data.error) || 'Could not send the message to the customer');
       if (data.warning) alert(data.warning);
@@ -13642,6 +13647,7 @@ window.submitInboxAnswer = async function() {
       payload.isImage = inboxAttachedFile.isImage;
       payload.isVideo = inboxAttachedFile.isVideo;
     }
+    const answerToken = await w1InboxToken(); if (answerToken) payload.token = answerToken;
     const res = await fetch(ANSWER_INBOX_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
