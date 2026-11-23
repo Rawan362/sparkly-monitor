@@ -15624,7 +15624,8 @@ function engineModelName(id) { const m = engineModelList().find(x => x.id === id
 window.engineToggleMenu = function(kind) { engineState.open = engineState.open || {}; engineState.open[kind] = !engineState.open[kind]; engineRender(); };
 async function engineLoadModels() {
   try {
-    const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-models', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ seller_id: SELLER_CHAT_ID }) });
+    const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-models', { method: 'POST', headers: await w1AnthHeaders(), body: JSON.stringify({ seller_id: SELLER_CHAT_ID }) });
+    if (r.status === 401) { engineState.modelsNote = W1_ANTH_LOGIN_TEXT + ' Showing the standard models.'; return; }
     const d = await r.json();
     if (d && d.ok && Array.isArray(d.models)) { engineState.liveModels = d.models; engineState.modelsNote = 'Showing every model your Anthropic account offers (' + d.models.length + ' found).'; }
     else engineState.modelsNote = 'Could not load the full model list from Anthropic (' + ((d && d.error) || 'unknown') + '). Showing the standard models.';
@@ -15664,8 +15665,19 @@ async function engineLoadUsage() {
 
 
 // ── Anthropic account connection + real usage ──
+// Both Anthropic functions get the person's own login token (never the public key) and only the person's own seller id. A 401 means the login was
+// not accepted: the screens show the plain sentence below and never treat it as "not connected".
+const W1_ANTH_LOGIN_TEXT = 'Please sign out and sign in again, then try once more.';
+async function w1AnthHeaders() {
+  const h = { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' };
+  let tok = null;
+  try { tok = await getValidAuthToken(); } catch (e) { tok = null; }
+  if (tok) h.Authorization = 'Bearer ' + tok;
+  return h;
+}
 async function engineCall(body) {
-  const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-connect', { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ seller_id: SELLER_CHAT_ID }, body)) });
+  const r = await fetch(SUPABASE_URL + '/functions/v1/anthropic-connect', { method: 'POST', headers: await w1AnthHeaders(), body: JSON.stringify(Object.assign({}, body, { seller_id: SELLER_CHAT_ID })) });
+  if (r.status === 401) return { ok: false, error: W1_ANTH_LOGIN_TEXT, code: 'login_required', loginRequired: true };
   return r.json();
 }
 // ── AI setup guide: account, key, funds (shown at sign-up and whenever the AI cannot run) ──
@@ -15719,6 +15731,7 @@ async function ensureAiReady(onReady) {
 
 async function engineLoadConn() {
   try { engineState.conn = await engineCall({ action: 'status' }); } catch (e) { engineState.conn = { connected: false, admin_connected: false }; }
+  if (engineState.conn && engineState.conn.loginRequired) { engineState.conn = { connected: false, admin_connected: false, loginRequired: true, state: 'error' }; return; }   // not "not connected": no set-up popup
   engineState.conn.state = engineState.conn.connected ? await engineCheckState() : 'no_key';
 }
 window.engineOpenConnect = function() {
@@ -15750,13 +15763,15 @@ window.engineConnectSave = async function() {
 };
 window.engineDisconnect = async function() {
   if (!confirm('Remove your Anthropic key? Your AI will stop answering customers, calls and your AI chat until you connect a key again.')) return;
-  await engineCall({ action: 'disconnect', which: 'api' }); await engineCall({ action: 'disconnect', which: 'admin' });
+  const d1 = await engineCall({ action: 'disconnect', which: 'api' }); const d2 = await engineCall({ action: 'disconnect', which: 'admin' });
   document.getElementById('engine-modal').remove();
+  if ((d1 && d1.loginRequired) || (d2 && d2.loginRequired)) alert(W1_ANTH_LOGIN_TEXT);
   await engineLoadConn(); engineState.real = null; engineRender();
 };
 function engineConnCard() {
   const c = engineState.conn;
   if (!c) return '';
+  if (c.loginRequired) return '<div class="eng-conn"><div class="eng-err">' + escapeHtml(W1_ANTH_LOGIN_TEXT) + '</div></div>';
   let h = '<div class="eng-conn">';
   if (c.connected) h += '<span class="ok">Connected</span> to your Anthropic account (' + escapeHtml(c.key_hint || '') + '). Your AI runs on your own credits.';
   else h += 'Not connected. Your AI is switched off until you connect your own Anthropic account and add funds.';
@@ -15972,6 +15987,7 @@ window.engineCoachAsk = async function(preset) {
   try {
     const r = await engineCall({ action: 'ask', question: q, history, summary: engineCoachSummary() });
     if (r.ok) reply = r.reply || '...';
+    else if (r.loginRequired) reply = W1_ANTH_LOGIN_TEXT;
     else if (r.error === 'no_credit') reply = 'Your Anthropic account has no credits left. Press Add funds, then ask again.';
     else if (r.error === 'invalid') reply = 'Anthropic rejected your key. Press Manage connection and paste a new one.';
     else if (r.error === 'no_key') reply = 'Connect your Anthropic key first.';
