@@ -10678,9 +10678,9 @@ function ensureRateSnapshot(o, cfg) {
   const snap = { date: new Date().toISOString().slice(0, 10), from: cfg.cur, to: cfg.altCur, rate: cfg.altRate, op: cfg.altOp };
   o.rate_snapshot = snap;
   try {
-    fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + o.id, { method: 'PATCH',
+    w1OrRun('ensureRateSnapshot', { orderId: o.id, snapshot: snap }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + o.id, { method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ rate_snapshot: snap }) });
+      body: JSON.stringify({ rate_snapshot: snap }) }); }).catch(function() {});
   } catch (e) {}
   return snap;
 }
@@ -10689,9 +10689,9 @@ window.saveInvoiceNote = async function(orderId, btn) {
   if (!ta) return;
   const old = btn.textContent; btn.textContent = '...';
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH',
+    const r = await w1OrRun('saveInvoiceNote', { orderId: orderId, note: ta.value.trim() }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ seller_note: ta.value.trim() || null }) });
+      body: JSON.stringify({ seller_note: ta.value.trim() || null }) }); });
     btn.textContent = r.ok ? 'Saved ✓' : 'Failed';
   } catch (e) { btn.textContent = 'Failed'; }
   setTimeout(() => { btn.textContent = old; }, 1600);
@@ -10989,10 +10989,10 @@ window.deleteOrder = async function() {
   try {
     // order_items has ON DELETE CASCADE on order_id, so its line items are
     // cleaned up automatically — no need to delete them separately here.
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+    const res = await w1OrDelete(currentOrderId, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Prefer': 'return=minimal' }
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     closeOrderDetail();
@@ -11073,7 +11073,7 @@ window.confirmReturn = async function() {
   const returnType = amount >= productTotal ? 'full' : 'partial';
 
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+    const res = await w1OrRun('confirmReturn', { orderId: currentOrderId, returnType: returnType, returnAmount: amount, shippingPayer: currentReturnShippingPayer }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({
@@ -11082,7 +11082,7 @@ window.confirmReturn = async function() {
         return_type: returnType,
         return_shipping_payer: currentReturnShippingPayer
       })
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     closePaymentModal();
@@ -11838,7 +11838,9 @@ window.saveManualOrder = async function() {
     if (payload.order_status === 'SHIPPED') payload.shipped_at = new Date().toISOString();
     if (payload.order_status === 'DELIVERED') payload.delivered_at = new Date().toISOString();
 
-    let orderId;
+    // The Seller Orders door first (one call for the order and its lines, all or nothing); the older direct writes below run when it is not available.
+    let orderId = await w1OrSave(payload, currentOrderCart);
+    if (orderId === null) {
     if (currentEditingOrderId) {
       // Editing an existing order — update it in place, then replace all of
       // its line items wholesale (simplest correct way to reconcile an
@@ -11904,6 +11906,7 @@ window.saveManualOrder = async function() {
       }
     }
 
+    }
     closeOrderCreateForm();
     await loadOrders();
     if (currentEditingOrderId) {
@@ -11933,7 +11936,7 @@ async function recordOrderPayment(orderId, mode, value) {
   const delta = Math.round((newTotal - old) * 100) / 100;
   if (Math.abs(delta) < 0.005) return { changed: false, newTotal };
   const payments = (Array.isArray(cur.payments) ? cur.payments : []).concat([{ date: new Date().toISOString(), amount: delta, tz: (function(){ try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })() }]);
-  const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH', headers: H, body: JSON.stringify({ amount_received: newTotal, payments }) });
+  const r = await w1OrRun('recordPayment', { orderId: orderId, amountReceived: newTotal, tz: payments[payments.length - 1].tz || '' }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH', headers: H, body: JSON.stringify({ amount_received: newTotal, payments }) }); });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return { changed: true, newTotal, tot };
 }
@@ -11998,11 +12001,11 @@ window.updateOrderStatus = async function(newStatus) {
       if (!isNaN(num) && num !== 0) await recordOrderPayment(currentOrderId, 'add', num);
     }
 
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+    const res = await w1OrRun('setStatus', { orderId: currentOrderId, status: newStatus }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify(payload)
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     closeOrderDetail();
@@ -12233,9 +12236,9 @@ window.submitBoxShipping = async function(orderId, input, free, btn) {
   if (btn) btn.disabled = true;
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
-    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
+    const r = await w1OrRun('submitShipping', { orderId: orderId, shippingCost: amount }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
       method: 'PATCH', headers, body: JSON.stringify({ shipping_cost: amount, shipping_confirmed: true })
-    });
+    }); }, ['not_waiting']);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const rows = await r.json();
     if (!rows || !rows.length) alert(obT('This order was already completed.', 'هذا الطلب مكتمل مسبقاً.'));
@@ -12256,11 +12259,11 @@ window.markBoxOrderShipped = async function(orderId, btn, noInvoice) {
   try {
     // Filtered by seller as well as order id, so an order that isn't this
     // seller's can never be changed from here.
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID), {
+    const res = await w1OrRun('setStatus', { orderId: orderId, status: 'SHIPPED' }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID), {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ order_status: 'SHIPPED', shipped_at: new Date().toISOString() })
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     ordersBoxOrders = ordersBoxOrders.filter(o => o.id !== orderId);
     ordersBoxLastCount = ordersBoxOrders.length;
@@ -13045,13 +13048,14 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     // Only an order that is still waiting can be completed, so a double tap or a stale screen changes nothing.
-    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
+    const r = await w1OrRun('submitShipping', { orderId: orderId, shippingCost: amount, notificationId: notifId }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
       method: 'PATCH', headers, body: JSON.stringify({ shipping_cost: amount, shipping_confirmed: true })
-    });
+    }); }, ['not_waiting']);
     const rows = r.ok ? await r.json() : null;
     if (!r.ok) throw new Error('HTTP ' + r.status);
     if (!rows || !rows.length) { alert('This order was already completed.'); }
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + notifId, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ is_read: true }) });
+    // The door marks the card read itself (after the price is saved); the direct mark below runs only for the older path or when it did not.
+    if (!(r.door && r.door.notificationMarked === true)) await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + notifId, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ is_read: true }) });
     await loadNotifications();
     checkNotificationsDot();
     showBizSaveHint && showBizSaveHint();
@@ -20748,6 +20752,119 @@ w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-busin
 w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'availability');
 </script>
 <!-- w1-menu-gate-alerts:js:end -->
+<!-- w1-orders-door:js:start -->
+<script>
+// Order writes (orders, invoices, the Orders box, the shipping price card) go through the Seller Orders door (POST /webhook/seller-orders)
+// instead of writing straight to the orders and order_items tables with the public key. The door finds the seller from the login, checks that the
+// order is that seller's on every query, keeps an undo copy first, and makes a sale or an edit (order and lines) all or nothing.
+// Door first; when it answers "not available" (not live yet, or the seller is not on its list) every screen keeps its older direct write exactly
+// as before. The screens' own messages, buttons and reads are unchanged. A short Undo button follows a delete, a return, a status change and a payment.
+const SELLER_ORDERS_URL = 'https://sparklly.site/webhook/seller-orders';
+const W1_OR_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.',
+  deleteApply: 'Order deleted.', confirmReturn: 'Return recorded.', setStatus: 'Order status changed.', recordPayment: 'Payment recorded.'
+};
+const W1_OR_UNDO_SHOW_MS = 10000;
+const W1_OR = { fallback: false, timer: null, undoId: '' };
+function w1OrNotAvailable() { const e = new Error(W1_OR_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1OrCall(action, extra) {
+  if (W1_OR.fallback) throw w1OrNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) throw new Error(W1_OR_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_ORDERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_OR_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1OrNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_OR_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1OrNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_OR_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_OR_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1OrTry(action, extra) {
+  if (W1_OR.fallback) return null;
+  try { return await w1OrCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_OR.fallback = true; return null; } throw e; }
+}
+// Runs one write: the door, or `direct()` (the older fetch) when the door is not available. Answers like a fetch answer (ok, status, json).
+// A refusal throws an Error with the door's plain words, which the screen's own catch shows as before. `emptyCodes`: refusals that the older
+// path showed as "no row changed" (an empty answer), so the screen keeps its own message for them.
+async function w1OrRun(action, extra, direct, emptyCodes) {
+  let r;
+  try { r = await w1OrTry(action, extra); } catch (e) {
+    if (e && emptyCodes && emptyCodes.indexOf(e.code) >= 0) return { ok: true, status: 200, json: async function() { return []; } };
+    throw e;
+  }
+  if (r === null) return direct();
+  w1OrOffer(action, r);
+  return { ok: true, status: 200, door: r, json: async function() { return [{}]; } };
+}
+// Delete: check (counts and a digest), then apply with the digest. The screen already asked "Delete this order?".
+async function w1OrDelete(orderId, direct) {
+  const chk = await w1OrTry('deleteCheck', { orderId: orderId });
+  if (chk === null) return direct();
+  const ap = await w1OrCall('deleteApply', { orderId: orderId, digest: chk.digest });
+  w1OrOffer('deleteApply', ap);
+  return { ok: true, status: 200, door: ap };
+}
+// A sale or an edit: one call for the order and its lines. Answers the order id, or null when the older path must run.
+async function w1OrSave(payload, cart) {
+  const order = Object.assign({}, payload);
+  ['seller_id', 'created_at', 'shipped_at', 'delivered_at'].forEach(function(k) { delete order[k]; });
+  const items = cart.map(function(i) {
+    return { product_id: i.product_id, product_name: i.product_name, unit_price: i.unit_price, quantity: i.quantity, line_total: i.unit_price * i.quantity,
+      discount_type: i.discount_type || null, discount_value: i.discount_value || 0, discount_amount: getItemDiscountAmount(i) };
+  });
+  const extra = currentEditingOrderId ? { orderId: currentEditingOrderId } : { createdAt: payload.created_at };
+  const r = await w1OrTry('saveOrder', Object.assign({ order: order, items: items }, extra));
+  if (r === null) return null;
+  return String(r.orderId);
+}
+// A short note with an Undo button after a change that can be taken back.
+function w1OrOffer(action, r) {
+  if (!r || !r.undoId || r.unchanged || !W1_OR_TEXT[action] || action === 'undo') return;
+  let bar = document.getElementById('w1-or-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-or-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-or-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-or-undo-btn'; btn.textContent = W1_OR_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1OrUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-or-note-msg').textContent = W1_OR_TEXT[action];
+  document.getElementById('w1-or-note-msg').style.color = '';
+  document.getElementById('w1-or-undo-btn').style.display = '';
+  W1_OR.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_OR.timer);
+  W1_OR.timer = setTimeout(function() { bar.style.display = 'none'; W1_OR.undoId = ''; }, W1_OR_UNDO_SHOW_MS);
+}
+async function w1OrUndo() {
+  const id = W1_OR.undoId; if (!id) return;
+  W1_OR.undoId = '';
+  document.getElementById('w1-or-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-or-note-msg');
+  try { await w1OrCall('undo', { undoId: id }); msg.textContent = W1_OR_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_OR_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_OR.timer);
+  W1_OR.timer = setTimeout(function() { document.getElementById('w1-or-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadOrders === 'function') await loadOrders(); } catch (e) {}
+  try { if (typeof checkOrdersBox === 'function') await checkOrdersBox(); } catch (e) {}
+}
+</script>
+<!-- w1-orders-door:js:end -->
 <!-- w1-menu-gate-import:js:start -->
 <script>
 // Hides the Import and barcodes menu entry until its door answers (see the w1-menu-gate block).
