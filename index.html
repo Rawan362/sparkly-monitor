@@ -21736,5 +21736,193 @@ window.w1MigeUpgrade = function () { w1MigReset(); showMigrateAccountScreen(1); 
 window.w1MigeHaveLogin = function () { w1MigReset(); w1MigShow(3); };
 </script>
 <!-- w1-migrate-entry:js:end -->
+<!-- w1-chats-door:js:start -->
+<script>
+// Customer chat writes (Chats list and open chat) go through the Seller Chats door (POST /webhook/seller-chats) instead of writing straight to
+// the conversations and client_status tables with the public key. The door finds the seller from the login and scopes every change to it.
+// Clear chat: check (counts), then apply, with an Undo button for a short time. Archive and block: setFlag, with Undo. AI toggle: setAi.
+// Forward: the mark after the send. Door first; when it answers "not available" (the seller is not on its list yet, or it is off) every screen keeps
+// the older direct write exactly as before. Nothing else on these screens changes.
+const SELLER_CHATS_URL = 'https://sparklly.site/webhook/seller-chats';
+const W1_CH_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  cleared: 'Chat cleared.', undo: 'Undo', undone: 'The change was undone.',
+  archived: 'Chat archived.', unarchived: 'Chat moved back to your chats.', blocked: 'Customer blocked.', unblocked: 'Customer unblocked.'
+};
+const W1_CH_UNDO_SHOW_MS = 10000;
+const W1_CH = { fallback: false, timer: null, undoId: '' };
+function w1ChNotAvailable() { const e = new Error(W1_CH_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1ChCall(action, extra) {
+  if (W1_CH.fallback) throw w1ChNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) throw new Error(W1_CH_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_CHATS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_CH_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1ChNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_CH_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1ChNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_CH_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_CH_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1ChTry(action, extra) {
+  if (W1_CH.fallback) return null;
+  try { return await w1ChCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_CH.fallback = true; return null; } throw e; }
+}
+// A short note at the bottom; with an undoId it also has an Undo button for a few seconds.
+function w1ChNote(text, isError, undoId) {
+  let bar = document.getElementById('w1-ch-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-ch-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-ch-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-ch-undo-btn'; btn.textContent = W1_CH_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1ChUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-ch-note-msg').textContent = text;
+  document.getElementById('w1-ch-note-msg').style.color = isError ? 'var(--danger)' : '';
+  W1_CH.undoId = undoId || '';
+  document.getElementById('w1-ch-undo-btn').style.display = undoId ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W1_CH.timer);
+  W1_CH.timer = setTimeout(function() { bar.style.display = 'none'; W1_CH.undoId = ''; }, isError ? 6000 : W1_CH_UNDO_SHOW_MS);
+}
+async function w1ChUndo() {
+  const id = W1_CH.undoId; if (!id) return;
+  W1_CH.undoId = '';
+  document.getElementById('w1-ch-undo-btn').style.display = 'none';
+  try {
+    await w1ChCall('undo', { undoId: id });
+    w1ChNote(W1_CH_TEXT.undone, false);
+  } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); }
+  try { if (typeof loadConversations === 'function') await loadConversations(); } catch (e) {}
+  try { if (activePhone && typeof loadThread === 'function') await loadThread(activePhone, true); } catch (e) {}
+}
+
+// ---- Clear chat (the screen already asked "Clear this chat?"): check, then apply with the digest of the check.
+(function() {
+  const orig = window.clearChatNow;
+  window.clearChatNow = async function(phone) {
+    let chk;
+    try { chk = await w1ChTry('clearCheck', { phone: phone }); } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); return; }
+    if (chk === null) return orig.apply(this, arguments);
+    let ap = null;
+    try { ap = await w1ChCall('clearApply', { phone: phone, digest: chk.digest }); } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); }
+    if (activePhone === phone && ap) { activePhone = null; goToChats(); }
+    await loadConversations();
+    if (ap && ap.undoId && ap.count > 0) w1ChNote(W1_CH_TEXT.cleared, false, ap.undoId);
+  };
+})();
+
+// ---- Archive and block (Chats list action sheet)
+(function() {
+  const orig = window.updateClientStatusField;
+  window.updateClientStatusField = async function(phone, field, value) {
+    if (field !== 'archived' && field !== 'blocked') return orig.apply(this, arguments);
+    let r;
+    try { r = await w1ChTry('setFlag', { phone: phone, field: field, value: !!value }); } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); return; }
+    if (r === null) return orig.apply(this, arguments);
+    try { await loadConversations(); } catch (e) {}
+    if (r.undoId && !r.unchanged) w1ChNote(W1_CH_TEXT[field === 'archived' ? (value ? 'archived' : 'unarchived') : (value ? 'blocked' : 'unblocked')], false, r.undoId);
+  };
+})();
+
+// ---- The AI toggle of one customer (open chat header). A customer with no status row changes nothing and still looks successful, as before.
+(function() {
+  const origPause = window.pauseAI; const origResume = window.resumeAI;
+  window.pauseAI = async function(phone) {
+    const btn = document.getElementById('ai-toggle');
+    if (W1_CH.fallback) return origPause.apply(this, arguments);
+    if (btn) btn.disabled = true;
+    let r;
+    try { r = await w1ChTry('setAi', { phone: phone, active: false }); } catch (e) { if (!(e && e.code === 'no_client')) { alert('Failed to pause AI: ' + (e && e.message ? e.message : W1_CH_TEXT.failed)); if (btn) btn.disabled = false; return; } r = {}; }
+    if (r === null) { if (btn) btn.disabled = false; return origPause.apply(this, arguments); }
+    try { await loadConversations(); await loadThread(phone); } catch (e) { alert('Failed to pause AI: ' + e.message); if (btn) btn.disabled = false; }
+  };
+  window.resumeAI = async function(phone) {
+    if (W1_CH.fallback) return origResume.apply(this, arguments);
+    let r;
+    try { r = await w1ChTry('setAi', { phone: phone, active: true }); } catch (e) { if (!(e && e.code === 'no_client')) { alert('Failed to resume AI: ' + (e && e.message ? e.message : W1_CH_TEXT.failed)); return; } r = {}; }
+    if (r === null) return origResume.apply(this, arguments);
+    try { await loadConversations(); await loadThread(phone); startLessonIfNeeded(phone); } catch (e) { alert('Failed to resume AI: ' + e.message); }
+  };
+})();
+
+// ---- Forward (the message is sent through the Send Text / Send Voice door first; the mark is recorded afterwards)
+window.forwardMessageTo = async function(phone) {
+  closeForwardPicker();
+  const audioUrl = window._forwardAudio;
+  window._forwardAudio = null;
+  try {
+    const authToken = await getValidAuthToken();
+    let res;
+    if (audioUrl) {
+      // Forward the voice note itself: download it, then send it through the same voice path as a new recording.
+      const blob = await (await fetch(audioUrl)).blob();
+      const dataUrl = await new Promise(function(resolve, reject) {
+        const fr = new FileReader();
+        fr.onload = function() { resolve(fr.result); };
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+      res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: blob.type || 'audio/ogg', sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+    } else {
+      res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+    }
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (!data || !data.success) alert('Failed to forward: ' + (data && data.reason ? data.reason : 'unknown error'));
+    if (data && data.success && data.waMessageId) {
+      // The send saved the row; mark it as forwarded so it shows the "Forwarded" label in the chat. Through the Seller Chats door first
+      // (this seller's own message only); when the door is not available yet, the older direct mark below runs, exactly as before.
+      let w1Marked = false;
+      try { w1Marked = (await w1ChTry('markForwarded', { waMessageId: data.waMessageId })) !== null; } catch (e) { w1Marked = true; }
+      if (!w1Marked) {
+        try {
+          await fetch(SUPABASE_URL + '/rest/v1/conversations?wa_message_id=eq.' + encodeURIComponent(data.waMessageId), {
+            method: 'PATCH',
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+            body: JSON.stringify({ is_forwarded: true })
+          });
+        } catch (e) {}
+      }
+      if (phone === activePhone) { try { await loadThread(phone, true); } catch (e) {} }
+    }
+    await loadConversations();
+  } catch (e) {
+    alert('Failed to forward: ' + e.message);
+  }
+};
+// The "Connect WhatsApp first" guard that wraps this action (see the connect-later block) is put back around the new version.
+(function() {
+  const inner = window.forwardMessageTo;
+  window.forwardMessageTo = function() {
+    if (typeof w1WaBlocked === 'function' && w1WaBlocked()) { w1WaNeed(); return Promise.resolve(); }
+    return inner.apply(this, arguments);
+  };
+})();
+</script>
+<!-- w1-chats-door:js:end -->
 </body>
 </html>
