@@ -10417,6 +10417,12 @@ window.saveProductForm = async function() {
     payload.is_active = document.getElementById('pf-is_active-toggle').classList.contains('on');
     payload.updated_at = new Date().toISOString();
 
+    // The Seller Product Writes door first (the same columns, without the seller, updated_at and created_at: the door sets those from the login);
+    // the older direct write below runs when it is not available.
+    const doorProduct = Object.assign({}, payload); delete doorProduct.chat_id; delete doorProduct.updated_at; delete doorProduct.created_at;
+    const w1Saved = await w1PrTry('save', Object.assign({ product: doorProduct }, currentEditingProductId ? { productId: currentEditingProductId } : {}));
+    if (w1Saved !== null) { if (currentEditingProductId) w1PrOffer(w1Saved, 'Product saved.'); }
+    else {
     if (currentEditingProductId) {
       const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?id=eq.' + currentEditingProductId, {
         method: 'PATCH',
@@ -10442,6 +10448,8 @@ window.saveProductForm = async function() {
       }
     }
 
+    }
+
     closeProductForm();
     await loadProducts();
   } catch (e) {
@@ -10459,10 +10467,10 @@ window.deleteCurrentProduct = async function() {
   if (!confirmed) return;
 
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_products?id=eq.' + currentEditingProductId, {
+    const res = await w1PrDelete(currentEditingProductId, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_products?id=eq.' + currentEditingProductId, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Prefer': 'return=minimal' }
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     closeProductForm();
     await loadProducts();
@@ -20789,6 +20797,86 @@ w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'av
 w1GateRegister('bk-menu-row', 'https://sparklly.site/webhook/seller-stock-invoices', 'availability');
 </script>
 <!-- w1-menu-gate-import:js:end -->
+<!-- w1-products-door:js:start -->
+<script>
+// The product form (save and delete) goes through the Seller Product Writes door (POST /webhook/seller-product-writes) instead of writing straight
+// to the seller_products table with the public key (an edit and a delete used the product id alone). The door finds the seller from the login, sets
+// the seller, updated_at and created_at itself, keeps an undo copy first, and refuses an unknown column. The form, its checks and its texts are
+// unchanged. Door first; when it answers "not available" the older direct write runs exactly as before. An Undo button follows a delete and an edit.
+const SELLER_PRODUCT_WRITES_URL = 'https://sparklly.site/webhook/seller-product-writes';
+const W1_PR_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', deleted: 'Product deleted.'
+};
+const W1_PR = { fallback: false, timer: null, undoId: '' };
+function w1PrNotAvailable() { const e = new Error(W1_PR_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1PrCall(action, extra) {
+  if (W1_PR.fallback) throw w1PrNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) throw new Error(W1_PR_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_PRODUCT_WRITES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_PR_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1PrNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_PR_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1PrNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_PR_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_PR_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1PrTry(action, extra) {
+  if (W1_PR.fallback) return null;
+  try { return await w1PrCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_PR.fallback = true; return null; } throw e; }
+}
+async function w1PrDelete(productId, direct) {
+  const r = await w1PrTry('delete', { productId: productId });
+  if (r === null) return direct();
+  w1PrOffer(r, W1_PR_TEXT.deleted);
+  return { ok: true, status: 200, door: r };
+}
+function w1PrOffer(r, text) {
+  if (!r || !r.undoId || r.unchanged) return;
+  let bar = document.getElementById('w1-pr-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-pr-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-pr-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-pr-undo-btn'; btn.textContent = W1_PR_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1PrUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-pr-note-msg').textContent = text;
+  document.getElementById('w1-pr-note-msg').style.color = '';
+  document.getElementById('w1-pr-undo-btn').style.display = '';
+  W1_PR.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_PR.timer);
+  W1_PR.timer = setTimeout(function() { bar.style.display = 'none'; W1_PR.undoId = ''; }, 10000);
+}
+async function w1PrUndo() {
+  const id = W1_PR.undoId; if (!id) return;
+  W1_PR.undoId = '';
+  document.getElementById('w1-pr-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-pr-note-msg');
+  try { await w1PrCall('undo', { undoId: id }); msg.textContent = W1_PR_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_PR_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_PR.timer);
+  W1_PR.timer = setTimeout(function() { document.getElementById('w1-pr-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadProducts === 'function') await loadProducts(); } catch (e) {}
+}
+</script>
+<!-- w1-products-door:js:end -->
 <!-- w1-ad-account-id:js:start -->
 <script>
 // The Meta Ad Account ID box (Business settings) is now saved through the Ads door (POST /webhook/seller-ads, action prepare then confirm,
