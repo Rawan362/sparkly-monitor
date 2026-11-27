@@ -167,3 +167,15 @@ test('login problems: no token means no door call and no direct write (a sign-in
   assert.equal((await note(b.page)).text, 'Please sign out and sign in again, then try once more.');
   await b.page.close();
 });
+
+test('forward keeps the "Connect WhatsApp first" guard while WhatsApp is not connected: nothing is sent and the door is not asked', { skip }, async () => {
+  const { page, door, direct } = await open();
+  const r = await page.evaluate(async () => {
+    window.__sent = 0; window._forwardText = 'x'; window._forwardAudio = null;
+    W1_WA.state = 'not_connected';
+    await forwardMessageTo('15550002');
+    return { blocked: !!document.getElementById('w1-wa-first') };
+  });
+  assert.equal(r.blocked, true); assert.deepEqual(door, []); assert.deepEqual(direct, []);
+  await page.close();
+});

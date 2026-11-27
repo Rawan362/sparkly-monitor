@@ -21878,6 +21878,14 @@ window.forwardMessageTo = async function(phone) {
     alert('Failed to forward: ' + e.message);
   }
 };
+// The "Connect WhatsApp first" guard that wraps this action (see the connect-later block) is put back around the new version.
+(function() {
+  const inner = window.forwardMessageTo;
+  window.forwardMessageTo = function() {
+    if (typeof w1WaBlocked === 'function' && w1WaBlocked()) { w1WaNeed(); return Promise.resolve(); }
+    return inner.apply(this, arguments);
+  };
+})();
 </script>
 <!-- w1-chats-door:js:end -->
 </body>
