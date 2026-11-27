@@ -8266,6 +8266,8 @@ window.saveCustomerName = async function(phone) {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
   try {
+    // The Seller Customers door first (it finds this seller's customer by phone or creates it); the older direct write runs when it is not available.
+    if ((await w1CuTry('saveName', { phone: phone, name: newName })) !== null) { await openProfile(phone); return; }
     const existing = await sb('customers?phone=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=id');
     if (existing && existing.length > 0) {
       await fetch(
@@ -10158,7 +10160,15 @@ window.saveCustomerForm = async function() {
   try {
     const body = { name, phone, address, city: document.getElementById('cf-city').value.trim() || null, notes: document.getElementById('cf-notes').value.trim() || null, updated_at: new Date().toISOString() };
     let res;
-    if (currentEditingCustomerId) {
+    if (!currentEditingCustomerId) {
+      const dupFirst = customersCache.find(x => (x.phone || '') === phone);
+      if (dupFirst) { alert('A customer with this phone number already exists: ' + (dupFirst.name || dupFirst.phone)); return; }
+    }
+    // The Seller Customers door first (this seller's customer only); the older direct write below runs when it is not available.
+    const w1Form = await w1CuTry('saveCustomer', Object.assign({ name: name, phone: phone, address: address, city: document.getElementById('cf-city').value.trim(), notes: document.getElementById('cf-notes').value.trim() }, currentEditingCustomerId ? { customerId: currentEditingCustomerId } : {}));
+    if (w1Form !== null) {
+      res = { ok: true };
+    } else if (currentEditingCustomerId) {
       res = await fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'PATCH', headers: CUST_H(), body: JSON.stringify(body) });
     } else {
       const dup = customersCache.find(x => (x.phone || '') === phone);
@@ -10176,7 +10186,7 @@ window.deleteCurrentCustomer = async function() {
   if (!currentEditingCustomerId) return;
   if (!confirm('Delete this customer? Their past orders stay, but the customer is removed from your list. This cannot be undone.')) return;
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'DELETE', headers: CUST_H() });
+    const res = await w1CuDelete(currentEditingCustomerId, function() { return fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'DELETE', headers: CUST_H() }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     cachedCustomerCatalog = null;
     closeCustomerForm();
@@ -11349,7 +11359,8 @@ window.saveNewCustomerFromPOS = async function() {
     return;
   }
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/customers?on_conflict=phone,seller_id', {
+    // The Seller Customers door first: a new phone creates the customer, an existing customer is NOT overwritten (the older write replaced its name, address and creation time).
+    if ((await w1CuTry('addFromPos', { phone: phone, name: name, address: address })) === null) await fetch(SUPABASE_URL + '/rest/v1/customers?on_conflict=phone,seller_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(Object.assign({ phone, name: name || null, seller_id: SELLER_CHAT_ID, created_at: new Date().toISOString() }, address ? { address } : {}))
@@ -20742,6 +20753,95 @@ w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overv
 w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-business', 'request', { confirmText: 'w1-gate-probe-not-a-phrase' });
 </script>
 <!-- w1-menu-gate-delete:js:end -->
+<!-- w1-customers-door:js:start -->
+<script>
+// Customer writes (the chat profile name, the customer form, "Add new customer" in a sale, delete) go through the Seller Customers door
+// (POST /webhook/seller-customers) instead of writing straight to the customers table with the public key (edit and delete used the row id alone).
+// The door finds the seller from the login, scopes every query to it, keeps an undo copy first, and answers a refusal in plain words
+// (a phone this seller already has, a customer that orders or messages still refer to). Door first; when it answers "not available" every screen
+// keeps its older direct write exactly as before. A short Undo button follows a delete.
+const SELLER_CUSTOMERS_URL = 'https://sparklly.site/webhook/seller-customers';
+const W1_CU_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', deleted: 'Customer deleted.',
+  inUse: 'This customer cannot be deleted because ',
+  usedBy: { orders: 'they have orders', messages: 'they have messages in the history', history: 'they are in a list history' }
+};
+const W1_CU = { fallback: false, timer: null, undoId: '' };
+function w1CuNotAvailable() { const e = new Error(W1_CU_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1CuCall(action, extra) {
+  if (W1_CU.fallback) throw w1CuNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) throw new Error(W1_CU_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_CUSTOMERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_CU_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1CuNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_CU_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1CuNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_CU_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_CU_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1CuTry(action, extra) {
+  if (W1_CU.fallback) return null;
+  try { return await w1CuCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_CU.fallback = true; return null; } throw e; }
+}
+// Delete: check what refers to the customer, then apply with the digest (a customer that is in use is refused with the reason, nothing changes).
+async function w1CuDelete(customerId, direct) {
+  const chk = await w1CuTry('deleteCheck', { customerId: customerId });
+  if (chk === null) return direct();
+  if (chk.canDelete === false) {
+    const why = (Array.isArray(chk.blockedBy) ? chk.blockedBy : []).map(function(k) { return W1_CU_TEXT.usedBy[k]; }).filter(Boolean).join(' and ');
+    throw new Error(W1_CU_TEXT.inUse + (why || 'other records still refer to them') + '.');
+  }
+  const ap = await w1CuCall('deleteApply', { customerId: customerId, digest: chk.digest });
+  w1CuOffer(ap);
+  return { ok: true, status: 200, door: ap };
+}
+function w1CuOffer(r) {
+  if (!r || !r.undoId) return;
+  let bar = document.getElementById('w1-cu-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-cu-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-cu-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-cu-undo-btn'; btn.textContent = W1_CU_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1CuUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-cu-note-msg').textContent = W1_CU_TEXT.deleted;
+  document.getElementById('w1-cu-note-msg').style.color = '';
+  document.getElementById('w1-cu-undo-btn').style.display = '';
+  W1_CU.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_CU.timer);
+  W1_CU.timer = setTimeout(function() { bar.style.display = 'none'; W1_CU.undoId = ''; }, 10000);
+}
+async function w1CuUndo() {
+  const id = W1_CU.undoId; if (!id) return;
+  W1_CU.undoId = '';
+  document.getElementById('w1-cu-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-cu-note-msg');
+  try { await w1CuCall('undo', { undoId: id }); msg.textContent = W1_CU_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_CU_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_CU.timer);
+  W1_CU.timer = setTimeout(function() { document.getElementById('w1-cu-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadCustomersList === 'function') await loadCustomersList(); } catch (e) {}
+}
+</script>
+<!-- w1-customers-door:js:end -->
 <!-- w1-menu-gate-alerts:js:start -->
 <script>
 // Hides the Alert check menu entry until its door answers (see the w1-menu-gate block).
