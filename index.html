@@ -6831,9 +6831,43 @@ function avatarColor(phone) {
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
+// <w3-chats-read-door:js:start>
+// The chat screens read the Seller Chats Read door (POST /webhook/seller-chats-read, actions chatList, chatPoll, thread, older) with the
+// person's own login instead of reading conversations, client_status, customers and call_recordings with the public key.
+// w3ChatsRead returns the door's answer (an object with ok true) or null when the door cannot answer (no login, 404/502/503/429, a refused
+// call such as not_available, a network problem): the caller then uses its older direct reads, so the chats keep working.
+const SELLER_CHATS_READ_URL = 'https://sparklly.site/webhook/seller-chats-read';
+let w3ChatsPausedUntil = 0;
+async function w3ChatsRead(action, extra) {
+  if (Date.now() < w3ChatsPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_CHATS_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3ChatsPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    return j && j.ok === true ? j : null;
+  } catch (e) { return null; }
+}
+// The chat list: the cursor of the last door answer (the door answers a few bytes when nothing changed) and the list that answer built.
+let w3ChatListCursor = null;
+// <w3-chats-read-door:js:end>
+
 async function loadConversations() {
   heartbeatSession();
-  const rows = await sb(
+  // Seller Chats Read door first. changed === false: the list is as it was, nothing is rebuilt (it is still drawn, so "3m ago" keeps moving).
+  // Any other case where the door cannot answer: the four direct reads below run exactly as before (W3-FALLBACK-REMOVE).
+  const door = await w3ChatsRead('chatList', w3ChatListCursor ? { since: w3ChatListCursor } : {});
+  const keepList = !!(door && door.changed === false);
+  if (!keepList) {
+  const useDoor = !!(door && Array.isArray(door.conversations) && Array.isArray(door.clientStatus) && Array.isArray(door.customers));
+  w3ChatListCursor = useDoor && typeof door.cursor === 'string' ? door.cursor : null;
+  const rows = useDoor ? door.conversations : await sb(
     'conversations?seller_id=eq.' + SELLER_CHAT_ID +
     '&select=phone_number,message,role,timestamp,channel&order=timestamp.desc&limit=500'
   );
@@ -6845,13 +6879,13 @@ async function loadConversations() {
     if (r.phone_number in holdFrom && !(Date.parse(r.timestamp) < holdFrom[r.phone_number])) return;
     if (!byPhone[r.phone_number]) byPhone[r.phone_number] = isHoldRow(r) ? Object.assign({}, r, { message: '[media could not be loaded]' }) : r;
   });
-  const statuses = await sb(
+  const statuses = useDoor ? door.clientStatus : await sb(
     'client_status?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ai_active,pinned,muted,archived,favorite,blocked'
   );
   const statusMap = {};
   statuses.forEach(s => { statusMap[s.phone_number] = s; });
 
-  const custs = await sb(
+  const custs = useDoor ? door.customers : await sb(
     'customers?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone,name'
   );
   const nameMap = {};
@@ -6859,7 +6893,8 @@ async function loadConversations() {
 
   // Latest call items, so a call can show as "Call 3:49" in the list preview.
   let recentCalls = [];
-  try {
+  if (useDoor) recentCalls = Array.isArray(door.calls) ? door.calls : [];
+  else try {
     recentCalls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ended_at,duration_seconds&order=ended_at.desc&limit=200') || [];
   } catch (e) { recentCalls = []; }
   const _ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
@@ -6896,6 +6931,7 @@ async function loadConversations() {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return new Date(b.timestamp) - new Date(a.timestamp);
     });
+  }
 
   renderChannelPills();
   renderConvoList();
