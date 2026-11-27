@@ -149,3 +149,39 @@ test('login problems: no token means no door call and no direct write; the scree
   assert.ok(alerts.includes('Could not save: Please sign out and sign in again, then try once more.'));
   await page.close();
 });
+
+test('delete: a product with purchases or stock changes is refused in plain words and nothing else is sent', { skip }, async () => {
+  const { page, door, direct, alerts } = await open({ door: () => ({ status: 200, json: { ok: false, error: 'product_in_use', message: 'x' } }) });
+  await page.evaluate(() => { currentEditingProductId = 'p7'; return deleteCurrentProduct(); });
+  assert.equal(door.length, 1); assert.deepEqual(direct, []);
+  assert.ok(alerts.includes('Could not delete: This product has purchases or stock changes. Turn it off instead.'));
+  await page.close();
+});
+
+test('delete: order lines use the product: the screen asks with the count; Yes repeats the call with confirmOrderLines true and offers no Undo; No stops quietly', { skip }, async () => {
+  const lines = (b) => b.confirmOrderLines === true ? { status: 200, json: { ok: true, count: 1, deleted: true, undoId: 'u3', orderLinesUnlinked: 3 } } : { status: 200, json: { ok: false, error: 'needs_confirm', message: 'x', orderLines: 3 } };
+  const yes = await open({ door: lines });
+  await yes.page.evaluate(() => { currentEditingProductId = 'p7'; return deleteCurrentProduct(); });
+  assert.deepEqual(yes.door, [{ token: T, action: 'delete', productId: 'p7' }, { token: T, action: 'delete', productId: 'p7', confirmOrderLines: true }]);
+  assert.ok(yes.alerts.includes('3 order lines use this product and will lose the link. Delete anyway?'));
+  assert.equal(await note(yes.page), null, 'no Undo: the link of the order lines cannot be brought back');
+  assert.equal(await yes.page.evaluate(() => window.__lp), 1, 'the list reloads');
+  await yes.page.close();
+  const no = await open({ door: lines });
+  await no.page.evaluate(() => { window.confirm = (m) => { if (/Delete this product/.test(m)) return true; window.__asked = m; return false; }; currentEditingProductId = 'p7'; return deleteCurrentProduct(); });
+  assert.equal(no.door.length, 1, 'the call is not repeated');
+  assert.equal(await no.page.evaluate(() => window.__asked), '3 order lines use this product and will lose the link. Delete anyway?');
+  assert.deepEqual(no.alerts, []); assert.equal(await no.page.evaluate(() => window.__lp || 0), 0, 'nothing reloads, the form stays');
+  await no.page.close();
+});
+
+test('delete: a capped count says "1000 or more"; a product with no order lines still has its Undo', { skip }, async () => {
+  const { page, alerts } = await open({ door: (b) => b.confirmOrderLines === true ? { status: 200, json: { ok: true, count: 1, deleted: true, undoId: 'u4', orderLinesUnlinked: 1000 } } : { status: 200, json: { ok: false, error: 'needs_confirm', message: 'x', orderLines: 1000, orderLinesCapped: true } } });
+  await page.evaluate(() => { currentEditingProductId = 'p7'; return deleteCurrentProduct(); });
+  assert.ok(alerts.includes('1000 or more order lines use this product and will lose the link. Delete anyway?'));
+  await page.close();
+  const plain = await open({ door: () => ({ status: 200, json: { ok: true, count: 1, deleted: true, undoId: 'u5', orderLinesUnlinked: 0 } }) });
+  await plain.page.evaluate(() => { currentEditingProductId = 'p7'; return deleteCurrentProduct(); });
+  assert.deepEqual(await note(plain.page), { text: 'Product deleted.', undo: true });
+  await plain.page.close();
+});

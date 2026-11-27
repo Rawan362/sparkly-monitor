@@ -10475,6 +10475,7 @@ window.deleteCurrentProduct = async function() {
     closeProductForm();
     await loadProducts();
   } catch (e) {
+    if (e && e.w1Cancelled) return;
     debugLog('deleteCurrentProduct failed: ' + (e && e.message));
     alert((currentLang === 'ar' ? 'تعذر الحذف: ' : 'Could not delete: ') + (e && e.message ? e.message : 'unknown error'));
   }
@@ -20809,7 +20810,8 @@ const W1_PR_TEXT = {
   notAvailable: 'This is not available yet. Please try again later.',
   noConnection: 'Could not reach the server. Check your internet connection and try again.',
   failed: 'We could not save the change. Nothing was changed.',
-  undo: 'Undo', undone: 'The change was undone.', deleted: 'Product deleted.'
+  undo: 'Undo', undone: 'The change was undone.', deleted: 'Product deleted.',
+  inUse: 'This product has purchases or stock changes. Turn it off instead.'
 };
 const W1_PR = { fallback: false, timer: null, undoId: '' };
 function w1PrNotAvailable() { const e = new Error(W1_PR_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
@@ -20829,7 +20831,7 @@ async function w1PrCall(action, extra) {
     const code = j && (j.error || j.code);
     if (code === 'not_available') throw w1PrNotAvailable();
     const err = new Error(code === 'not_logged_in' ? W1_PR_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_PR_TEXT.failed));
-    err.code = code; throw err;
+    err.code = code; err.answer = j; throw err;
   }
   return j;
 }
@@ -20838,10 +20840,25 @@ async function w1PrTry(action, extra) {
   if (W1_PR.fallback) return null;
   try { return await w1PrCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_PR.fallback = true; return null; } throw e; }
 }
+// Delete: a product that purchases or stock changes point at is refused in plain words (nothing changes); a product that order lines use asks
+// first ("N order lines use this product and will lose the link. Delete anyway?") and only a Yes repeats the call with confirmOrderLines true.
+// Order lines lose their link to the product and an undo cannot bring that link back, so no Undo is offered after such a delete.
 async function w1PrDelete(productId, direct) {
-  const r = await w1PrTry('delete', { productId: productId });
+  let r;
+  try { r = await w1PrTry('delete', { productId: productId }); } catch (e) {
+    if (e && e.code === 'product_in_use') throw new Error(W1_PR_TEXT.inUse);
+    if (e && e.code === 'needs_confirm') {
+      const n = Number(e.answer && e.answer.orderLines) || 0;
+      const count = e.answer && e.answer.orderLinesCapped ? n + ' or more' : String(n);
+      if (!confirm(count + ' order lines use this product and will lose the link. Delete anyway?')) { const c = new Error('cancelled'); c.w1Cancelled = true; throw c; }
+      try { r = await w1PrCall('delete', { productId: productId, confirmOrderLines: true }); } catch (e2) {
+        if (e2 && e2.code === 'product_in_use') throw new Error(W1_PR_TEXT.inUse);
+        throw e2;
+      }
+    } else throw e;
+  }
   if (r === null) return direct();
-  w1PrOffer(r, W1_PR_TEXT.deleted);
+  w1PrOffer(Number(r.orderLinesUnlinked) > 0 ? Object.assign({}, r, { undoId: '' }) : r, W1_PR_TEXT.deleted);
   return { ok: true, status: 200, door: r };
 }
 function w1PrOffer(r, text) {
