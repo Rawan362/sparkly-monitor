@@ -6334,12 +6334,42 @@ const _sendChains = {};
 const _sendPending = {};
 const _needsReload = {};
 const _holdAfter = {};   // phone -> WhatsApp id of the media/voice note just sent
+// <w3-delivery-marks:js:start>
+// Delivery ticks read the Seller Delivery Marks door (POST /webhook/seller-delivery-marks, action marks) with the person's own login
+// instead of reading message_status with the public key. It returns the marks of the logged-in seller's own number only.
+// Returns an array of marks, or null when the door cannot answer (no login, 404/502/503 "not available", a refused filter, a network
+// problem, or no connected number): the caller then uses the older direct read, so the ticks keep working.
+const SELLER_DELIVERY_MARKS_URL = 'https://sparklly.site/webhook/seller-delivery-marks';
+// The door's nginx rule allows about 30 calls a minute per address. After a 429 or 503 the door is left alone for 30 seconds and the
+// older direct read is used meanwhile, so a fast poll never hammers a door that said "slow down".
+let w3MarksPausedUntil = 0;
+async function w3DeliveryMarks(filters) {
+  if (Date.now() < w3MarksPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_DELIVERY_MARKS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: 'marks' }, filters || {}))
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3MarksPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    if (j && j.ok === true && j.connected !== false && Array.isArray(j.marks)) return j.marks;
+    return null;
+  } catch (e) { return null; }
+}
+// <w3-delivery-marks:js:end>
+
 async function waitForReceipt(waId) {
   const max = window._sendHoldMaxMs || SEND_HOLD_MAX_MS, poll = window._sendHoldPollMs || SEND_HOLD_POLL_MS;
   const t0 = Date.now();
   while (Date.now() - t0 < max) {
     try {
-      const r = await sb('message_status?wa_message_id=eq.' + encodeURIComponent(waId) + '&select=status&limit=1');
+      // Delivery Marks door first; the older direct read only when the door cannot answer (W3-FALLBACK-REMOVE).
+      const marks = await w3DeliveryMarks({ waMessageId: String(waId), limit: 1 });
+      const r = marks !== null ? marks : await sb('message_status?wa_message_id=eq.' + encodeURIComponent(waId) + '&select=status&limit=1');
       const st = r && r[0] && r[0].status;
       if (st === 'sent' || st === 'delivered' || st === 'read' || st === 'played' || st === 'failed') return st;
     } catch (e) { /* offline or a hiccup: keep trying until the time is up */ }
@@ -6382,12 +6412,17 @@ function tickHtml(state, err) {
 
 // What WhatsApp reported for this chat. Reports are kept per message id.
 async function fetchDeliveryContext(phone) {
-  if (!window._sellerPnid) {
-    try { const me = await w1MeGet(); window._sellerPnid = (me && me.phoneNumberId) || ''; } catch (e) {}
+  // Delivery Marks door first (the logged-in seller's own number only; no number id needed here). When the door cannot answer
+  // (no login, "not available", a problem) the older direct read below runs exactly as before (W3-FALLBACK-REMOVE).
+  let rows = await w3DeliveryMarks({ phone: String(phone), limit: 400 });
+  if (rows === null) {
+    if (!window._sellerPnid) {
+      try { const me = await w1MeGet(); window._sellerPnid = (me && me.phoneNumberId) || ''; } catch (e) {}
+    }
+    if (!window._sellerPnid) return null;
+    rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
+      '&select=wa_message_id,status,sent_at,delivered_at,read_at,played_at,error_code,error_text&order=updated_at.desc&limit=400');
   }
-  if (!window._sellerPnid) return null;
-  const rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
-    '&select=wa_message_id,status,sent_at,delivered_at,read_at,played_at,error_code,error_text&order=updated_at.desc&limit=400');
   const ctx = { byId: {}, lastRead: 0, lastDelivered: 0, firstAt: 0, sig: '' };
   (rows || []).forEach(function(s) {
     ctx.byId[s.wa_message_id] = s;
