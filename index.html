@@ -21665,5 +21665,207 @@ window.w1MigeUpgrade = function () { w1MigReset(); showMigrateAccountScreen(1); 
 window.w1MigeHaveLogin = function () { w1MigReset(); w1MigShow(3); };
 </script>
 <!-- w1-migrate-entry:js:end -->
+<!-- w1-device-flow:js:start -->
+<script>
+// Device linking through the Seller Device Link door and a login for the linked device (build chat W1; backend PR 322, Option B).
+// New device ("Link with a code"): the door makes the code and a one-time secret (kept in memory only); the device asks "status" every 2 seconds;
+// when approved it registers itself with "claimLinked" (Seller Sessions door) using its own random session token, then asks the Device Link door
+// for a signed 10-minute login token ("token") and uses it as the login token of every door call. The token is kept in memory only and renewed
+// before it runs out (every 5 minutes, on the next call). The seller phone approves with "approve" and its own login: no seller id is sent.
+// A signed-out or removed device (heartbeatLinked says not active, or "token" says invalid_session) logs out. Sign out uses "logoutLinked".
+// When a door answers "not available" the older flow keeps working exactly as before (code in device_link_codes), and a device linked the old
+// way (no registered session) is not changed. The session token is only sent to claimLinked, heartbeatLinked, logoutLinked and token.
+const SELLER_DEVICE_LINK_URL = 'https://sparklly.site/webhook/seller-device-link';
+const W1_DL_FLAG = 'sparkly_linked_device_token_flag';   // the name matches the pattern the sign-out clears
+const W1_DL_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'Linking is not available yet. Please try again later.',
+  invalidCode: 'This code is not valid or has expired. Make a new code on the other device.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'Linking did not work. Please make a new code and try again.'
+};
+const W1_DL = { code: '', secret: '', timer: null, busy: false, token: '', tokenAt: 0, pending: null, fallbackNew: false, fallbackApprove: false };
+const W1_DL_RENEW_MS = 5 * 60 * 1000, W1_DL_KEEP_MS = 9 * 60 * 1000;
+
+function w1DlIsLinked() {
+  try { return localStorage.getItem(W1_DL_FLAG) === '1' && !!localStorage.getItem('sparkly_session_token') && !w1StoredLoginToken(); } catch (e) { return false; }
+}
+// One call to the Device Link door. Never throws: { na: true } when it is not available, { json } for an answer, { err: 'network' } otherwise.
+async function w1DlPost(body) {
+  try {
+    const r = await fetch(SELLER_DEVICE_LINK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.status === 503 || r.status === 404 || r.status === 502) return { na: true };
+    const j = await r.json();
+    if (j && j.ok === false && j.error === 'not_available') return { na: true };
+    return { json: j && typeof j === 'object' ? j : null };
+  } catch (e) { return { err: 'network' }; }
+}
+function w1DlText(r, fallback) {
+  const j = r && r.json;
+  if (r && r.err) return W1_DL_TEXT.noConnection;
+  if (j && j.error === 'invalid_code') return W1_DL_TEXT.invalidCode;
+  if (j && j.error === 'not_logged_in') return W1_DL_TEXT.relogin;
+  return j && typeof j.message === 'string' && j.message ? j.message : (fallback || W1_DL_TEXT.failed);
+}
+function w1DlSignedOut() { w1SessionSignedOutHere(); }
+
+// ---- The login token of a linked device: in memory, renewed lazily (one call at a time).
+async function w1DlTokenGet(force) {
+  if (!w1DlIsLinked()) return null;
+  if (!force && W1_DL.token && Date.now() - W1_DL.tokenAt < W1_DL_RENEW_MS) return W1_DL.token;
+  if (W1_DL.pending) return W1_DL.pending;
+  W1_DL.pending = (async function() {
+    try {
+      const r = await w1DlPost({ action: 'token', sessionToken: localStorage.getItem('sparkly_session_token') });
+      const j = r.json;
+      if (j && j.ok === true && typeof j.token === 'string' && j.token) { W1_DL.token = j.token; W1_DL.tokenAt = Date.now(); return W1_DL.token; }
+      if (j && j.error === 'invalid_session') { W1_DL.token = ''; w1DlSignedOut(); return null; }
+      return W1_DL.token && Date.now() - W1_DL.tokenAt < W1_DL_KEEP_MS ? W1_DL.token : null;   // keep the old one while it still lives
+    } finally { W1_DL.pending = null; }
+  })();
+  return W1_DL.pending;
+}
+(function() {
+  const loadOrig = window.loadValidAuthToken;
+  window.loadValidAuthToken = async function() { return w1DlIsLinked() ? w1DlTokenGet(false) : loadOrig.apply(this, arguments); };
+  // A device token is not an ordinary login token: the server decides its seller, so the check of the token's own user does not apply to it.
+  const matchOrig = window.assertTokenMatchesSeller;
+  window.assertTokenMatchesSeller = async function(token) { if (typeof token === 'string' && token.indexOf('dl1.') === 0) return token; return matchOrig.apply(this, arguments); };
+})();
+
+// ---- The NEW device (login screen, "Link with a code")
+(function() {
+  const openOrig = window.openNewDeviceLinkScreen;
+  window.openNewDeviceLinkScreen = async function() {
+    if (W1_DL.fallbackNew) return openOrig.apply(this, arguments);
+    const r = await w1DlPost({ action: 'create' });
+    if (r.na) { W1_DL.fallbackNew = true; return openOrig.apply(this, arguments); }
+    const j = r.json;
+    if (!j || j.ok !== true || !j.code || !j.secret) { alert(w1DlText(r, t('could_not_generate_code'))); return; }
+    W1_DL.code = String(j.code); W1_DL.secret = String(j.secret);
+    w1DlShow(W1_DL.code, new Date(Date.now() + (Number(j.expiresInSeconds) > 0 ? Number(j.expiresInSeconds) : 600) * 1000));
+  };
+  const closeOrig = window.closeLinkDeviceFlow;
+  window.closeLinkDeviceFlow = function() { w1DlStop(); return closeOrig.apply(this, arguments); };
+})();
+function w1DlStop() { clearInterval(W1_DL.timer); W1_DL.timer = null; W1_DL.code = ''; W1_DL.secret = ''; W1_DL.busy = false; }
+function w1DlShow(code, expiresAt) {
+  myPendingLinkCode = code;
+  document.getElementById('link-title').textContent = 'Waiting to be linked...';
+  document.getElementById('link-sub').textContent = 'On your other signed-in device, go to Settings \u2192 Linked Devices \u2192 Link a New Device, and scan this';
+  document.getElementById('link-qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(code);
+  document.getElementById('link-code-display').textContent = code;
+  document.getElementById('link-instructions-text').style.display = 'none';
+  document.getElementById('link-device-overlay').classList.add('show');
+  clearInterval(linkCodeExpiryTimer);
+  const timerEl = document.getElementById('link-expiry-timer');
+  linkCodeExpiryTimer = setInterval(function() {
+    const remaining = Math.max(0, Math.floor((expiresAt - new Date()) / 1000));
+    if (timerEl) timerEl.textContent = Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0');
+    if (remaining <= 0) { clearInterval(linkCodeExpiryTimer); closeLinkDeviceFlow(); }
+  }, 1000);
+  clearInterval(W1_DL.timer);
+  const poll = function() { w1DlPoll(code); };
+  W1_DL.timer = setInterval(poll, 2000);
+  poll();
+}
+async function w1DlPoll(code) {
+  if (W1_DL.busy || W1_DL.code !== code || myPendingLinkCode !== code) return;
+  W1_DL.busy = true;
+  try {
+    const r = await w1DlPost({ action: 'status', code: code, secret: W1_DL.secret });
+    if (W1_DL.code !== code) return;
+    const j = r.json;
+    if (j && j.ok === true && j.state === 'approved') { await w1DlFinish(code); return; }
+    if (j && j.ok === false && j.error === 'invalid_code') { closeLinkDeviceFlow(); alert(W1_DL_TEXT.invalidCode); }
+  } finally { W1_DL.busy = false; }
+}
+function w1DlGiveUp(text) { closeLinkDeviceFlow(); alert(text); }
+// Approved: register this device, get its login token, learn which business it belongs to (from the token), then start the app.
+async function w1DlFinish(code) {
+  clearInterval(W1_DL.timer); W1_DL.timer = null;
+  const sessionToken = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '-' + Math.random().toString(36).slice(2));
+  const claim = await w1SessionsPost(undefined, 'claimLinked', { code: code, sessionToken: sessionToken, deviceLabel: detectDeviceLabel() }, false);
+  if (!claim || claim.ok !== true) { w1DlGiveUp(claim && claim.error === 'not_available' ? W1_DL_TEXT.notAvailable : w1DlText({ json: claim }, W1_DL_TEXT.failed)); return; }
+  const tk = await w1DlPost({ action: 'token', sessionToken: sessionToken });
+  if (tk.na) { w1DlGiveUp(W1_DL_TEXT.notAvailable); return; }
+  if (!tk.json || tk.json.ok !== true || !tk.json.token) { w1DlGiveUp(w1DlText(tk)); return; }
+  let chatId = '';
+  try {
+    const me = await fetch(AUTH_GUARD_OWN_ROW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tk.json.token, action: 'me' }) });
+    const mj = await me.json();
+    if (mj && mj.ok === true && mj.hasSeller === true && mj.chatId) chatId = String(mj.chatId);
+  } catch (e) { chatId = ''; }
+  if (!chatId) { w1DlGiveUp(W1_DL_TEXT.failed); return; }
+  clearInterval(linkCodeExpiryTimer);
+  if (linkVisibilityHandler) { document.removeEventListener('visibilitychange', linkVisibilityHandler); window.removeEventListener('focus', linkVisibilityHandler); }
+  applyLinkedSeller(chatId);
+  localStorage.setItem('sparkly_session_token', sessionToken);
+  localStorage.setItem(W1_DL_FLAG, '1');
+  W1_DL.token = tk.json.token; W1_DL.tokenAt = Date.now();
+  W1_DL.code = ''; W1_DL.secret = ''; myPendingLinkCode = null;
+  document.getElementById('link-device-overlay').classList.remove('show');
+  document.removeEventListener('keydown', loginKeyHandler);
+  const loginOverlay = document.getElementById('login-overlay'); if (loginOverlay) loginOverlay.remove();
+  const landing = document.getElementById('landing'); if (landing) landing.remove();
+  startApp();
+}
+
+// ---- The seller's signed-in phone approves the code with its own login; no seller id is sent
+(function() {
+  const claimOrig = window.claimDeviceCode;
+  window.claimDeviceCode = async function(code) {
+    if (W1_DL.fallbackApprove) return claimOrig.apply(this, arguments);
+    if (!SELLER_CHAT_ID) { alert('Your own session looks invalid \u2014 please sign out and back in, then try linking again.'); return; }
+    if (!confirm('Link this new device to your account?')) return;
+    let token = null;
+    try { token = await getValidAuthToken(); } catch (e) { token = null; }
+    if (!token) { alert(W1_DL_TEXT.relogin); return; }
+    const r = await w1DlPost({ action: 'approve', token: token, code: String(code) });
+    if (r.na) {
+      // Not available yet: the older direct approval runs; the question was already asked, so it is not asked twice.
+      W1_DL.fallbackApprove = true;
+      const askedAlready = window.confirm; window.confirm = function() { return true; };
+      try { return await claimOrig.call(this, code); } finally { window.confirm = askedAlready; }
+    }
+    if (r.json && r.json.ok === true) {
+      stopDeviceScanner();
+      await renderDevicesList();
+      alert(t('device_linked_success'));
+      return;
+    }
+    alert(t('link_failed') + w1DlText(r));
+  };
+})();
+
+// ---- Sessions for a linked device: no login of its own, so it uses the three actions that need none
+(function() {
+  const ensureOrig = window.ensureSession;
+  window.ensureSession = async function() { if (w1DlIsLinked()) return; return ensureOrig.apply(this, arguments); };   // already registered by claimLinked
+  const checkOrig = window.w1SessionCheck;
+  window.w1SessionCheck = async function(force) {
+    if (!w1DlIsLinked()) return checkOrig.apply(this, arguments);
+    if (!force && (W1_SESSW.busy || Date.now() - W1_SESSW.last < W1_SESSW_GAP_MS)) return 'skip';
+    W1_SESSW.busy = true; W1_SESSW.last = Date.now();
+    try {
+      const r = await w1SessionsPost(undefined, 'heartbeatLinked', { sessionToken: localStorage.getItem('sparkly_session_token') }, false);
+      if (r && r.ok === true && r.active === false) { w1SessionSignedOutHere(); return 'signed_out'; }
+      return r && r.ok === true ? 'ok' : 'skip';
+    } finally { W1_SESSW.busy = false; }
+  };
+  const logoutOrig = window.logout;
+  window.logout = function() {
+    if (w1DlIsLinked()) {
+      const st = localStorage.getItem('sparkly_session_token');
+      if (st) w1SessionsPost(undefined, 'logoutLinked', { sessionToken: st }, true);   // fire and forget; keepalive lets it finish while the page reloads
+      clearAllAuthStorage();
+      location.reload();
+      return;
+    }
+    return logoutOrig.apply(this, arguments);
+  };
+})();
+</script>
+<!-- w1-device-flow:js:end -->
 </body>
 </html>
