@@ -34,8 +34,6 @@ test('the new code and this test file contain only ASCII characters', () => {
 });
 
 test('the older direct paths are still in the file', () => {
-  const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  
   assert.ok(html.includes("'/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id'"));
   assert.ok(html.includes("call_recordings?seller_id=eq."));
 });
