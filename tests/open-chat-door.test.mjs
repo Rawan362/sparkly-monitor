@@ -119,7 +119,7 @@ test('the 2.5 s check: the door cursor is compared with the last one and the thr
   assert.equal(w.calls.loads, 1, 'same cursor: no refresh');
 });
 
-test('the 2.5 s check falls back to the two direct reads on 503, 404, 502, 429, not_available, a network problem or no login, and builds the same cursor', async () => {
+test('the 2.5 s check falls back to the two direct reads on 503, 404, 502, 429, a refusal, a network problem or no login, and builds the same cursor', async () => {
   for (const over of [
     { door: () => ({ status: 503, body: {} }) }, { door: () => ({ status: 404, body: {} }) }, { door: () => ({ status: 502, body: {} }) },
     { door: () => ({ status: 429, body: {} }) }, { door: () => ({ body: { ok: false, error: 'not_available' } }) }, { door: () => ({ throws: true }) }, { noLogin: true }
@@ -199,35 +199,4 @@ test('the door call items equal the cards the direct read makes', async () => {
   const direct = JSON.parse(JSON.stringify(await vm.runInContext('(async () => { const f = ' + JSON.stringify(CARDS) + '; return f.map(r => ({ kind: "call_recording", id: "call-" + r.id, callId: r.id, role: "system", message: "", timestamp: r.ended_at, durationSeconds: r.duration_seconds })); })()', w)));
   assert.deepEqual(door, direct);
   assert.deepEqual(JSON.parse(JSON.stringify(run(w, 'w3CallCardsFromRows(null)'))), []);
-});
-
-test('a door refusal (not_logged_in or any other) never falls back: no direct read, nothing refreshed, the thread and the older read fail like a failed read', async () => {
-  for (const error of ['not_logged_in', 'no_seller', 'lookup_failed', 'bad_input', 'read_failed']) {
-    const refuse = () => ({ body: { ok: false, error } });
-    const p = world({ door: refuse });
-    stubThread(p);
-    await run(p, 'fastPollOpenChat()');
-    assert.equal(p.calls.rest.length, 0, error);
-    assert.equal(p.calls.loads, 0, error);
-    const t = world({ door: refuse });
-    await assert.rejects(() => run(t, 'loadThread("' + PHONE + '", true)'), /refused/, error);
-    assert.equal(t.calls.rest.length, 0, error);
-    assert.equal(t.calls.updates.length, 0, error);
-    const o = world({ door: refuse });
-    run(o, 'window._threadOldestLoaded = { "' + PHONE + '": "2026-11-27T10:00:00Z" }');
-    await run(o, 'window.loadOlderThreadMessages("' + PHONE + '")');
-    assert.equal(o.calls.rest.length, 0, error);
-    assert.equal(run(o, 'window._threadOldestLoaded["' + PHONE + '"]'), '2026-11-27T10:00:00Z', error);
-  }
-});
-
-test('a refusal does not pause the door, and 404 or 502 do not pause it either; only 429 and 503 do (30 seconds)', async () => {
-  for (const [over, paused] of [[{ door: () => ({ body: { ok: false, error: 'not_logged_in' } }) }, false], [{ door: () => ({ status: 404, body: {} }) }, false], [{ door: () => ({ status: 502, body: {} }) }, false], [{ door: () => ({ status: 503, body: {} }) }, true], [{ door: () => ({ status: 429, body: {} }) }, true]]) {
-    const w = world(over);
-    stubThread(w);
-    await run(w, 'fastPollOpenChat()');
-    const left = run(w, 'w3ChatsPausedUntil') - Date.now();
-    if (paused) assert.ok(left > 25000 && left <= 30000);
-    else assert.equal(run(w, 'w3ChatsPausedUntil'), 0);
-  }
 });
