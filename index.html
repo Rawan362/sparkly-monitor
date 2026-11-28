@@ -10319,7 +10319,7 @@ function currencyCodeToSymbol(code) {
 async function ensureSellerCurrency() {
   if (cachedSellerCurrency !== null) return cachedSellerCurrency;
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=currency_label', {
+    const res = await w1SrFetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=currency_label', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const data = await res.json();
@@ -10945,7 +10945,7 @@ function fitInvoiceDoc() {
 window.addEventListener('resize', fitInvoiceDoc);
 
 async function fetchInvoiceConfig() {
-  const configRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label,alt_currency_label,alt_currency_rate,alt_currency_operation,show_alt_currency_in_pos,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer', {
+  const configRes = await w1SrFetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=invoice_business_name,invoice_layout,currency_label,alt_currency_label,alt_currency_rate,alt_currency_operation,show_alt_currency_in_pos,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer', {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
   }).then(r => r.json());
   const config = (configRes && configRes[0]) || {};
@@ -11342,7 +11342,7 @@ window.openOrderCreateForm = async function() {
   posCurrencySymbol = _currency ? currencyCodeToSymbol(_currency) : '';
 
   try {
-    const sellingRes = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=selling_type,show_alt_currency_in_pos,alt_currency_label,alt_currency_rate,alt_currency_operation', {
+    const sellingRes = await w1SrFetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=selling_type,show_alt_currency_in_pos,alt_currency_label,alt_currency_rate,alt_currency_operation', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const sellingData = await sellingRes.json();
@@ -12272,7 +12272,7 @@ async function loadOrdersBox() {
     const [itemRows, custRows, cfgRows, prodRows] = await Promise.all([
       sb('order_items?order_id=in.(' + ids.join(',') + ')&select=order_id,product_name,quantity,unit_price,line_total').catch(() => []),
       phones.length ? sb('customers?seller_id=eq.' + seller + '&phone=in.(' + phones.map(encodeURIComponent).join(',') + ')&select=phone,name').catch(() => []) : Promise.resolve([]),
-      sb('seller_sales_config?chat_id=eq.' + seller + '&select=allows_delivery,allows_pickup&limit=1').catch(() => []),
+      w1SrSb('seller_sales_config?chat_id=eq.' + seller + '&select=allows_delivery,allows_pickup&limit=1').catch(() => []),
       sb('seller_products?chat_id=eq.' + seller + '&is_active=eq.true&select=order_flow_type&limit=50').catch(() => []),
     ]);
 
@@ -15108,16 +15108,16 @@ async function loadBizSettings() {
       if (lbl && me && me.hasSeller === true && loadingFor === SELLER_CHAT_ID) lbl.textContent = 'These settings are for: ' + (me.businessName || 'your account');
     }).catch(() => {});
     const [settingsRes, configRes, posRes, adConfigRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
+      w1SrFetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,shipping_free_over_qty,shipping_free_over_amount,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
+      w1SrFetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ai_name,alt_currency_operation,currency_label,alt_currency_label,alt_currency_rate,selling_type,show_alt_currency_in_pos,invoice_layout,invoice_business_name,invoice_logo_url,invoice_phone,invoice_email,invoice_address,invoice_footer,shipping_free_over_qty,shipping_free_over_amount,wa_about,wa_address,wa_description,wa_email,wa_website_1,wa_website_2,wa_vertical,voice_reply_mode,voice_tone_instructions,default_language,call_greeting', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
+      w1SrFetch(SUPABASE_URL + '/rest/v1/pos_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=*', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/seller_ad_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ad_account_id', {
+      w1SrFetch(SUPABASE_URL + '/rest/v1/seller_ad_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=ad_account_id', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json())
     ]);
@@ -15505,7 +15505,7 @@ function setReplyDelayUi(sec) {
 async function loadReplyDelay() {
   // separate, tolerant request: the rest of the settings must still load if this column is not there yet
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=reply_delay_seconds&limit=1', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } });
+    const r = await w1SrFetch(SUPABASE_URL + '/rest/v1/seller_sales_config?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=reply_delay_seconds&limit=1', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } });
     if (!r.ok) return;
     const rows = await r.json();
     const v = rows && rows[0] ? Number(rows[0].reply_delay_seconds) : NaN;
@@ -17190,7 +17190,7 @@ async function sendOnboardingTurn(userText) {
 let AI_NAME = null; // null = seller hasn't named their assistant yet
 async function loadAiName() {
   try {
-    const rows = await sb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=ai_name&limit=1');
+    const rows = await w1SrSb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=ai_name&limit=1');
     AI_NAME = (rows && rows[0] && rows[0].ai_name) || null;
   } catch (e) { AI_NAME = null; }
   const navLabel = document.getElementById('nav-ai-label');
@@ -17600,7 +17600,7 @@ if ('serviceWorker' in navigator) {
     if (check) check.disabled = true;
     try {
       try {
-        const rows = await sb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=default_language&limit=1');
+        const rows = await w1SrSb('seller_sales_config?chat_id=eq.' + SELLER_CHAT_ID + '&select=default_language&limit=1');
         _nct.sellerLang = (rows && rows[0] && rows[0].default_language) || '';
       } catch (e) { _nct.sellerLang = ''; }
       await nctLoadList(false);
@@ -18922,6 +18922,92 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-settings-reads:js:start -->
+<script>
+// The Business settings reads (the assistant keys, the sales settings, the point-of-sale settings and the ad account id) and the other reads of
+// seller_sales_config (currency, invoice details, reply delay, the AI name, the default language, delivery and pickup) go through the Seller Bot
+// Settings door (POST /webhook/seller-bot-settings, action "read") instead of reading bot_settings, seller_sales_config, pos_settings and
+// seller_ad_config straight with the public key. The door answers only the seller of the person's own login, and for bot_settings only the keys the
+// screen knows. w1SrFetch is a drop-in for the fetch these screens already use (and w1SrSb for the sb helper): it turns the screen's own PostgREST
+// address into a door request (the owner filter is the door's) and answers like the older read (ok, status, json), so the screens are unchanged.
+// Door first. The older direct read runs when the door is down or not available (503, 404, 502, 429 too many calls, the connection fails, an answer
+// that is not understood, a contract mismatch such as bad_column or read_failed; the door is then left alone for 30 seconds) or when this device has
+// no login, and for any address this translator does not understand. A refusal of the login by the door is not read the older way.
+const W1_SR = { pausedUntil: 0 };
+const W1_SR_PAUSE_MS = 30000;
+const W1_SR_TABLES = { bot_settings: { max: 200 }, seller_sales_config: { max: 5 }, pos_settings: { max: 5 }, seller_ad_config: { max: 5 } };
+const W1_SR_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'is'];
+// A PostgREST address -> a door request, or null when this translator does not understand it (the older read then runs).
+function w1SrParse(url) {
+  const m = /\/rest\/v1\/([a-z_]+)\?(.*)$/.exec(String(url));
+  if (!m || !W1_SR_TABLES[m[1]]) return null;
+  const table = m[1];
+  const req = { action: 'read', table: table, filters: [] };
+  let limit = null;
+  for (const part of m[2].split('&')) {
+    if (!part) continue;
+    const eq = part.indexOf('=');
+    if (eq < 0) return null;
+    const key = decodeURIComponent(part.slice(0, eq)); const raw = part.slice(eq + 1);
+    if (key === 'select') {
+      const cols = decodeURIComponent(raw).split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+      if (cols.some(function(c) { return !/^[a-z_][a-z0-9_]*$/.test(c) && c !== '*'; })) return null;
+      if (cols.length && cols.indexOf('*') < 0) req.select = cols;
+    } else if (key === 'order') {
+      req.order = decodeURIComponent(raw).split(',').map(function(x) { const p = x.split('.'); return { column: p[0], dir: p[1] === 'desc' ? 'desc' : 'asc' }; });
+      if (req.order.some(function(o) { return !/^[a-z_][a-z0-9_]*$/.test(o.column); })) return null;
+    } else if (key === 'limit') {
+      limit = Number(raw); if (!Number.isFinite(limit) || limit < 1) return null;
+    } else if (key === 'chat_id') {
+      if (!/^eq\./.test(raw)) return null;   // the owner filter is the door's: not sent
+    } else {
+      if (!/^[a-z_][a-z0-9_]*$/.test(key)) return null;
+      const d = raw.indexOf('.');
+      const op = d < 0 ? '' : raw.slice(0, d); const val = d < 0 ? '' : decodeURIComponent(raw.slice(d + 1));
+      if (W1_SR_OPS.indexOf(op) < 0) return null;
+      if (op === 'in') { const inner = /^\((.*)\)$/.exec(val); if (!inner) return null; req.filters.push({ column: key, op: 'in', value: inner[1].split(',').map(function(x) { return x.replace(/^"|"$/g, ''); }) }); }
+      else if (op === 'is') { const v = val === 'null' ? null : (val === 'true' ? true : (val === 'false' ? false : undefined)); if (v === undefined) return null; req.filters.push({ column: key, op: 'is', value: v }); }
+      else req.filters.push({ column: key, op: op, value: val });
+    }
+  }
+  req.limit = Math.min(limit || W1_SR_TABLES[table].max, W1_SR_TABLES[table].max);
+  return req;
+}
+// The answer rows, or null when the older direct read must run. Throws an Error only for a refused login.
+async function w1SrTry(url) {
+  if (Date.now() < W1_SR.pausedUntil) return null;
+  const req = w1SrParse(url);
+  if (!req) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older read runs
+  let r;
+  try {
+    r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token }, req)) });
+  } catch (e) { W1_SR.pausedUntil = Date.now() + W1_SR_PAUSE_MS; return null; }
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) { W1_SR.pausedUntil = Date.now() + W1_SR_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { W1_SR.pausedUntil = Date.now() + W1_SR_PAUSE_MS; return null; }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_logged_in' || code === 'no_seller' || code === 'lookup_failed') throw new Error('Please sign out and sign in again, then try once more.');
+    W1_SR.pausedUntil = Date.now() + W1_SR_PAUSE_MS; return null;   // not available, a request the door does not take, or a read problem
+  }
+  return Array.isArray(j.rows) ? j.rows : null;
+}
+// A drop-in for fetch(url, init) on these four tables.
+async function w1SrFetch(url, init) {
+  const rows = await w1SrTry(url);
+  if (rows === null) return fetch(url, init);
+  return { ok: true, status: 200, json: async function() { return rows; }, text: async function() { return JSON.stringify(rows); } };
+}
+// A drop-in for sb('table?...').
+async function w1SrSb(path) {
+  const rows = await w1SrTry(SUPABASE_URL + '/rest/v1/' + path);
+  return rows === null ? sb(path) : rows;
+}
+</script>
+<!-- w1-settings-reads:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
