@@ -17914,7 +17914,7 @@ function w1BotHandles(key) { return W1_BOT_KEYS.indexOf(key) >= 0; }
 async function w1BotCall(action, extra) {
   if (W1_BOT.fallback) throw w1BotNotAvailable();
   const token = await getValidAuthToken();
-  if (!token) throw new Error(W1_BOT_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_BOT_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -17973,11 +17973,11 @@ document.addEventListener('focusin', function(e) {
 
 // Called by the screen's saveBotSetting for the 14 keys. Throws an Error with a plain message when the door refuses.
 async function w1BotDoorSet(key, value) {
-  try { await w1BotLoad(); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, W1_BOT.value[key]); throw e; }
+  try { await w1BotLoad(); } catch (e) { if (!(e && (e.w1NotAvailable || e.w1NoLogin))) w1BotShow(key, W1_BOT.value[key]); throw e; }
   const was = W1_BOT.effective[key];
   const wasValue = W1_BOT.value[key];
   let r;
-  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, wasValue); throw e; }
+  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && (e.w1NotAvailable || e.w1NoLogin))) w1BotShow(key, wasValue); throw e; }
   W1_BOT.value[key] = String(r.after);
   W1_BOT.effective[key] = String(r.after);
   if (r.changed === true) w1BotOfferUndo(key, r.before === null || r.before === undefined ? was : r.before);
@@ -17986,7 +17986,7 @@ async function w1BotDoorSet(key, value) {
 // Door first; when it answers not_available (the seller is not on its list yet) the screen keeps the older direct write, exactly as before.
 async function w1BotTry(key, value) {
   if (W1_BOT.fallback) return false;
-  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
+  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NoLogin) return false; if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
 }
 
 // ---- Undo: a short-lived button; it sends the old value back through the same door (limits checked, a new undo copy kept).
@@ -20930,7 +20930,7 @@ async function w1CuCall(action, extra) {
   if (W1_CU.fallback) throw w1CuNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_CU_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_CU_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_CUSTOMERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -20949,7 +20949,7 @@ async function w1CuCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1CuTry(action, extra) {
   if (W1_CU.fallback) return null;
-  try { return await w1CuCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_CU.fallback = true; return null; } throw e; }
+  try { return await w1CuCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_CU.fallback = true; return null; } throw e; }
 }
 // Delete: check what refers to the customer, then apply with the digest (a customer that is in use is refused with the reason, nothing changes).
 async function w1CuDelete(customerId, direct) {
@@ -21023,7 +21023,7 @@ async function w1BsCall(action, extra) {
   if (W1_BS.fallback) throw w1BsNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_BS_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_BS_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -21042,7 +21042,7 @@ async function w1BsCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1BsTry(action, extra) {
   if (W1_BS.fallback) return null;
-  try { const r = await w1BsCall(action, extra); w1BsOffer(r); return r; } catch (e) { if (e && e.w1NotAvailable) { W1_BS.fallback = true; return null; } throw e; }
+  try { const r = await w1BsCall(action, extra); w1BsOffer(r); return r; } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_BS.fallback = true; return null; } throw e; }
 }
 // One column of seller_sales_config or pos_settings. Answers like a fetch answer; `direct()` is the older upsert.
 async function w1BsTable(table, column, value, direct) {
@@ -21108,7 +21108,7 @@ async function w1OrCall(action, extra) {
   if (W1_OR.fallback) throw w1OrNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_OR_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_OR_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_ORDERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -21127,7 +21127,7 @@ async function w1OrCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1OrTry(action, extra) {
   if (W1_OR.fallback) return null;
-  try { return await w1OrCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_OR.fallback = true; return null; } throw e; }
+  try { return await w1OrCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_OR.fallback = true; return null; } throw e; }
 }
 // Runs one write: the door, or `direct()` (the older fetch) when the door is not available. Answers like a fetch answer (ok, status, json).
 // A refusal throws an Error with the door's plain words, which the screen's own catch shows as before. `emptyCodes`: refusals that the older
@@ -22138,7 +22138,7 @@ async function w1ChCall(action, extra) {
   if (W1_CH.fallback) throw w1ChNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_CH_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_CH_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_CHATS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -22157,7 +22157,7 @@ async function w1ChCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1ChTry(action, extra) {
   if (W1_CH.fallback) return null;
-  try { return await w1ChCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_CH.fallback = true; return null; } throw e; }
+  try { return await w1ChCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_CH.fallback = true; return null; } throw e; }
 }
 // A short note at the bottom; with an undoId it also has an Undo button for a few seconds.
 function w1ChNote(text, isError, undoId) {
