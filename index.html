@@ -12912,7 +12912,7 @@ async function loadAlerts() {
   try {
     // Overdue pending orders (2+ days) — mirrors the same threshold n8n uses
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    const overdueRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.PENDING&created_at=lte.' + twoDaysAgo + '&select=phone,product_name,order_total,created_at&limit=10', {
+    const overdueRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.PENDING&created_at=lte.' + twoDaysAgo + '&select=phone,product_name,order_total,created_at&limit=10', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const overdue = await overdueRes.json() || [];
@@ -12925,7 +12925,7 @@ async function loadAlerts() {
   try {
     // Silent WARM customers (14+ days) — mirrors the same threshold n8n uses
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-    const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&list_status=eq.WARM&select=phone,name,total_orders&limit=10', {
+    const silentRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&list_status=eq.WARM&select=phone,name,total_orders&limit=10', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const silent = await silentRes.json() || [];
@@ -12939,7 +12939,7 @@ async function loadAlerts() {
     // Cash not yet collected — only ever appears if this seller has actually
     // used mark_cod themselves; nothing auto-populates this anymore, so a
     // fully-prepaid business will never see this alert at all.
-    const codRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.DELIVERED&cod_collected=eq.false&select=phone,product_name,order_total&limit=10', {
+    const codRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.DELIVERED&cod_collected=eq.false&select=phone,product_name,order_total&limit=10', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const codPending = await codRes.json() || [];
@@ -12952,7 +12952,7 @@ async function loadAlerts() {
 
   try {
     // Low stock — only for products that actually have stock tracking turned on
-    const stockRes = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&track_stock=eq.true&select=product_name,stock_quantity,low_stock_threshold', {
+    const stockRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&track_stock=eq.true&select=product_name,stock_quantity,low_stock_threshold', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const tracked = await stockRes.json() || [];
@@ -14732,7 +14732,7 @@ async function loadDebts() {
     // Every order ever placed for this seller — debt is simply what's left
     // unpaid (order_total minus amount_received), summed per customer.
     // Pure client-side aggregation since this is a REST endpoint, not SQL.
-    const ordersRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=neq.CANCELLED&select=phone,order_total,amount_received', {
+    const ordersRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=neq.CANCELLED&select=phone,order_total,amount_received', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const orders = await ordersRes.json() || [];
@@ -14765,7 +14765,7 @@ async function loadDebts() {
     // number for anyone who was never saved with a name.
     cachedDebtorNames = {};
     try {
-      const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name', {
+      const custRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       });
       (await custRes.json() || []).forEach(c => { cachedDebtorNames[c.phone] = c.name; });
@@ -14844,10 +14844,10 @@ async function renderDebtDetail() {
 
   try {
     const [ordersRes, paymentsRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&order_status=neq.CANCELLED&select=id,order_total,amount_received,created_at,product_name&order=created_at.asc', {
+      w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&order_status=neq.CANCELLED&select=id,order_total,amount_received,created_at,product_name&order=created_at.asc', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/debt_payments?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&select=amount,payment_date&order=payment_date.desc', {
+      w1RdFetch(SUPABASE_URL + '/rest/v1/debt_payments?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&select=amount,payment_date&order=payment_date.desc', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json())
     ]);
@@ -14974,13 +14974,13 @@ async function loadReports() {
     const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
     const [thisWeekRes, lastWeekRes, allTimeRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + weekAgo + '&select=order_total,order_status,product_name,bump_accepted,bump_value,upsell_accepted,upsell_value', {
+      w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + weekAgo + '&select=order_total,order_status,product_name,bump_accepted,bump_value,upsell_accepted,upsell_value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + twoWeeksAgo + '&created_at=lte.' + weekAgo + '&select=order_total', {
+      w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + twoWeeksAgo + '&created_at=lte.' + weekAgo + '&select=order_total', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
-      fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=order_total,order_status', {
+      w1RdFetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=order_total,order_status', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json())
     ]);
@@ -15009,7 +15009,7 @@ async function loadReports() {
     const avgOrder = allTime.length > 0 ? Math.round(allTimeRevenue / allTime.length) : 0;
 
     const fourteenDaysAgo = twoWeeksAgo;
-    const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&select=phone&limit=200', {
+    const silentRes = await w1RdFetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&select=phone&limit=200', {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     });
     const silentCount = ((await silentRes.json()) || []).length;
@@ -18922,6 +18922,87 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-debts-reads:js:start -->
+<script>
+// The Debts, Alerts (low stock, overdue, silent customers, cash on delivery) and Reports reads go through the Seller Debts Reads door (POST
+// /webhook/seller-debts-reads, action "read") instead of reading orders, customers, debt_payments and seller_products straight with the public key.
+// The door answers only the seller of the person's own login. w1RdFetch is a drop-in for the fetch these screens already use: it turns the screen's own
+// PostgREST address into a door request (the table, the columns, the filters, the order and the limit; the owner filter is the door's), and answers
+// like a fetch answer (ok, status, json), so the screens are unchanged. Door first. The older direct read runs when the door is down or not available
+// (503, 404, 502, 429 too many calls, the connection fails, an answer that is not understood or a request the door does not take; the door is then left
+// alone for 30 seconds) or when this device has no login, and for any address this translator does not understand. A refusal of the login by the
+// door is not read the older way. A read with no limit asks for the door's largest limit for the table (the older read stopped at 1000 rows).
+const SELLER_DEBTS_READS_URL = 'https://sparklly.site/webhook/seller-debts-reads';
+const W1_RD = { pausedUntil: 0 };
+const W1_RD_PAUSE_MS = 30000;
+const W1_RD_TABLES = { orders: { owner: 'seller_id', max: 5000 }, customers: { owner: 'seller_id', max: 2000 }, debt_payments: { owner: 'seller_id', max: 5000 }, seller_products: { owner: 'chat_id', max: 2000 } };
+const W1_RD_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'is'];
+// A PostgREST address -> a door request, or null when this translator does not understand it (the older read then runs).
+function w1RdParse(url) {
+  const m = /\/rest\/v1\/([a-z_]+)\?(.*)$/.exec(String(url));
+  if (!m || !W1_RD_TABLES[m[1]]) return null;
+  const table = m[1]; const spec = W1_RD_TABLES[table];
+  const req = { action: 'read', table: table, filters: [] };
+  let limit = null;
+  for (const part of m[2].split('&')) {
+    if (!part) continue;
+    const eq = part.indexOf('=');
+    if (eq < 0) return null;
+    const key = decodeURIComponent(part.slice(0, eq)); const raw = part.slice(eq + 1);
+    if (key === 'select') {
+      const cols = decodeURIComponent(raw).split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+      if (cols.some(function(c) { return !/^[a-z_][a-z0-9_]*$/.test(c) && c !== '*'; })) return null;
+      if (cols.length && cols.indexOf('*') < 0) req.select = cols;
+    } else if (key === 'order') {
+      req.order = decodeURIComponent(raw).split(',').map(function(x) { const p = x.split('.'); return { column: p[0], dir: p[1] === 'desc' ? 'desc' : 'asc' }; });
+      if (req.order.some(function(o) { return !/^[a-z_][a-z0-9_]*$/.test(o.column); })) return null;
+    } else if (key === 'limit') {
+      limit = Number(raw); if (!Number.isFinite(limit) || limit < 1) return null;
+    } else if (key === spec.owner) {
+      if (!/^eq\./.test(raw)) return null;   // the owner filter is the door's: not sent
+    } else {
+      if (!/^[a-z_][a-z0-9_]*$/.test(key)) return null;
+      const d = raw.indexOf('.');
+      const op = d < 0 ? '' : raw.slice(0, d); const val = d < 0 ? '' : decodeURIComponent(raw.slice(d + 1));
+      if (W1_RD_OPS.indexOf(op) < 0) return null;
+      if (op === 'in') { const inner = /^\((.*)\)$/.exec(val); if (!inner) return null; req.filters.push({ column: key, op: 'in', value: inner[1].split(',').map(function(x) { return x.replace(/^"|"$/g, ''); }) }); }
+      else if (op === 'is') { req.filters.push({ column: key, op: 'is', value: val === 'null' ? null : (val === 'true' ? true : (val === 'false' ? false : undefined)) }); if (req.filters[req.filters.length - 1].value === undefined) return null; }
+      else req.filters.push({ column: key, op: op, value: val });
+    }
+  }
+  req.limit = Math.min(limit || spec.max, spec.max);
+  return req;
+}
+// The answer rows, or null when the older direct read must run. Throws an Error only for a refused login.
+async function w1RdTry(url) {
+  if (Date.now() < W1_RD.pausedUntil) return null;
+  const req = w1RdParse(url);
+  if (!req) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older read runs
+  let r;
+  try {
+    r = await fetch(SELLER_DEBTS_READS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token }, req)) });
+  } catch (e) { W1_RD.pausedUntil = Date.now() + W1_RD_PAUSE_MS; return null; }
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) { W1_RD.pausedUntil = Date.now() + W1_RD_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { W1_RD.pausedUntil = Date.now() + W1_RD_PAUSE_MS; return null; }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_logged_in' || code === 'no_seller' || code === 'lookup_failed') throw new Error('Please sign out and sign in again, then try once more.');
+    W1_RD.pausedUntil = Date.now() + W1_RD_PAUSE_MS; return null;   // not available, a request the door does not take, or a read problem
+  }
+  return Array.isArray(j.rows) ? j.rows : null;
+}
+// A drop-in for fetch(url, init) on these four tables.
+async function w1RdFetch(url, init) {
+  const rows = await w1RdTry(url);
+  if (rows === null) return fetch(url, init);
+  return { ok: true, status: 200, json: async function() { return rows; }, text: async function() { return JSON.stringify(rows); } };
+}
+</script>
+<!-- w1-debts-reads:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
