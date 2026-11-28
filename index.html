@@ -13515,6 +13515,115 @@ window.agentSelectScope = function(btn) {
   if (gp) gp.style.display = agentScope === 'group' ? 'block' : 'none';
   if (agentScope === 'group') agentLoadGroups();
 };
+// <w3-inbox-cards-door:js:start>
+// The Inbox card writes (Good and Adjust with their rule decisions, "Got it" on an alert, the lesson form, and turning on the lesson after the AI
+// is switched back on) go through the Seller Inbox Cards door (POST /webhook/seller-inbox-cards, actions closeCard, dismissAlert, submitLesson,
+// startLesson, undo) with the person's own login, instead of writing straight to pending_questions, rule_resolutions and seller_learned_answers
+// with the public key (a card by its number alone). w3IcCall answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs the older direct writes exactly as before (no login on this device, HTTP 404/502/503/429,
+//     the door saying not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code, message }: the door REFUSED (not_logged_in, no_card, card_closed, ...). That never falls back: the plain words are shown.
+// Customer groups and their members have no door yet: they are still written directly, as before.
+const SELLER_INBOX_CARDS_URL = 'https://sparklly.site/webhook/seller-inbox-cards';
+const W3_IC_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.',
+  closeCard: 'Card answered.', dismissAlert: 'Alert dismissed.', submitLesson: 'Lesson saved.'
+};
+const W3_IC_SHOW_MS = 10000;
+let w3IcPausedUntil = 0;
+const W3_IC = { timer: null, undoId: '' };
+async function w3IcCall(action, extra) {
+  if (Date.now() < w3IcPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_INBOX_CARDS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3IcPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = String((j && (j.error || j.code)) || 'bad_answer');
+  if (code === 'not_available') return null;
+  return { ok: false, code: code, message: code === 'not_logged_in' ? W3_IC_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W3_IC_TEXT.failed) };
+}
+// A refusal as an error the screen's own catch shows ("Something went wrong: <the door's words>").
+function w3IcRefusal(door) { const e = new Error(door.message); e.code = door.code; return e; }
+// A short note with an Undo button after a change that can be taken back.
+function w3IcNote(text, undoId, isError) {
+  let bar = document.getElementById('w3-ic-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w3-ic-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w3-ic-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w3-ic-undo-btn'; btn.textContent = W3_IC_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w3IcUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  const msgEl = document.getElementById('w3-ic-note-msg');
+  msgEl.textContent = text;
+  msgEl.style.color = isError ? 'var(--danger)' : '';
+  W3_IC.undoId = undoId || '';
+  document.getElementById('w3-ic-undo-btn').style.display = W3_IC.undoId ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W3_IC.timer);
+  W3_IC.timer = setTimeout(function() { bar.style.display = 'none'; W3_IC.undoId = ''; }, W3_IC_SHOW_MS);
+}
+function w3IcOffer(action, r) {
+  if (r && r.undoId && !r.unchanged && W3_IC_TEXT[action]) w3IcNote(W3_IC_TEXT[action], r.undoId, false);
+}
+async function w3IcUndo() {
+  const id = W3_IC.undoId;
+  if (!id) return;
+  W3_IC.undoId = '';
+  const r = await w3IcCall('undo', { undoId: id });
+  if (r === null) w3IcNote(W3_IC_TEXT.failed, '', true);
+  else if (r.ok === false) w3IcNote(r.message, '', true);
+  else w3IcNote(W3_IC_TEXT.undone, '', false);
+  try { await loadInboxList(); } catch (e) {}
+  try { await checkInboxDot(); } catch (e) {}
+}
+// Good or Adjust: the rule decisions and the card in ONE door call (the door makes both or neither). The group (and its members) is prepared
+// first, as before. The door cannot answer: the older two writes (the rows, then the card), exactly as before.
+async function w3AgentClose(q, decision, instruction, answer) {
+  const gid = agentScope === 'group' ? await agentPrepareGroup(q) : null;
+  const rules = ((q.meta && q.meta.breaks) || []).map(function(b) { return { guidelineId: b.id || null, topic: b.topic || null, decision: decision, instruction: instruction || null }; });
+  const scope = agentScope === 'all' ? 'all_customers' : (agentScope === 'group' ? 'group' : 'this_customer');
+  const body = { id: q.id, answer: String(answer), scope: scope, rules: rules };
+  if (gid) body.groupId = gid;
+  const r = await w3IcCall('closeCard', body);
+  if (r === null) { await agentSaveResolutions(q, decision, instruction, gid); await agentCloseCard(q, answer); return; }
+  if (r.ok === false) throw w3IcRefusal(r);
+  w3IcOffer('closeCard', r);
+}
+// "Got it" on an alert card. Answers true when the door did it, false when the older direct write must run, and throws the door's refusal.
+async function w3IcDismiss(q) {
+  const r = await w3IcCall('dismissAlert', { id: q.id });
+  if (r === null) return false;
+  if (r.ok === false) throw w3IcRefusal(r);
+  w3IcOffer('dismissAlert', r);
+  return true;
+}
+// The lesson form. Same answers as w3IcDismiss.
+async function w3IcLesson(q, text) {
+  const all = lessonScope === 'all_customers';
+  const body = { id: q.id, answer: all ? text : '(solved in the chat)', scope: lessonScope };
+  if (all) { body.summary = q.question; body.department = q.department || 'manager'; }
+  const r = await w3IcCall('submitLesson', body);
+  if (r === null) return false;
+  if (r.ok === false) throw w3IcRefusal(r);
+  w3IcOffer('submitLesson', r);
+  return true;
+}
+// <w3-inbox-cards-door:js:end>
+
 let agentGroups = [];
 async function agentLoadGroups(selectId) {
   try {
@@ -13553,9 +13662,9 @@ window.agentShowAdjust = function() {
   const el = document.getElementById('inbox-agent-adjust');
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
-async function agentSaveResolutions(q, decision, instruction) {
+async function agentSaveResolutions(q, decision, instruction, gidReady) {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-  const gid = agentScope === 'group' ? await agentPrepareGroup(q) : null;
+  const gid = gidReady !== undefined ? gidReady : (agentScope === 'group' ? await agentPrepareGroup(q) : null);
   const rows = ((q.meta && q.meta.breaks) || []).map(b => ({ seller_id: SELLER_CHAT_ID, guideline_id: b.id || null, topic: b.topic || null, decision, instruction: instruction || null, scope: agentScope, phone_number: agentScope === 'customer' ? q.phone_number : null, group_id: gid }));
   if (!rows.length) return;
   const r = await fetch(SUPABASE_URL + '/rest/v1/rule_resolutions', { method: 'POST', headers, body: JSON.stringify(rows) });
@@ -13572,8 +13681,7 @@ window.agentDecide = async function(decision) {
   const btn = document.getElementById('inbox-agent-good-btn');
   btn.disabled = true;
   try {
-    await agentSaveResolutions(q, 'good', null);
-    await agentCloseCard(q, 'Good (' + agentScope + ')');
+    await w3AgentClose(q, 'good', null, 'Good (' + agentScope + ')');   // Seller Inbox Cards door first
     alert('Saved. When this rule breaks again for ' + (agentScope === 'all' ? 'any customer' : (agentScope === 'group' ? 'a customer in this group' : 'this customer')) + ', the agent fixes it the same way and does not send you a card.');
     closeInboxDetail();
     await loadInboxList();
@@ -13615,8 +13723,7 @@ window.agentSaveAdjust = async function() {
       if (data.warning) alert(data.warning);
       sentNote = ' Sent to the customer: ' + msg;
     }
-    await agentSaveResolutions(q, 'adjust', instruction);
-    await agentCloseCard(q, 'Adjusted (' + agentScope + '): ' + instruction + sentNote);
+    await w3AgentClose(q, 'adjust', instruction, 'Adjusted (' + agentScope + '): ' + instruction + sentNote);   // Seller Inbox Cards door first
     alert((agentScope === 'all' ? 'Saved for all customers.' : (agentScope === 'group' ? 'Saved for the group.' : 'Saved for this customer.')) + ' From now on the agent follows your adjustment when this rule breaks.' + (wantSend ? ' The correction was sent to the customer.' : ''));
     closeInboxDetail();
     await loadInboxList();
@@ -13630,9 +13737,11 @@ window.inboxDismissAlert = async function() {
   const q = inboxCurrentQuestion;
   if (!q) return;
   try {
+    if (!(await w3IcDismiss(q))) {   // Seller Inbox Cards door first; the older direct write when it cannot answer
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
     const r = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: '(seen)' }) });
     if (!r.ok) throw new Error('Could not update (' + r.status + ')');
+    }
     closeInboxDetail();
     await loadInboxList();
     await checkInboxDot();
@@ -13664,6 +13773,7 @@ window.submitLesson = async function() {
   const btn = document.getElementById('inbox-lesson-save-btn');
   btn.disabled = true;
   try {
+    if (!(await w3IcLesson(q, text))) {   // Seller Inbox Cards door first; the older direct writes when it cannot answer
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
     if (lessonScope === 'all_customers') {
       const r1 = await fetch(SUPABASE_URL + '/rest/v1/seller_learned_answers', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, question_summary: q.question, answer: text, scope: 'all_customers', department: q.department || 'manager' }) });
@@ -13671,6 +13781,7 @@ window.submitLesson = async function() {
     }
     const r2 = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: lessonScope === 'all_customers' ? text : '(solved in the chat)', answer_scope: lessonScope }) });
     if (!r2.ok) throw new Error('Could not update (' + r2.status + ')');
+    }
     alert(lessonScope === 'all_customers' ? 'Saved. When a customer has a problem like this, the AI will handle it by itself like this:\n\n' + text : 'Okay. This stays only with this customer; the AI will not use it for others.');
     closeInboxDetail();
     await loadInboxList();
@@ -13689,8 +13800,12 @@ async function startLessonIfNeeded(phone) {
     const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');
     const q = rows && rows[0];
     if (!q) return;
+    const doorS = await w3IcCall('startLesson', { phone: phone });   // Seller Inbox Cards door first; a refusal never falls back and stops here
+    if (doorS && doorS.ok === false) { w3IcNote(doorS.message, '', true); return; }
+    if (doorS === null) {   // the door cannot answer: the older direct write, as before
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
     await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lesson' }) });
+    }
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
