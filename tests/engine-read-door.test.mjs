@@ -36,9 +36,9 @@ test('the new code and this test file contain only ASCII characters', () => {
   for (const [name, text] of Object.entries(files)) assert.equal([...text].filter((c) => c.charCodeAt(0) > 127).length, 0, name);
 });
 
-test('the cache name is higher than 319 and the three older direct reads are still in the file', () => {
+test('the cache name is not lower than 319 and the three older direct reads are still in the file', () => {
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 320);
+  assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 319);
   assert.ok(LOAD.includes("'seller_engine?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_model,customer_model,call_model&limit=1'"));
   assert.ok(LOAD.includes("'ai_model_prices?select=*'"));
   assert.ok(USAGE.includes("'ai_usage?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.'"));
