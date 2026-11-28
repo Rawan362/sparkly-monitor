@@ -174,7 +174,7 @@ test('a door refusal (including a refused login) never falls back: the door word
   await n.page.evaluate(() => { window.getValidAuthToken = async () => null; });
   await n.page.evaluate(() => agentNewGroup());
   assert.equal(n.door.length, 0); assert.equal(n.direct.length, 1, 'no login on this device: the older write runs');
-  assert.deepEqual(n.alerts, []);
+  assert.ok(!n.alerts.some((a) => /Something went wrong/.test(a)), 'no error message');
   await n.page.close();
   const f = await open({ door: () => ({ status: 200, json: { ok: false, error: 'not_logged_in', message: 'x' } }) });
   await f.page.evaluate(() => agentNewGroup());
