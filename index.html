@@ -9337,11 +9337,58 @@ window.openAhmadChat = async function() {
   await renderAhmadChatPanel();
 };
 
+// <w3-business-read-door:js:start>
+// The Business chat (Sparkly Closer) and the Sparkly assistant chat read the Seller Business Read door (POST /webhook/seller-business-read,
+// actions conversations, messages, assistantLog, assistantOlder) with the person's own login, instead of reading business_chat_conversations,
+// business_chat_messages and seller_web_chat_log with the public key. w3BizRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 404/502/503/429, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, no_conversation, ...). That never falls back.
+const SELLER_BUSINESS_READ_URL = 'https://sparklly.site/webhook/seller-business-read';
+const W3_BIZ_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3BizPausedUntil = 0;
+async function w3BizRead(action, extra) {
+  if (Date.now() < w3BizPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_BUSINESS_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3BizPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read (the screen's own catch runs). A login problem also asks the person to sign in again.
+function w3BizRefusal(door) {
+  try { debugLog('business read door refused: ' + (door && door.code)); } catch (e) {}
+  if (door && door.code === 'not_logged_in') { try { alert(W3_BIZ_RELOGIN); } catch (e) {} }
+  const e = new Error('Business read refused: ' + (door && door.code));
+  e.w3Refused = true;
+  return e;
+}
+// <w3-business-read-door:js:end>
+
 async function renderAhmadChatPanel(silent) {
   debugLog('renderAhmadChatPanel called, silent=' + silent + ', SELLER_CHAT_ID=' + SELLER_CHAT_ID);
   let rows;
   try {
-    rows = await sb(
+    // Seller Business Read door first (action assistantLog: the newest 300, newest first). A refusal never falls back: a silent refresh keeps
+    // the screen as it is, a first draw ends like a failed read (below). Door cannot answer: the direct read, as before.
+    const doorA = await w3BizRead('assistantLog');
+    if (doorA && doorA.ok === false) { const refusal = w3BizRefusal(doorA); if (silent) return; throw refusal; }
+    rows = doorA && Array.isArray(doorA.rows) ? doorA.rows.slice() : await sb(   // W3-FALLBACK-REMOVE
       // Fetch the NEWEST 300 (descending + limit), not the oldest — with
       // ascending+limit, once total messages exceed 300, every message
       // after that point becomes permanently invisible no matter how many
@@ -9461,7 +9508,10 @@ window.loadOlderAhmadMessages = async function() {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    // Seller Business Read door first (action assistantOlder: the 100 rows before this time); a refusal never falls back.
+    const doorO = await w3BizRead('assistantOlder', { before: String(oldest) });
+    if (doorO && doorO.ok === false) throw w3BizRefusal(doorO);
+    const older = doorO && Array.isArray(doorO.rows) ? doorO.rows.slice() : await sb(   // W3-FALLBACK-REMOVE
       'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&created_at=lt.' + encodeURIComponent(oldest) +
       '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=100'
     );
@@ -13240,13 +13290,67 @@ function w1NoticeTap(n) {
 window.w1OpenChatsFromNotice = async function(id) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) { /* the list still opens */ }
   try { checkNotificationsDot(); } catch (e) { /* not important */ }
   closeNotificationsPanel();
   goToChats();
 };
 // w1-notice-types:js:end
+
+// <w3-inbox-read-door:js:start>
+// The notification list and the Inbox / AI agent cards read the Seller Inbox Read door (POST /webhook/seller-inbox-read, actions notifications,
+// notification, inboxList, question, chatNeeded, groups) with the person's own login, instead of reading seller_notifications, pending_questions
+// and customer_groups with the public key. w3InboxRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 404/502/503/429, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, no_notification, no_question, ...). That never falls back.
+const SELLER_INBOX_READ_URL = 'https://sparklly.site/webhook/seller-inbox-read';
+const W3_INBOX_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3InboxPausedUntil = 0;
+async function w3InboxRead(action, extra) {
+  if (Date.now() < w3InboxPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_INBOX_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3InboxPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read: the screen's own catch shows the words (the sign-in words for a login problem).
+function w3InboxRefusal(door) {
+  const e = new Error('Inbox read refused: ' + (door && door.code));
+  e.w3Refused = true;
+  e.w3Relogin = !!(door && door.code === 'not_logged_in');
+  return e;
+}
+// A refusal in a tap that has no screen text of its own: only a login problem is told to the person.
+function w3InboxRefusedNote(door) {
+  try { debugLog('inbox read door refused: ' + (door && door.code)); } catch (e) {}
+  if (door && door.code === 'not_logged_in') { try { alert(W3_INBOX_RELOGIN); } catch (e) {} }
+}
+// One card by its number: [card], or [] when the door says there is no such card or refuses; the direct read only when the door cannot answer.
+async function w3QuestionRows(qid) {
+  const door = await w3InboxRead('question', { id: qid });
+  if (door && door.ok === false) { if (door.code !== 'no_question') w3InboxRefusedNote(door); return []; }
+  if (door && door.question && typeof door.question === 'object') return [door.question];
+  return await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');   // W3-FALLBACK-REMOVE
+}
+// <w3-inbox-read-door:js:end>
 
 function formatNotificationTime(iso) {
   const d = new Date(iso);
@@ -13278,13 +13382,16 @@ async function loadNotifications() {
   const listEl = document.getElementById('notifications-list');
   listEl.innerHTML = '<div class="spinner"></div>';
   try {
-    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');
+    const doorN = await w3InboxRead('notifications');   // Seller Inbox Read door first
+    if (doorN && doorN.ok === false) throw w3InboxRefusal(doorN);
+    const rows = doorN && Array.isArray(doorN.notifications) ? doorN.notifications : await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');   // W3-FALLBACK-REMOVE
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="notifications-empty-msg">Nothing here yet — updates from your AI (daily summaries, ad performance, strategy suggestions) will show up here.</div>';
       return;
     }
     listEl.innerHTML = rows.map(renderNotificationItem).join('');
   } catch (e) {
+    if (e && e.w3Refused) { listEl.innerHTML = '<div id="notifications-empty-msg">' + (e.w3Relogin ? W3_INBOX_RELOGIN : 'Could not load notifications, please try again.') + '</div>'; return; }
     listEl.innerHTML = '<div id="notifications-empty-msg">Could not load notifications — please try again.</div>';
   }
 }
@@ -13349,14 +13456,14 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
 window.openQuestionFromNotification = async function(id, qid) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
   goToChats();
   await openSellerInboxFromChats();
   try {
-    const rows = await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');
+    const rows = await w3QuestionRows(qid);
     if (rows && rows[0] && (rows[0].status === 'pending' || rows[0].status === 'lesson')) openInboxDetail(rows[0]);
     else if (rows && rows[0]) alert('You already answered this one.');
   } catch (e) {}
@@ -13365,7 +13472,7 @@ window.openQuestionFromNotification = async function(id, qid) {
 window.openEscalationChat = async function(id, phone) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
@@ -13379,17 +13486,19 @@ window.openEscalationChat = async function(id, phone) {
  * instructions about it — a focused thread just about this one alert. */
 window.discussNotification = async function(id) {
   try {
-    const rows = await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');
+    const doorD = await w3InboxRead('notification', { id: id });   // Seller Inbox Read door first
+    if (doorD && doorD.ok === false) { if (doorD.code !== 'no_notification') w3InboxRefusedNote(doorD); return; }   // not found or refused: nothing, as today
+    const rows = doorD && doorD.notification && typeof doorD.notification === 'object' ? [doorD.notification] : await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');   // W3-FALLBACK-REMOVE
     const n = rows && rows[0];
     if (!n) return;
 
     if (!n.is_read) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+        await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
           method: 'PATCH',
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
           body: JSON.stringify({ is_read: true })
-        });
+        }); });
         checkNotificationsDot();
       } catch (e) {}
     }
@@ -13409,11 +13518,11 @@ window.discussNotification = async function(id) {
 
 window.toggleNotificationRead = async function(id, markAsRead) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+    await w1NfRun('setRead', { id: w1NfId(id), read: !!markAsRead }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: markAsRead })
-    });
+    }); });
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13421,11 +13530,11 @@ window.toggleNotificationRead = async function(id, markAsRead) {
 
 window.markAllNotificationsRead = async function() {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
+    await w1NfMarkAll(function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: true })
-    });
+    }); });
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13460,10 +13569,10 @@ function updateDeleteSelectedButtonState() {
 
 window.deleteOneNotification = async function(id) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+    await w1NfRun('deleteOne', { id: w1NfId(id) }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    }); }, 'Notification deleted.');
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13473,10 +13582,10 @@ window.deleteSelectedNotifications = async function() {
   const ids = Array.from(document.querySelectorAll('.notification-item-checkbox:checked')).map((cb) => cb.dataset.id);
   if (ids.length === 0) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
+    await w1NfRun('deleteSelected', { ids: ids.map(w1NfId) }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    }); }, 'Notifications deleted.');
     exitNotificationsSelectMode();
     await loadNotifications();
     await checkNotificationsDot();
@@ -13526,7 +13635,9 @@ async function loadInboxList() {
   const listEl = document.getElementById('inbox-list');
   listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');
+    const doorI = await w3InboxRead('inboxList');   // Seller Inbox Read door first
+    if (doorI && doorI.ok === false) throw w3InboxRefusal(doorI);
+    const rows = doorI && Array.isArray(doorI.questions) ? doorI.questions : await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');   // W3-FALLBACK-REMOVE
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="inbox-empty-msg">Nothing waiting — the AI hasn\'t needed to ask you anything.</div>';
       return;
@@ -13546,6 +13657,7 @@ async function loadInboxList() {
       listEl.appendChild(item);
     });
   } catch (e) {
+    if (e && e.w3Refused) { listEl.innerHTML = '<div id="inbox-empty-msg">' + (e.w3Relogin ? W3_INBOX_RELOGIN : 'Could not load the inbox, please try again.') + '</div>'; return; }
     listEl.innerHTML = '<div id="inbox-empty-msg">Could not load the inbox — please try again.</div>';
     debugLog('loadInboxList failed: ' + (e && e.message));
   }
@@ -13663,7 +13775,9 @@ window.agentSelectScope = function(btn) {
 let agentGroups = [];
 async function agentLoadGroups(selectId) {
   try {
-    const rows = await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');
+    const doorG = await w3InboxRead('groups');   // Seller Inbox Read door first; a refusal shows no groups (no fallback)
+    if (doorG && doorG.ok === false) w3InboxRefusedNote(doorG);
+    const rows = doorG ? (doorG.ok === true && Array.isArray(doorG.groups) ? doorG.groups : []) : await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');   // W3-FALLBACK-REMOVE
     agentGroups = Array.isArray(rows) ? rows : [];
   } catch (e) { agentGroups = []; }
   const sel = document.getElementById('inbox-agent-group-select');
@@ -13831,7 +13945,9 @@ window.submitLesson = async function() {
 // "needs you in the chat" case, ask the seller how it was solved (this customer only, or for everyone).
 async function startLessonIfNeeded(phone) {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');
+    const doorC = await w3InboxRead('chatNeeded', { phone: phone });   // Seller Inbox Read door first
+    if (doorC && doorC.ok === false) { try { debugLog('inbox read door refused: ' + doorC.code); } catch (e2) {} return; }   // a refusal never falls back
+    const rows = doorC && 'question' in doorC ? [doorC.question] : await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');   // W3-FALLBACK-REMOVE
     const q = rows && rows[0];
     if (!q) return;
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
@@ -13839,7 +13955,7 @@ async function startLessonIfNeeded(phone) {
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
-      const fresh = await sb('pending_questions?id=eq.' + q.id + '&select=*&limit=1');
+      const fresh = await w3QuestionRows(q.id);
       if (fresh && fresh[0]) openInboxDetail(fresh[0]);
     }
   } catch (e) {}
@@ -14327,7 +14443,9 @@ window.deleteBcConversationFromMenu = function() {
 async function loadBusinessChatConversationList() {
   const listEl = document.getElementById('bc-conv-list');
   try {
-    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');
+    const doorL = await w3BizRead('conversations');   // Seller Business Read door first; a refusal never falls back
+    if (doorL && doorL.ok === false) throw w3BizRefusal(doorL);
+    const rows = doorL && Array.isArray(doorL.conversations) ? doorL.conversations : await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');   // W3-FALLBACK-REMOVE
     listEl.innerHTML = '';
     (rows || []).forEach(conv => {
       const item = document.createElement('div');
@@ -14415,7 +14533,10 @@ window.openExistingBusinessConversation = async function(conversationId) {
   showBcEmptyState(false);
   messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');
+    // Seller Business Read door first. no_conversation is the empty chat (the empty state); any other refusal ends like a failed read.
+    const doorM = await w3BizRead('messages', { conversationId: String(conversationId) });
+    if (doorM && doorM.ok === false && doorM.code !== 'no_conversation') throw w3BizRefusal(doorM);
+    const rows = doorM ? (doorM.ok === true && Array.isArray(doorM.messages) ? doorM.messages : []) : await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');   // W3-FALLBACK-REMOVE
     messagesEl.innerHTML = '';
     bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
     if (!rows || rows.length === 0) {
@@ -19046,6 +19167,104 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-notifications-door:js:start -->
+<script>
+// The Notifications panel writes (mark read or unread, mark all read, delete one, delete selected, and the "open" buttons that mark a notice read)
+// go through the Seller Notifications door (POST /webhook/seller-notifications) instead of writing straight to the seller_notifications table with
+// the public key (the web app changed or deleted a notification by its id alone). The door finds the seller from the login, keeps an undo copy first
+// and answers a refusal in plain words. Door first. The older direct write runs when the door is down or not available (503, 404, 502,
+// "not available", or the connection fails; the door is then left alone for 30 seconds) or when this device has no login. A 429 shows "try again in a
+// moment" and is not sent the older way; a door refusal never falls back. An Undo button follows a delete and "mark all read".
+const SELLER_NOTIFICATIONS_URL = 'https://sparklly.site/webhook/seller-notifications';
+const W1_NF_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  busy: 'Too many tries. Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', allRead: 'All notifications marked as read.'
+};
+const W1_NF = { pausedUntil: 0, timer: null, undoIds: [] };
+const W1_NF_PAUSE_MS = 30000;
+function w1NfId(id) { const n = Number(id); return Number.isFinite(n) && String(n) === String(id) ? n : id; }
+// Door first: the answer, or null when the older direct path must run. Throws an Error with plain words for a refusal and a 429.
+async function w1NfTry(action, extra) {
+  if (Date.now() < W1_NF.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_NOTIFICATIONS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+  if (r.status === 429) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; throw new Error(W1_NF_TEXT.busy); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_NF_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+    throw new Error(code === 'not_logged_in' ? W1_NF_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_NF_TEXT.failed));
+  }
+  return j;
+}
+// A quiet mark-read before a button navigates: a problem never stops the navigation.
+async function w1NfQuietRead(id, direct) {
+  try { const r = await w1NfTry('setRead', { id: w1NfId(id), read: true }); if (r === null) return direct(); return r; } catch (e) { return null; }
+}
+// One write: the door, or `direct()` when the older path must run. A refusal shows a short note and stops the screen's own reload.
+async function w1NfRun(action, extra, direct, offerText) {
+  let r;
+  try { r = await w1NfTry(action, extra); } catch (e) { w1NfNote(e && e.message ? e.message : W1_NF_TEXT.failed, true); throw e; }
+  if (r === null) return direct();
+  if (offerText && r.undoId && !r.unchanged) w1NfNote(offerText, false, [r.undoId]);
+  return r;
+}
+// Mark all read: the door answers at most 1000 per call and says `more: true` when the screen should call again.
+async function w1NfMarkAll(direct) {
+  const ids = [];
+  for (let i = 0; i < 20; i++) {
+    let r;
+    try { r = await w1NfTry('markAllRead', {}); } catch (e) { w1NfNote(e && e.message ? e.message : W1_NF_TEXT.failed, true); throw e; }
+    if (r === null) return i === 0 ? direct() : undefined;
+    if (r.undoId && !r.unchanged) ids.push(r.undoId);
+    if (r.more !== true) break;
+  }
+  if (ids.length) w1NfNote(W1_NF_TEXT.allRead, false, ids);
+}
+function w1NfNote(text, isError, undoIds) {
+  let bar = document.getElementById('w1-nf-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-nf-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-nf-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-nf-undo-btn'; btn.textContent = W1_NF_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1NfUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-nf-note-msg').textContent = text;
+  document.getElementById('w1-nf-note-msg').style.color = isError ? 'var(--danger)' : '';
+  W1_NF.undoIds = undoIds || [];
+  document.getElementById('w1-nf-undo-btn').style.display = W1_NF.undoIds.length ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W1_NF.timer);
+  W1_NF.timer = setTimeout(function() { bar.style.display = 'none'; W1_NF.undoIds = []; }, isError ? 6000 : 10000);
+}
+async function w1NfUndo() {
+  const ids = W1_NF.undoIds.slice().reverse(); if (!ids.length) return;
+  W1_NF.undoIds = [];
+  document.getElementById('w1-nf-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-nf-note-msg');
+  try {
+    for (const id of ids) { const r = await w1NfTry('undo', { undoId: id }); if (r === null) throw new Error(W1_NF_TEXT.failed); }
+    msg.textContent = W1_NF_TEXT.undone; msg.style.color = '';
+  } catch (e) { msg.textContent = e && e.message ? e.message : W1_NF_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_NF.timer);
+  W1_NF.timer = setTimeout(function() { document.getElementById('w1-nf-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadNotifications === 'function') await loadNotifications(); } catch (e) {}
+  try { if (typeof checkNotificationsDot === 'function') await checkNotificationsDot(); } catch (e) {}
+}
+</script>
+<!-- w1-notifications-door:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
