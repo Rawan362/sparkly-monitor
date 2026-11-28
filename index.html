@@ -6854,6 +6854,10 @@ async function w3ChatsRead(action, extra) {
     return j && j.ok === true ? j : null;
   } catch (e) { return null; }
 }
+// The call items of the open chat, from the door's call rows (id, duration_seconds, ended_at): the same cards fetchCallRecordingCards makes.
+function w3CallCardsFromRows(found) {
+  return (Array.isArray(found) ? found : []).map(r => ({ kind: 'call_recording', id: 'call-' + r.id, callId: r.id, role: 'system', message: '', timestamp: r.ended_at, durationSeconds: r.duration_seconds }));
+}
 // The chat list: the cursor of the last door answer (the door answers a few bytes when nothing changed) and the list that answer built.
 let w3ChatListCursor = null;
 // <w3-chats-read-door:js:end>
@@ -8440,13 +8444,16 @@ window.loadOlderThreadMessages = async function(phone) {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    // Seller Chats Read door first (action older: the 100 rows before this time and their call items); older direct reads as the fallback.
+    const doorOlder = await w3ChatsRead('older', { phone: String(phone), before: String(oldest) });
+    const useDoorOlder = !!(doorOlder && Array.isArray(doorOlder.rows));
+    const older = useDoorOlder ? doorOlder.rows.slice() : await sb(
       'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
       '&timestamp=lt.' + encodeURIComponent(oldest) +
       '&select=id,role,message,timestamp,starred,pinned,channel&order=timestamp.desc&limit=100'
     );
     older.reverse();
-    const olderCards = await fetchCallRecordingCards(phone, older.length >= 100 ? older[0].timestamp : null, oldest);
+    const olderCards = useDoorOlder ? w3CallCardsFromRows(doorOlder.calls) : await fetchCallRecordingCards(phone, older.length >= 100 ? older[0].timestamp : null, oldest);
 
     const hiddenIds = getLocallyDeletedIds();
     const visibleOlder = mergeCallCards(older, olderCards).filter(m => !hiddenIds.has(String(m.id)));
@@ -8729,14 +8736,22 @@ async function fastPollOpenChat() {
   const phone = activePhone;
   _fastPollBusy = true;
   try {
-    const q = 'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID;
-    const both = await Promise.all([
-      sb(q + '&select=id,timestamp&order=timestamp.desc&limit=1'),
-      sb(q + '&message=like.' + encodeURIComponent(HOLD_MARK + '*') + '&select=id&order=timestamp.desc&limit=3')
-    ]);
+    // Seller Chats Read door first (action chatPoll): its cursor has the same format as holdCursor. When the door cannot answer, the two
+    // older direct reads run as before (W3-FALLBACK-REMOVE).
+    const door = await w3ChatsRead('chatPoll', { phone: String(phone) });
     if (phone !== activePhone) return;
-    const r = both[0];
-    const newest = holdCursor(r && r[0] ? r[0] : null, (both[1] || []).map(function(x) { return x.id; }));
+    let newest;
+    if (door && typeof door.cursor === 'string') newest = door.cursor;
+    else {
+      const q = 'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID;
+      const both = await Promise.all([
+        sb(q + '&select=id,timestamp&order=timestamp.desc&limit=1'),
+        sb(q + '&message=like.' + encodeURIComponent(HOLD_MARK + '*') + '&select=id&order=timestamp.desc&limit=3')
+      ]);
+      if (phone !== activePhone) return;
+      const r = both[0];
+      newest = holdCursor(r && r[0] ? r[0] : null, (both[1] || []).map(function(x) { return x.id; }));
+    }
     if (newest !== (window._fastNewest[phone] || '')) await loadThread(phone, true);
   } catch (e) {} finally { _fastPollBusy = false; }
 }
@@ -8796,7 +8811,11 @@ async function loadThread(phone, silent) {
     wasNearBottom = (oldBox.scrollHeight - oldBox.scrollTop - oldBox.clientHeight) < 120;
   }
 
-  let rows = await sb(
+  // Seller Chats Read door first (action thread: the newest 200 rows, the typing time and the call items). When the door cannot answer,
+  // the three older direct reads below run as before (W3-FALLBACK-REMOVE).
+  const doorThread = await w3ChatsRead('thread', { phone: String(phone) });
+  const useDoorThread = !!(doorThread && Array.isArray(doorThread.rows));
+  let rows = useDoorThread ? doorThread.rows.slice() : await sb(
     // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
     // the oldest — otherwise any customer conversation that grows past 200
     // total messages would silently stop showing new messages forever,
@@ -8814,9 +8833,11 @@ async function loadThread(phone, silent) {
   rows.forEach(function(r) { if (r.role === 'assistant') { const d = computeDeliveryState(r, deliveryCtx); r.deliveryState = d.state; r.deliveryError = d.error; } });
   // Call recordings for the same window as the loaded messages (everything, unless
   // there are older messages still to load).
-  const callCards = await fetchCallRecordingCards(phone, rowsLoaded >= 200 && rows.length ? rows[0].timestamp : null, null);
+  const callCards = useDoorThread ? w3CallCardsFromRows(doorThread.calls) : await fetchCallRecordingCards(phone, rowsLoaded >= 200 && rows.length ? rows[0].timestamp : null, null);
   let isTypingNow = false;
-  try {
+  if (useDoorThread) {
+    if (doorThread.aiTypingUntil) { try { isTypingNow = new Date(doorThread.aiTypingUntil) > new Date(); } catch (e) {} }
+  } else try {
     const statusRows = await sb(
       'client_status?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=ai_typing_until'
     );
@@ -17893,7 +17914,7 @@ function w1BotHandles(key) { return W1_BOT_KEYS.indexOf(key) >= 0; }
 async function w1BotCall(action, extra) {
   if (W1_BOT.fallback) throw w1BotNotAvailable();
   const token = await getValidAuthToken();
-  if (!token) throw new Error(W1_BOT_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_BOT_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -17952,11 +17973,11 @@ document.addEventListener('focusin', function(e) {
 
 // Called by the screen's saveBotSetting for the 14 keys. Throws an Error with a plain message when the door refuses.
 async function w1BotDoorSet(key, value) {
-  try { await w1BotLoad(); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, W1_BOT.value[key]); throw e; }
+  try { await w1BotLoad(); } catch (e) { if (!(e && (e.w1NotAvailable || e.w1NoLogin))) w1BotShow(key, W1_BOT.value[key]); throw e; }
   const was = W1_BOT.effective[key];
   const wasValue = W1_BOT.value[key];
   let r;
-  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, wasValue); throw e; }
+  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && (e.w1NotAvailable || e.w1NoLogin))) w1BotShow(key, wasValue); throw e; }
   W1_BOT.value[key] = String(r.after);
   W1_BOT.effective[key] = String(r.after);
   if (r.changed === true) w1BotOfferUndo(key, r.before === null || r.before === undefined ? was : r.before);
@@ -17965,7 +17986,7 @@ async function w1BotDoorSet(key, value) {
 // Door first; when it answers not_available (the seller is not on its list yet) the screen keeps the older direct write, exactly as before.
 async function w1BotTry(key, value) {
   if (W1_BOT.fallback) return false;
-  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
+  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NoLogin) return false; if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
 }
 
 // ---- Undo: a short-lived button; it sends the old value back through the same door (limits checked, a new undo copy kept).
@@ -21007,7 +21028,7 @@ async function w1CuCall(action, extra) {
   if (W1_CU.fallback) throw w1CuNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_CU_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_CU_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_CUSTOMERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -21026,7 +21047,7 @@ async function w1CuCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1CuTry(action, extra) {
   if (W1_CU.fallback) return null;
-  try { return await w1CuCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_CU.fallback = true; return null; } throw e; }
+  try { return await w1CuCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_CU.fallback = true; return null; } throw e; }
 }
 // Delete: check what refers to the customer, then apply with the digest (a customer that is in use is refused with the reason, nothing changes).
 async function w1CuDelete(customerId, direct) {
@@ -21100,7 +21121,7 @@ async function w1BsCall(action, extra) {
   if (W1_BS.fallback) throw w1BsNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_BS_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_BS_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -21119,7 +21140,7 @@ async function w1BsCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1BsTry(action, extra) {
   if (W1_BS.fallback) return null;
-  try { const r = await w1BsCall(action, extra); w1BsOffer(r); return r; } catch (e) { if (e && e.w1NotAvailable) { W1_BS.fallback = true; return null; } throw e; }
+  try { const r = await w1BsCall(action, extra); w1BsOffer(r); return r; } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_BS.fallback = true; return null; } throw e; }
 }
 // One column of seller_sales_config or pos_settings. Answers like a fetch answer; `direct()` is the older upsert.
 async function w1BsTable(table, column, value, direct) {
@@ -21185,7 +21206,7 @@ async function w1OrCall(action, extra) {
   if (W1_OR.fallback) throw w1OrNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_OR_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_OR_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_ORDERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -21204,7 +21225,7 @@ async function w1OrCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1OrTry(action, extra) {
   if (W1_OR.fallback) return null;
-  try { return await w1OrCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_OR.fallback = true; return null; } throw e; }
+  try { return await w1OrCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_OR.fallback = true; return null; } throw e; }
 }
 // Runs one write: the door, or `direct()` (the older fetch) when the door is not available. Answers like a fetch answer (ok, status, json).
 // A refusal throws an Error with the door's plain words, which the screen's own catch shows as before. `emptyCodes`: refusals that the older
@@ -22215,7 +22236,7 @@ async function w1ChCall(action, extra) {
   if (W1_CH.fallback) throw w1ChNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_CH_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_CH_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_CHATS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -22234,7 +22255,7 @@ async function w1ChCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1ChTry(action, extra) {
   if (W1_CH.fallback) return null;
-  try { return await w1ChCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_CH.fallback = true; return null; } throw e; }
+  try { return await w1ChCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_CH.fallback = true; return null; } throw e; }
 }
 // A short note at the bottom; with an undoId it also has an Undo button for a few seconds.
 function w1ChNote(text, isError, undoId) {

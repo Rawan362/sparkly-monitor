@@ -172,7 +172,7 @@ test('a refused switch stays where it was', { skip }, async () => {
   assert.deepEqual(await page.evaluate(() => window.__alerts), ['Could not save: We could not save the change. Nothing was changed.']);
 });
 
-test('a missing login is told in plain words and nothing is written to the table (a door that is not live falls back to the older write: see the fallback tests)', { skip }, async () => {
+test('a refusal of the login by the door is told in plain words and nothing is written to the table; no login on this device runs the older write (a device linked the older way)', { skip }, async () => {
   const cases = [
     [() => ({ json: { ok: false, error: 'not_logged_in', message: 'Please log in again.' } }), 'test-token', 'Could not save: Please sign out and sign in again, then try once more.']
   ];
@@ -187,9 +187,9 @@ test('a missing login is told in plain words and nothing is written to the table
   const calls = []; const direct = [];
   const none = await openBusiness(null, calls, direct, null);
   await typeInto(none.page, 'biz-broadcast-message', 'x');
-  assert.deepEqual(await none.page.evaluate(() => window.__alerts), ['Could not save: Please sign out and sign in again, then try once more.']);
+  assert.deepEqual(await none.page.evaluate(() => window.__alerts), []);
   assert.equal(calls.length, 0);
-  assert.equal(direct.length, 0);
+  assert.equal(direct.length, 1, 'the older direct write ran');
 });
 
 test('after a change an Undo button appears; it sends the old value back through the door and puts it on the field', { skip }, async () => {
