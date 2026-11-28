@@ -158,10 +158,13 @@ test('the door is not available: every write keeps the older direct request exac
   await page.close();
 });
 
-test('login problems: no token means no door call and no direct write; the screen shows its own failure message', { skip }, async () => {
+test('login problems: no login on this device means no door call and the older write runs; a refusal by the door shows the screen\'s failure message', { skip }, async () => {
   const { page, door, direct, alerts } = await open();
   await page.evaluate(async () => { window.getValidAuthToken = async () => null; document.body.insertAdjacentHTML('beforeend', '<input id="profile-name-input" value="Sam"><button id="profile-name-save">Save</button>'); await saveCustomerName('1'); });
-  assert.equal(door.length, 0); assert.deepEqual(direct, []);
-  assert.ok(alerts.includes('Failed to save name: Please sign out and sign in again, then try once more.'));
+  assert.equal(door.length, 0); assert.equal(direct.length, 1, 'the older direct write ran'); assert.deepEqual(alerts, []);
   await page.close();
+  const b = await open({ door: () => ({ status: 200, json: { ok: false, error: 'not_logged_in', message: 'x' } }) });
+  await b.page.evaluate(async () => { document.body.insertAdjacentHTML('beforeend', '<input id="profile-name-input" value="Sam"><button id="profile-name-save">Save</button>'); await saveCustomerName('1'); });
+  assert.deepEqual(b.direct, []); assert.ok(b.alerts.includes('Failed to save name: Please sign out and sign in again, then try once more.'));
+  await b.page.close();
 });
