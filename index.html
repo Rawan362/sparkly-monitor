@@ -15199,11 +15199,11 @@ window.toggleCurrencyOperation = async function(btn) {
   const newValue = turningToDivide ? 'divide' : 'multiply';
   btn.disabled = true;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+    await w1BsTable('seller_sales_config', 'alt_currency_operation', newValue, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ chat_id: SELLER_CHAT_ID, alt_currency_operation: newValue })
-    });
+    }); });
     btn.classList.toggle('on', turningToDivide);
     document.getElementById('biz-alt-currency-op-label').textContent = turningToDivide ? 'Divide main currency by rate' : 'Multiply main currency by rate';
     showBizSaveHint();
@@ -15222,11 +15222,11 @@ window.toggleBizSetting = async function(btn) {
   btn.disabled = true;
   try {
     if (table) {
-      await fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
+      await w1BsTable(table, key, turningOn, function() { return fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: turningOn })
-      });
+      }); });
     } else {
       await saveBotSetting(key, turningOn ? 'true' : 'false');
     }
@@ -15250,8 +15250,11 @@ window.toggleReferralActive = async function(btn) {
   btn.disabled = true;
   try {
     if (!turningOn) {
-      await saveBotSetting('referral_reward', '');
-      await saveBotSetting('referral_discount', '');
+      // One action empties both (one undo copy); the older two saves run when the door is not available.
+      if ((await w1BsTry('clearReferral', {})) === null) {
+        await saveBotSetting('referral_reward', '');
+        await saveBotSetting('referral_discount', '');
+      }
       const rewardEl = document.getElementById('biz-referral-reward');
       const discountEl = document.getElementById('biz-referral-discount');
       if (rewardEl) rewardEl.value = '';
@@ -15494,11 +15497,11 @@ async function saveReplyDelaySeconds(sec) {
     return;
   }
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+    const res = await w1BsTable('seller_sales_config', 'reply_delay_seconds', sec, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ chat_id: SELLER_CHAT_ID, reply_delay_seconds: sec })
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     showBizSaveHint();
   } catch (e) {
@@ -15540,11 +15543,11 @@ window.saveBizField = async function(el) {
       // Numeric fields (pos_settings thresholds, invoice numbers) need real
       // numbers, not strings, or PostgREST rejects the write.
       const finalValue = el.dataset.numeric === 'true' ? (value.trim() === '' ? null : Number(value.trim().replace(/[^\d.-]/g, ''))) : value;
-      await fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
+      await w1BsTable(table, key, finalValue, function() { return fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: finalValue })
-      });
+      }); });
     } else {
       await saveBotSetting(key, value);
     }
@@ -15570,11 +15573,11 @@ function setInvoiceLogoPreview(url) {
 }
 
 async function saveInvoiceLogoUrl(url) {
-  const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+  const res = await w1BsTable('seller_sales_config', 'invoice_logo_url', url, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({ chat_id: SELLER_CHAT_ID, invoice_logo_url: url })
-  });
+  }); });
   if (!res.ok) throw new Error('HTTP ' + res.status);
 }
 
@@ -15637,6 +15640,7 @@ window.removeInvoiceLogo = async function() {
 
 async function saveBotSetting(key, value) {
   if (w1BotHandles(key) && await w1BotTry(key, value)) return; // W1-FALLBACK-REMOVE: when the door says not_available the older direct write below runs; remove this line once the door is open to everyone
+  if (!w1BotHandles(key) && (await w1BsTry('setBotKey', { key: key, value: String(value) })) !== null) return;   // the other keys (winback, offers, referral): the same door, its own action
   const res = await fetch(SUPABASE_URL + '/rest/v1/bot_settings?on_conflict=chat_id,key', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -20977,6 +20981,89 @@ async function w1CuUndo() {
 w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'availability');
 </script>
 <!-- w1-menu-gate-alerts:js:end -->
+<!-- w1-settings-door:js:start -->
+<script>
+// Business settings writes: the sales settings (currency, reply delay, invoice logo and the other columns of seller_sales_config), the point-of-sale
+// settings (pos_settings), and the other assistant keys (winback, offers, referral) go through the Seller Bot Settings door (POST
+// /webhook/seller-bot-settings: setSalesConfig, setPosSetting, setBotKey, clearReferral) instead of writing straight to the tables with the public key.
+// The door finds the seller from the login, writes only the allowed columns and keys (never the invoice counter or the confirmation mode), keeps
+// an undo copy first, and answers a refusal in plain words. The 14 assistant keys keep their own door code (the w1-bot-settings-door block).
+// Door first; when it answers "not available" every control keeps its older direct write exactly as before. An Undo button follows a change.
+const W1_BS_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', saved: 'Setting saved.'
+};
+const W1_BS = { fallback: false, timer: null, undoId: '' };
+function w1BsNotAvailable() { const e = new Error(W1_BS_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1BsCall(action, extra) {
+  if (W1_BS.fallback) throw w1BsNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) throw new Error(W1_BS_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_BS_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1BsNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_BS_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1BsNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_BS_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_BS_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1BsTry(action, extra) {
+  if (W1_BS.fallback) return null;
+  try { const r = await w1BsCall(action, extra); w1BsOffer(r); return r; } catch (e) { if (e && e.w1NotAvailable) { W1_BS.fallback = true; return null; } throw e; }
+}
+// One column of seller_sales_config or pos_settings. Answers like a fetch answer; `direct()` is the older upsert.
+async function w1BsTable(table, column, value, direct) {
+  const action = table === 'seller_sales_config' ? 'setSalesConfig' : (table === 'pos_settings' ? 'setPosSetting' : '');
+  if (!action) return direct();
+  const r = await w1BsTry(action, { column: column, value: value });
+  if (r === null) return direct();
+  return { ok: true, status: 200, door: r };
+}
+function w1BsOffer(r) {
+  if (!r || !r.undoId || r.unchanged) return;
+  let bar = document.getElementById('w1-bs-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-bs-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-bs-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bs-undo-btn'; btn.textContent = W1_BS_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1BsUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-bs-note-msg').textContent = W1_BS_TEXT.saved;
+  document.getElementById('w1-bs-note-msg').style.color = '';
+  document.getElementById('w1-bs-undo-btn').style.display = '';
+  W1_BS.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_BS.timer);
+  W1_BS.timer = setTimeout(function() { bar.style.display = 'none'; W1_BS.undoId = ''; }, 10000);
+}
+async function w1BsUndo() {
+  const id = W1_BS.undoId; if (!id) return;
+  W1_BS.undoId = '';
+  document.getElementById('w1-bs-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-bs-note-msg');
+  try { await w1BsCall('undo', { undoId: id }); msg.textContent = W1_BS_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_BS_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_BS.timer);
+  W1_BS.timer = setTimeout(function() { document.getElementById('w1-bs-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadBizSettings === 'function') await loadBizSettings(); } catch (e) {}
+}
+</script>
+<!-- w1-settings-door:js:end -->
 <!-- w1-orders-door:js:start -->
 <script>
 // Order writes (orders, invoices, the Orders box, the shipping price card) go through the Seller Orders door (POST /webhook/seller-orders)

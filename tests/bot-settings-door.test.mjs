@@ -85,7 +85,7 @@ async function openBusiness(answer, calls, direct, token) {
       if (!a) {
         if (body.action === 'get') a = { json: { ok: true, action: 'get', settings: SETTINGS } };
         else if (body.action === 'set') a = { json: { ok: true, action: 'set', changed: true, key: body.key, before: '30', after: String(body.value) } };
-        else a = { json: { ok: false, error: 'bad_action', message: 'x' } };
+        else a = { status: 503, json: {} };   // the newer actions (setBotKey, setSalesConfig, ...) are not available in these tests: the older direct save runs, as these tests prove
       }
       return route.fulfill({ status: a.status || 200, contentType: 'application/json', headers: h, body: JSON.stringify(a.json || {}) });
     }
