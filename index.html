@@ -6239,6 +6239,81 @@ document.addEventListener('click', function(ev) {
   else if (el.dataset.tplDelete) tplDelete(el.dataset.tplDelete);
 });
 
+// <w4-media-door:js:start>
+// Media saving goes through the Seller Media door (POST /webhook/seller-media) with the person's own login instead of the public key:
+//   action 'mediaLinks'   (a read)  the media addresses of this seller's chats and calls
+//   action 'saveReceipts' (a write) the receipts of files that are safely on this device, deviceId and up to 100 paths per call
+// The seller is never sent: the login decides it. w4MediaPost answers one of three things:
+//   { fallback: true }                       the door could not take the call and did nothing (no login on this device, a refused connection or a
+//                                            network problem, 503/404/502, the door's own "not_available", or for a READ also a 429): the caller runs the older direct path.
+//   { ok: true, body }                       the door did it.
+//   { ok: false, code, message, relogin }    the door refused, or a WRITE got a 429. NEVER falls back (a login problem, a refusal, "slow down").
+// After a 429 or 503 on a read the door is left alone for 30 seconds (the older direct path is used meanwhile).
+const SELLER_MEDIA_URL = 'https://sparklly.site/webhook/seller-media';
+const W4_PAUSE_MS = 30000;
+const W4_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not save the change. Nothing was changed.',
+  slowDown: 'Please try again in a moment.'
+};
+let w4MediaPausedUntil = 0;
+async function w4MediaPost(action, isWrite, extra) {
+  if (Date.now() < w4MediaPausedUntil) return { fallback: true };
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { fallback: true };
+  let r;
+  try {
+    r = await fetch(SELLER_MEDIA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return { fallback: true }; }
+  if (r.status === 503) { w4MediaPausedUntil = Date.now() + W4_PAUSE_MS; return { fallback: true }; }
+  if (r.status === 429) {
+    if (isWrite) return { ok: false, code: 'rate_limited', message: W4_TEXT.slowDown };
+    w4MediaPausedUntil = Date.now() + W4_PAUSE_MS; return { fallback: true };
+  }
+  if (r.status === 404 || r.status === 502) return { fallback: true };
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { ok: true, body: j };
+  const code = j && (j.error || j.code);
+  if (code === 'not_available') return { fallback: true };
+  if (code === 'not_logged_in') return { ok: false, code: code, message: W4_TEXT.relogin, relogin: true };
+  return { ok: false, code: code || 'failed', message: (j && typeof j.message === 'string' && j.message) ? j.message : W4_TEXT.failed };
+}
+// Shapes the door accepts. A value outside them is not sent to the door at all: the older direct upsert takes it, exactly as before.
+function w4PathOk(p) { return typeof p === 'string' && p.length > 0 && p.length <= 500 && !/[\u0000-\u001f\u007f]/.test(p); }
+function w4DeviceOk(d) { return typeof d === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d); }
+// Older direct receipt upsert (the fallback). Answers true when the server accepted it.
+async function w4DirectReceipts(device, paths) {
+  const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(paths.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
+  });
+  return !!resp.ok;
+}
+// Stores the receipts of files that are safely on this device: the door in groups of up to 100, the older direct upsert when the door cannot take them.
+// Answers the paths that are now confirmed. A door refusal (or a 429) stops here with no direct write: those paths are tried again at the next round.
+async function w4SaveReceipts(device, paths) {
+  const saved = [];
+  let rest = paths.slice();
+  if (w4DeviceOk(device)) {
+    const viaDoor = rest.filter(w4PathOk);
+    const other = rest.filter(p => !w4PathOk(p));
+    rest = other;
+    for (let i = 0; i < viaDoor.length; i += 100) {
+      const chunk = viaDoor.slice(i, i + 100);
+      const r = await w4MediaPost('saveReceipts', true, { deviceId: device, paths: chunk });
+      if (r.fallback) { rest = viaDoor.slice(i).concat(other); break; }
+      if (!r.ok) { return saved; }
+      chunk.forEach(p => saved.push(p));
+    }
+  }
+  if (rest.length) { try { if (await w4DirectReceipts(device, rest)) rest.forEach(p => saved.push(p)); } catch (e) {} }
+  return saved;
+}
+// <w4-media-door:js:end>
+
 // ---- The phone keeps its own copy of photos, videos, voice notes and call audio (WhatsApp style) ----
 // Files are saved in the browser's media cache; the service worker plays them from there. After a file is
 // safely on this device, a "receipt" is stored on the server. A file may only ever be removed from the
@@ -6266,12 +6341,18 @@ window.saveMediaToDevice = async function() {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     const found = new Set();
     const grab = (text) => String(text || '').split(/[\s|,]+/).forEach(w => { if (w.startsWith('http') && w.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(w); });
-    const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
-    rows.forEach(r => grab(r.message));
-    try {
-      const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
-      calls.forEach(r => grab(r.audio_url));
-    } catch (e) {}
+    // Door first (the media addresses of this seller's chats and calls); the older two direct reads when the door cannot answer.
+    const door = await w4MediaPost('mediaLinks', false);
+    if (door.fallback) {
+      const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
+      rows.forEach(r => grab(r.message));
+      try {
+        const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
+        calls.forEach(r => grab(r.audio_url));
+      } catch (e) {}
+    } else if (door.ok && Array.isArray(door.body.urls)) {
+      door.body.urls.forEach(u => { if (typeof u === 'string' && u.startsWith('http') && u.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(u); });
+    } else { return; }   // the door refused (for example a login problem): skip this round, the next one tries again
     const cache = await caches.open(DEVICE_MEDIA_CACHE);
     const sent = new Set(JSON.parse(localStorage.getItem('sparkly_receipts_sent') || '[]'));
     let downloaded = 0;
@@ -6288,12 +6369,8 @@ window.saveMediaToDevice = async function() {
     }
     if (toConfirm.length) {
       const device = getDeviceId();
-      const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(toConfirm.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
-      });
-      if (resp.ok) { toConfirm.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
+      const saved = await w4SaveReceipts(device, toConfirm);
+      if (saved.length) { saved.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
     }
     if (window.refreshDeviceMediaInfo) window.refreshDeviceMediaInfo();
   } catch (e) {} finally { _deviceSaveBusy = false; }
