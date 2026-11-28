@@ -10095,12 +10095,44 @@ window.doLoginWithEmail = async function() {
   }
 };
 
+// <w3-admin-read-door:js:start>
+// The login's admin check reads the Seller Admin Reads door (POST /webhook/seller-admin-reads, action isAdmin, backend PR 321 NOTES.md) with the
+// person's own login token instead of reading admin_users with the public key. The door answers a plain yes or no for the person who is logged in.
+// w3AdminCheck answers one of four things:
+//   - true: the door says this login is an administrator (never trusted from anything but the door's own yes);
+//   - false: the door says no. CONTRACT MISMATCH, listed in the pull request: the door matches the admin list by email while the web app matches
+//     by auth_user_id (1-MAIN and T2 are settling which). Until that is settled, a "no" is confirmed by the older direct check, so a real
+//     administrator can never be turned into a seller by the door's way of matching (the caller does that check);
+//   - null: the door cannot be used (HTTP 429/503/404/502, not_available, a network problem, no token): the caller runs the older direct check;
+//   - throws: the door REFUSED (not_logged_in, read_failed, ...). That never falls back; the sign-in screen shows its usual "try again".
+const SELLER_ADMIN_READS_URL = 'https://sparklly.site/webhook/seller-admin-reads';
+let w3AdminPausedUntil = 0;
+async function w3AdminCheck(token) {
+  if (Date.now() < w3AdminPausedUntil || !token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_ADMIN_READS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, action: 'isAdmin' }) });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3AdminPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (!j || typeof j.ok !== 'boolean') return null;   // not an answer of this door at all: treated as "cannot answer", never as a refusal
+  if (j.ok === true && typeof j.admin === 'boolean') return j.admin;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  throw new Error('Admin check refused: ' + code);
+}
+// <w3-admin-read-door:js:end>
+
 // What happens after a successful sign-in (also used after a password reset): admin or seller, then the app.
 async function w1LoginAfterAuth(authData, email) {
     // Admin accounts are checked first and are completely separate from
     // seller accounts — an admin login has no chat_id/seller profile at all,
     // it goes straight to the platform-wide admin chat instead.
-    const adminRows = await fetch(SUPABASE_URL + '/rest/v1/admin_users?auth_user_id=eq.' + authData.user.id + '&select=id', {
+    // Seller Admin Reads door first. Only the door's "yes" is taken as it is; "no" or "cannot answer" run the older direct check (below).
+    const doorAdmin = await w3AdminCheck(authData.access_token);
+    const adminRows = doorAdmin === true ? [{}] : await fetch(SUPABASE_URL + '/rest/v1/admin_users?auth_user_id=eq.' + authData.user.id + '&select=id', {   // W3-FALLBACK-REMOVE
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
     }).then(r => r.json());
     if (adminRows && adminRows.length > 0) {
