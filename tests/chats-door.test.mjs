@@ -155,11 +155,11 @@ test('the door is not available (503 or not_available): every action keeps the o
   await na.page.close();
 });
 
-test('login problems: no token means no door call and no direct write (a sign-in message); a refusal never falls back to the direct path', { skip }, async () => {
+test('login problems: no login on this device means no door call and the older write runs (a device linked the older way); a refusal by the door never falls back', { skip }, async () => {
   const a = await open();
   await a.page.evaluate(() => { window.getValidAuthToken = async () => null; return updateClientStatusField('1', 'blocked', true); });
-  assert.equal(a.door.length, 0); assert.deepEqual(a.direct, []);
-  assert.deepEqual(await note(a.page), { text: 'Please sign out and sign in again, then try once more.', undo: false });
+  assert.equal(a.door.length, 0); assert.equal(a.direct.length, 1, 'the older direct write ran');
+  assert.equal(await note(a.page), null);
   await a.page.close();
   const b = await open({ door: () => ({ status: 200, json: { ok: false, error: 'not_logged_in', message: 'x' } }) });
   await b.page.evaluate(() => updateClientStatusField('1', 'blocked', true));
