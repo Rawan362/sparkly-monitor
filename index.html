@@ -5704,9 +5704,33 @@ async function sb(path) {
 // Central failure log — any part of the app (or n8n) writes here on error,
 // so every failure shows up in one place (Settings → Error Log) instead of
 // being silently swallowed or buried in a browser console nobody checks.
+// <w3-client-logs-door:js:start>
+// The two diagnostic inserts (system_errors from logSystemError, debug_log from the microphone note) go to the Seller Client Logs door
+// (POST /webhook/seller-client-logs, actions systemError and debugLog) first, instead of straight to the table with the public key.
+// The login token is OPTIONAL for this door: it is sent when the device has one (read from storage, no refresh and no side effect), and the
+// line is still saved without it, so a log line is never lost to a login problem. The seller is never sent.
+// w3ClientLog returns true when the door saved the line, false when the caller must use the older direct insert (404/502/503/429, a refused
+// call, a network problem). After a 429 or 503 the door is left alone for 30 seconds. Never throws.
+const SELLER_CLIENT_LOGS_URL = 'https://sparklly.site/webhook/seller-client-logs';
+let w3LogsPausedUntil = 0;
+async function w3ClientLog(action, fields) {
+  if (Date.now() < w3LogsPausedUntil) return false;
+  try {
+    const body = Object.assign({ action: action }, fields || {});
+    let token = null;
+    try { token = w1StoredLoginToken(); } catch (e) { token = null; }
+    if (token) body.token = token;
+    const r = await fetch(SELLER_CLIENT_LOGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3LogsPausedUntil = Date.now() + 30000; return false; }
+    const j = await r.json();
+    return !!(j && j.ok === true);
+  } catch (e) { return false; }
+}
+// <w3-client-logs-door:js:end>
 async function logSystemError(source, message, context) {
   debugLog(source + ': ' + message); // also keep in the local session log
-  try {
+  if (await w3ClientLog('systemError', { source: source, message: String(message).slice(0, 500), context: context || null })) return;
+  try {   // W3-FALLBACK-REMOVE: the older direct insert, used only when the door did not save the line
     await fetch(SUPABASE_URL + '/rest/v1/system_errors', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -9541,9 +9565,14 @@ window.toggleRecording = async function(phone) {
     // Technical note for troubleshooting voice notes: what this device's microphone really records.
     try {
       const ts = stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings ? stream.getAudioTracks()[0].getSettings() : {};
-      fetch(SUPABASE_URL + '/rest/v1/debug_log', { method: 'POST',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({ source: 'mic-settings', data: { channelCount: ts.channelCount, sampleRate: ts.sampleRate, echoCancellation: ts.echoCancellation, noiseSuppression: ts.noiseSuppression, ua: (navigator.userAgent || '').slice(0, 140) } }) }).catch(() => {});
+      const micNote = { channelCount: ts.channelCount, sampleRate: ts.sampleRate, echoCancellation: ts.echoCancellation, noiseSuppression: ts.noiseSuppression, ua: (navigator.userAgent || '').slice(0, 140) };
+      // Seller Client Logs door first; the older direct insert only when the door did not save the line (W3-FALLBACK-REMOVE).
+      w3ClientLog('debugLog', { source: 'mic-settings', data: micNote }).then(function(saved) {
+        if (saved) return;
+        fetch(SUPABASE_URL + '/rest/v1/debug_log', { method: 'POST',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ source: 'mic-settings', data: micNote }) }).catch(() => {});
+      }).catch(() => {});
     } catch (e) {}
 
     const candidates = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg'];
