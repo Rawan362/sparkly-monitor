@@ -5724,7 +5724,7 @@ let _callingBusy = false;
 // The seller on screen must always be the seller a send goes out as. The server decides the seller from the login
 // token, so a token left behind by another account (for example Khani's) would make a Double Line screen send as Khani.
 const AUTH_MISMATCH_MESSAGE = 'Your login does not match this account. Please sign in again.';
-const AUTH_STORAGE_KEYS = ['sparkly_auth_token', 'sparkly_refresh_token', 'sparkly_session_token', 'sparkly_seller_chat_id', 'sparkly_is_admin', 'sparkly_pending_link_code'];
+const AUTH_STORAGE_KEYS = ['sparkly_auth_token', 'sparkly_refresh_token', 'sparkly_session_token', 'sparkly_seller_chat_id', 'sparkly_is_admin', 'sparkly_pending_link_code', 'sparkly_session_linked'];
 
 // Removes every stored login token (and the remembered seller) from every place the app keeps them.
 function clearAllAuthStorage() {
@@ -10115,6 +10115,8 @@ window.logout = function() {
   if (token && authToken) {
     // Fire and forget; keepalive lets the request finish while the page reloads.
     w1SessionsPost(authToken, 'logout', { sessionToken: token }, true);
+  } else if (token) {
+    w4LinkedLogout(token);   // a device linked with a code: its own sign out (nothing happens unless it was registered)
   }
   clearAllAuthStorage();
   location.reload();
@@ -16521,6 +16523,7 @@ function resumeLinkCodeDisplay(code, expiresAt) {
         }
         localStorage.removeItem('sparkly_pending_link_code');
         applyLinkedSeller(rows[0].seller_id);
+        w4ClaimLinked(code);   // registers this device in the Devices list (not awaited: the sign-in never waits for it)
         document.getElementById('link-device-overlay').classList.remove('show');
         document.removeEventListener('keydown', loginKeyHandler);
         const loginOverlay = document.getElementById('login-overlay');
@@ -18443,11 +18446,74 @@ async function w1SessionsPost(token, action, extra, keepalive) {
 async function w1SessionsCall(action, extra) {
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) return { ok: false, error: 'no_login' };
+  if (!token) return w4LinkedCall(action, extra);   // a device linked with a code: its own three no-login actions (only when the device was registered)
   return w1SessionsPost(token, action, extra, false);
 }
 </script>
 <!-- w1-sessions-door:js:end -->
+<!-- w4-sessions-linked:js:start -->
+<script>
+// <w4-sessions-linked:js:start>
+// A device linked with a code has no login, so it never had a session row: it was missing from the Devices list and could not be signed out from
+// another device. The Seller Sessions door now has three actions that need no login (claimLinked, heartbeatLinked, logoutLinked; the door's own switch
+// SELLER_SESSIONS_LINKED_ON is OFF until Rawan turns it on, and then the door answers 503 and nothing happens, exactly as before).
+// There is no older direct path for sessions (the table is only reached through the door), so "fall back" means "do nothing, as before":
+// a 503, 404, 502, a refused connection, a network problem, or a 429 leaves the device working with no session row. A door refusal is never retried.
+// The three actions carry only the session token (and the code, once). The door answers nothing but ok, active and loggedOut.
+const W4_LINKED_FLAG = 'sparkly_session_linked';
+const W4_LINKED_PAUSE_MS = 30000;
+let w4LinkedPausedUntil = 0;
+// { fallback: true } the door could not take it; { ok: true, body } done; { ok: false, code } the door refused (or a 429: "rate_limited").
+async function w4LinkedPost(action, extra, keepalive) {
+  if (Date.now() < w4LinkedPausedUntil) return { fallback: true };
+  let r;
+  try {
+    r = await fetch(SELLER_SESSIONS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action: action }, extra || {})), keepalive: !!keepalive });
+  } catch (e) { return { fallback: true }; }
+  if (r.status === 503) { w4LinkedPausedUntil = Date.now() + W4_LINKED_PAUSE_MS; return { fallback: true }; }
+  if (r.status === 429) return { ok: false, code: 'rate_limited' };
+  if (r.status === 404 || r.status === 502) return { fallback: true };
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { ok: true, body: j };
+  const code = j && (j.error || j.code);
+  if (code === 'not_available' || code === 'not_ready') return { fallback: true };
+  return { ok: false, code: code || 'failed' };
+}
+// Called by w1SessionsCall when the device has no login. Answers like the door call of a logged-in device (ok, active) so the callers stay as they are.
+async function w4LinkedCall(action, extra) {
+  const none = { ok: false, error: 'no_login' };
+  let linked = null;
+  try { linked = localStorage.getItem(W4_LINKED_FLAG); } catch (e) { linked = null; }
+  const name = action === 'heartbeat' ? 'heartbeatLinked' : (action === 'logout' ? 'logoutLinked' : '');
+  if (linked !== '1' || !name || !extra || !extra.sessionToken) return none;
+  const r = await w4LinkedPost(name, { sessionToken: extra.sessionToken });
+  if (r.ok) return r.body;
+  return { ok: false, error: r.fallback ? 'not_available' : (r.code || 'failed') };
+}
+// The device's own sign out (a device linked with a code). Fire and forget; keepalive lets it finish while the page reloads.
+function w4LinkedLogout(sessionToken) {
+  let linked = null;
+  try { linked = localStorage.getItem(W4_LINKED_FLAG); } catch (e) { linked = null; }
+  if (linked !== '1' || !sessionToken) return;
+  w4LinkedPost('logoutLinked', { sessionToken: sessionToken }, true).catch(function() {});
+}
+// Once, right after the code was approved: registers this device for the seller the code names. Never blocks the sign-in and never throws.
+async function w4ClaimLinked(code) {
+  try {
+    if (!code) return;
+    let token = localStorage.getItem('sparkly_session_token');
+    if (!token) {
+      token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('sess-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem('sparkly_session_token', token);
+    }
+    const r = await w4LinkedPost('claimLinked', { code: code, sessionToken: token, deviceLabel: detectDeviceLabel() });
+    if (r.ok) { localStorage.setItem(W4_LINKED_FLAG, '1'); localStorage.setItem(W1_SESSW_FLAG, '1'); }
+  } catch (e) {}
+}
+// <w4-sessions-linked:js:end>
+</script>
+<!-- w4-sessions-linked:js:end -->
 <!-- w1-sessions-signout:js:start -->
 <script>
 // A device signed out from another device is logged out within a few seconds of its next action (build chat W1).
