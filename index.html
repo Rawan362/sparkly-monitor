@@ -12891,10 +12891,14 @@ async function loadAlerts() {
   try {
     // Overdue pending orders (2+ days) — mirrors the same threshold n8n uses
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    const overdueRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.PENDING&created_at=lte.' + twoDaysAgo + '&select=phone,product_name,order_total,created_at&limit=10', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    const overdue = await overdueRes.json() || [];
+    // Seller Debts Reads door first (W3-FALLBACK-REMOVE: the older direct read runs when the door cannot answer).
+    let overdue = await w3DebtsRead({ table: 'orders', select: ['phone', 'product_name', 'order_total', 'created_at'], filters: [{ column: 'order_status', op: 'eq', value: 'PENDING' }, { column: 'created_at', op: 'lte', value: twoDaysAgo }], limit: 10, allowCut: true });
+    if (overdue === null) {
+      const overdueRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.PENDING&created_at=lte.' + twoDaysAgo + '&select=phone,product_name,order_total,created_at&limit=10', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      overdue = await overdueRes.json() || [];
+    }
     if (overdue.length > 0) {
       const body = overdue.map(o => `• ${o.phone} — ${o.product_name || '—'} — ${(o.order_total || 0).toLocaleString()}`).join('\n');
       alerts.push({ title: `⚠️ Overdue Orders (${overdue.length})`, body, danger: true });
@@ -12904,10 +12908,13 @@ async function loadAlerts() {
   try {
     // Silent WARM customers (14+ days) — mirrors the same threshold n8n uses
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-    const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&list_status=eq.WARM&select=phone,name,total_orders&limit=10', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    const silent = await silentRes.json() || [];
+    let silent = await w3DebtsRead({ table: 'customers', select: ['phone', 'name', 'total_orders'], filters: [{ column: 'last_reply_date', op: 'lte', value: fourteenDaysAgo }, { column: 'list_status', op: 'eq', value: 'WARM' }], limit: 10, allowCut: true });
+    if (silent === null) {
+      const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&list_status=eq.WARM&select=phone,name,total_orders&limit=10', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      silent = await silentRes.json() || [];
+    }
     if (silent.length > 0) {
       const body = silent.map(c => `• ${c.phone}${c.name ? ' (' + c.name + ')' : ''} — ${c.total_orders || 0} previous orders`).join('\n');
       alerts.push({ title: `😴 Silent Customers (${silent.length})`, body });
@@ -12918,10 +12925,13 @@ async function loadAlerts() {
     // Cash not yet collected — only ever appears if this seller has actually
     // used mark_cod themselves; nothing auto-populates this anymore, so a
     // fully-prepaid business will never see this alert at all.
-    const codRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.DELIVERED&cod_collected=eq.false&select=phone,product_name,order_total&limit=10', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    const codPending = await codRes.json() || [];
+    let codPending = await w3DebtsRead({ table: 'orders', select: ['phone', 'product_name', 'order_total'], filters: [{ column: 'order_status', op: 'eq', value: 'DELIVERED' }, { column: 'cod_collected', op: 'is', value: false }], limit: 10, allowCut: true });
+    if (codPending === null) {
+      const codRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.DELIVERED&cod_collected=eq.false&select=phone,product_name,order_total&limit=10', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      codPending = await codRes.json() || [];
+    }
     if (codPending.length > 0) {
       const total = codPending.reduce((s, o) => s + (o.order_total || 0), 0);
       const body = `You have ${total.toLocaleString()} not yet collected:\n` + codPending.map(o => `• ${o.phone} — ${(o.order_total || 0).toLocaleString()}`).join('\n');
@@ -12931,10 +12941,13 @@ async function loadAlerts() {
 
   try {
     // Low stock — only for products that actually have stock tracking turned on
-    const stockRes = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&track_stock=eq.true&select=product_name,stock_quantity,low_stock_threshold', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    const tracked = await stockRes.json() || [];
+    let tracked = await w3DebtsRead({ table: 'seller_products', select: ['product_name', 'stock_quantity', 'low_stock_threshold'], filters: [{ column: 'is_active', op: 'is', value: true }, { column: 'track_stock', op: 'is', value: true }], limit: 2000 });
+    if (tracked === null) {
+      const stockRes = await fetch(SUPABASE_URL + '/rest/v1/seller_products?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_active=eq.true&track_stock=eq.true&select=product_name,stock_quantity,low_stock_threshold', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      tracked = await stockRes.json() || [];
+    }
     const low = tracked.filter(p => p.low_stock_threshold != null && p.stock_quantity != null && p.stock_quantity <= p.low_stock_threshold);
     if (low.length > 0) {
       const body = low.map(p => `• ${p.product_name}: ${p.stock_quantity} left (threshold ${p.low_stock_threshold})`).join('\n');
@@ -14697,6 +14710,48 @@ let cachedDebtors = [];
 let cachedDebtorNames = {};
 let debtsCurrencySymbol = '';
 
+// <w3-debts-reads-door:js:start>
+// The Debts screen reads orders and debt_payments through the Seller Debts Reads door (POST /webhook/seller-debts-reads, actions read and
+// batch) with the person's own login instead of reading the tables with the public key. The door finds the seller from the login and adds
+// the owner column itself, so no seller id is sent. A door answer that was cut at its limit (truncated) is NOT used, because a debt total
+// built from part of the orders would be wrong: the older direct read runs instead, as it does for any other case where the door cannot
+// answer (no login, 404/502/503/429, a refused call, a network problem). After a 429 or 503 the door is left alone for 30 seconds.
+const SELLER_DEBTS_READS_URL = 'https://sparklly.site/webhook/seller-debts-reads';
+let w3DebtsPausedUntil = 0;
+async function w3DebtsCall(body) {
+  if (Date.now() < w3DebtsPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_DEBTS_READS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token }, body)) });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3DebtsPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    return j && j.ok === true ? j : null;
+  } catch (e) { return null; }
+}
+const W3_DEBTS_LIMIT = 5000;   // the door's largest limit for orders and debt payments
+// A read that asks for a small limit on purpose (a "first 10" list) sets allowCut: true, because the door then reports truncated for any
+// table with more rows, which is expected. Every other cut answer is refused. allowCut is never sent to the door.
+const w3DebtsClean = function(r) { const c = Object.assign({}, r); delete c.allowCut; return c; };
+// One read: { table, select, filters, order, limit, allowCut }. Returns the rows, or null when the older direct read must run.
+async function w3DebtsRead(read) {
+  const j = await w3DebtsCall(Object.assign({ action: 'read', limit: W3_DEBTS_LIMIT }, w3DebtsClean(read)));
+  return j && Array.isArray(j.rows) && (!j.truncated || read.allowCut === true) ? j.rows : null;
+}
+// Several reads in one call. Returns one rows array per read, or null when any of them failed or was cut (then the direct reads run).
+async function w3DebtsBatch(reads) {
+  const j = await w3DebtsCall({ action: 'batch', reads: reads.map(function(r) { return Object.assign({ limit: W3_DEBTS_LIMIT }, w3DebtsClean(r)); }) });
+  if (!j || !Array.isArray(j.results) || j.results.length !== reads.length) return null;
+  const out = [];
+  for (let i = 0; i < j.results.length; i++) {
+    const x = j.results[i];
+    if (!x || x.ok !== true || !Array.isArray(x.rows) || (x.truncated && reads[i].allowCut !== true)) return null;
+    out.push(x.rows);
+  }
+  return out;
+}
+// <w3-debts-reads-door:js:end>
 async function loadDebts() {
   const listEl = document.getElementById('debts-list');
   const bannerEl = document.getElementById('debts-total-banner');
@@ -14711,10 +14766,14 @@ async function loadDebts() {
     // Every order ever placed for this seller — debt is simply what's left
     // unpaid (order_total minus amount_received), summed per customer.
     // Pure client-side aggregation since this is a REST endpoint, not SQL.
-    const ordersRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=neq.CANCELLED&select=phone,order_total,amount_received', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    const orders = await ordersRes.json() || [];
+    // Seller Debts Reads door first; the older direct read only when the door cannot answer (W3-FALLBACK-REMOVE).
+    let orders = await w3DebtsRead({ table: 'orders', select: ['phone', 'order_total', 'amount_received'], filters: [{ column: 'order_status', op: 'neq', value: 'CANCELLED' }] });
+    if (orders === null) {
+      const ordersRes = await fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=neq.CANCELLED&select=phone,order_total,amount_received', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      orders = await ordersRes.json() || [];
+    }
 
     const byPhone = {};
     orders.forEach(o => {
@@ -14744,10 +14803,15 @@ async function loadDebts() {
     // number for anyone who was never saved with a name.
     cachedDebtorNames = {};
     try {
-      const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name', {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-      });
-      (await custRes.json() || []).forEach(c => { cachedDebtorNames[c.phone] = c.name; });
+      // Seller Debts Reads door first (the door's largest customers limit is 2000; a cut answer is not used); direct read as the fallback.
+      let custRows = await w3DebtsRead({ table: 'customers', select: ['phone', 'name'], limit: 2000 });
+      if (custRows === null) {
+        const custRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=phone,name', {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        custRows = await custRes.json() || [];
+      }
+      custRows.forEach(c => { cachedDebtorNames[c.phone] = c.name; });
     } catch (e) { /* names are a nice-to-have, not essential */ }
 
     renderDebtsList(cachedDebtors);
@@ -14822,7 +14886,12 @@ async function renderDebtDetail() {
   const contentEl = document.getElementById('debt-detail-content');
 
   try {
-    const [ordersRes, paymentsRes] = await Promise.all([
+    // Seller Debts Reads door first (one batch call for both reads); the two older direct reads only when the door cannot answer (W3-FALLBACK-REMOVE).
+    const doorBoth = await w3DebtsBatch([
+      { table: 'orders', select: ['id', 'order_total', 'amount_received', 'created_at', 'product_name'], filters: [{ column: 'phone', op: 'eq', value: String(phone) }, { column: 'order_status', op: 'neq', value: 'CANCELLED' }], order: [{ column: 'created_at', dir: 'asc' }] },
+      { table: 'debt_payments', select: ['amount', 'payment_date'], filters: [{ column: 'phone', op: 'eq', value: String(phone) }], order: [{ column: 'payment_date', dir: 'desc' }] }
+    ]);
+    const [ordersRes, paymentsRes] = doorBoth || await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&phone=eq.' + encodeURIComponent(phone) + '&order_status=neq.CANCELLED&select=id,order_total,amount_received,created_at,product_name&order=created_at.asc', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
@@ -14952,7 +15021,13 @@ async function loadReports() {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [thisWeekRes, lastWeekRes, allTimeRes] = await Promise.all([
+    // Seller Debts Reads door first (one batch call for the three order reads); the three older direct reads only when the door cannot answer (W3-FALLBACK-REMOVE).
+    const doorReports = await w3DebtsBatch([
+      { table: 'orders', select: ['order_total', 'order_status', 'product_name', 'bump_accepted', 'bump_value', 'upsell_accepted', 'upsell_value'], filters: [{ column: 'created_at', op: 'gte', value: weekAgo }] },
+      { table: 'orders', select: ['order_total'], filters: [{ column: 'created_at', op: 'gte', value: twoWeeksAgo }, { column: 'created_at', op: 'lte', value: weekAgo }] },
+      { table: 'orders', select: ['order_total', 'order_status'] }
+    ]);
+    const [thisWeekRes, lastWeekRes, allTimeRes] = doorReports || await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + weekAgo + '&select=order_total,order_status,product_name,bump_accepted,bump_value,upsell_accepted,upsell_value', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       }).then(r => r.json()),
@@ -14988,10 +15063,14 @@ async function loadReports() {
     const avgOrder = allTime.length > 0 ? Math.round(allTimeRevenue / allTime.length) : 0;
 
     const fourteenDaysAgo = twoWeeksAgo;
-    const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&select=phone&limit=200', {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    const silentCount = ((await silentRes.json()) || []).length;
+    let silentRows = await w3DebtsRead({ table: 'customers', select: ['phone'], filters: [{ column: 'last_reply_date', op: 'lte', value: fourteenDaysAgo }], limit: 200, allowCut: true });
+    if (silentRows === null) {
+      const silentRes = await fetch(SUPABASE_URL + '/rest/v1/customers?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&last_reply_date=lte.' + fourteenDaysAgo + '&select=phone&limit=200', {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      silentRows = (await silentRes.json()) || [];
+    }
+    const silentCount = silentRows.length;
 
     contentEl.innerHTML = `
       <div class="report-section">
