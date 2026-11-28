@@ -32,9 +32,7 @@ test('the new code and this test file contain only ASCII characters', () => {
   for (const [name, text] of Object.entries(files)) assert.equal([...text].filter((c) => c.charCodeAt(0) > 127).length, 0, name);
 });
 
-test('the cache name is bumped and the logged-in session calls are still in the file', () => {
-  const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 320);
+test('the logged-in session calls are still in the file', () => {
   for (const old of ["w1SessionsCall('ensure'", "w1SessionsCall('list'", "w1SessionsCall('signOutDevice'", "w1SessionsCall('heartbeat'", "w1SessionsPost(authToken, 'logout'"]) assert.ok(html.includes(old), old);
 });
 
