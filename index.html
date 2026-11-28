@@ -7808,9 +7808,60 @@ window.cancelReplyMode = function() {
   if (bar) bar.classList.remove('show');
 };
 
+// <w4-marks-door:js:start>
+// The star and pin marks on chat messages go through the Seller Chats door (POST /webhook/seller-chats, actions toggleStar and togglePin) with the
+// person's own login instead of reading and writing the message row with the public key. The door finds the seller from the login and flips ONE
+// mark of ONE message of that seller: it answers the new state. The seller is never sent.
+// w4MarkToggle answers one of three things:
+//   { fallback: true }                     the door could not take it and did nothing (no login on this device, a refused connection or a network
+//                                          problem, 503/404/502, the door's "not_available", or a table or id the door would refuse): the older direct path runs.
+//   { ok: true, body }                     the door did it.
+//   { ok: false, code, message, relogin }  the door refused, or a 429 ("try again in a moment"). NEVER falls back: a write is never repeated by itself.
+// After a 503 the door is left alone for 30 seconds (the older direct path is used meanwhile).
+const W4_MARK_TABLES = ['conversations', 'seller_web_chat_log'];
+const W4_MARK_PAUSE_MS = 30000;
+const W4_MARK_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  slowDown: 'Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.'
+};
+let w4MarkPausedUntil = 0;
+async function w4MarkToggle(action, table, id) {
+  if (W4_MARK_TABLES.indexOf(table) < 0 || !/^[A-Za-z0-9-]{1,64}$/.test(String(id))) return { fallback: true };
+  if (Date.now() < w4MarkPausedUntil) return { fallback: true };
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { fallback: true };
+  let r;
+  try {
+    r = await fetch(SELLER_CHATS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, action: action, table: table, id: id }) });
+  } catch (e) { return { fallback: true }; }
+  if (r.status === 503) { w4MarkPausedUntil = Date.now() + W4_MARK_PAUSE_MS; return { fallback: true }; }
+  if (r.status === 429) return { ok: false, code: 'rate_limited', message: W4_MARK_TEXT.slowDown };
+  if (r.status === 404 || r.status === 502) return { fallback: true };
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { ok: true, body: j };
+  const code = j && (j.error || j.code);
+  if (code === 'not_available') return { fallback: true };
+  if (code === 'not_logged_in') return { ok: false, code: code, message: W4_MARK_TEXT.relogin, relogin: true };
+  return { ok: false, code: code || 'failed', message: (j && typeof j.message === 'string' && j.message) ? j.message : W4_MARK_TEXT.failed };
+}
+// After a refusal the person is told (a message that is simply gone, no_message, only reloads the chat). The chat is reloaded either way.
+function w4MarkRefused(r) { if (r.code !== 'no_message') alert(r.message); }
+// <w4-marks-door:js:end>
+
 window.toggleStarMessage = async function(id, table) {
   closeMessageActionMenu();
   try {
+    // Door first (Seller Chats: toggleStar); the older read and PATCH when the door cannot take it. A refusal is shown and never retried directly.
+    const w4r = await w4MarkToggle('toggleStar', table, id);
+    if (!w4r.fallback) {
+      if (!w4r.ok) w4MarkRefused(w4r);
+      if (ahmadChatOpen) renderAhmadChatPanel(true);
+      else if (activePhone) loadThread(activePhone, true);
+      return;
+    }
     const rows = await sb(table + '?id=eq.' + id + '&select=starred');
     const current = rows && rows[0] ? rows[0].starred : false;
     await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
@@ -7826,6 +7877,14 @@ window.toggleStarMessage = async function(id, table) {
 window.togglePinMessage = async function(id, table) {
   closeMessageActionMenu();
   try {
+    // Door first (Seller Chats: togglePin); the older read and PATCH when the door cannot take it. A refusal is shown and never retried directly.
+    const w4r = await w4MarkToggle('togglePin', table, id);
+    if (!w4r.fallback) {
+      if (!w4r.ok) w4MarkRefused(w4r);
+      if (ahmadChatOpen) renderAhmadChatPanel(true);
+      else if (activePhone) loadThread(activePhone, true);
+      return;
+    }
     const rows = await sb(table + '?id=eq.' + id + '&select=pinned');
     const current = rows && rows[0] ? rows[0].pinned : false;
     await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
