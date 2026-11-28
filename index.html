@@ -5051,7 +5051,7 @@
       </div>
       <div class="settings-row danger" onclick="confirmDeleteAccount()">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        <span id="settings-label-delete">Delete my account</span>
+        <span id="settings-label-delete">Delete my business data</span>
       </div>
       <!-- w1-delete-screen:row:start -->
       <div class="dx-zone">
@@ -5548,21 +5548,21 @@ const LANGUAGES = [
 ];
 
 const TRANSLATIONS = {
-  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my account', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages', devices:'Linked Devices', appearance:'Appearance', no_devices_found:'No devices found.', this_device:'This device', last_active:'Last active', sign_out_device_confirm:'Sign out this device? It will be logged out the next time it checks in.', link_new_device:'Link a New Device', link_sub:'Scan this on the new device, or enter the code manually', expires_in:'Expires in', link_instructions:'Open monitor.sparklly.site on the new device and tap "Link with a code" on the sign-in screen, or scan the QR code with its camera.', contact_info:'Contact info', mic_error:'Could not access microphone: ', send_failed:'Failed to send: ', device_linked_success:'New device linked successfully!', unknown_device:'Unknown device', link_code_prompt:'Enter the 6-character code shown on your other device:', cancel:'Cancel', link_with_code:'Link with a code', invalid_code:'That code is invalid.', code_used:'That code has already been used.', code_expired:'That code has expired.', link_failed:'Could not link this device: ', could_not_generate_code:'Could not generate a linking code. Try again.', file_too_large_title:'This file is too large to send.', file_too_large_max:'Max allowed size: 15 MB', file_too_large_yours:'Your file:', file_too_large_action:'Please choose a smaller file.' },
-  ar: { chats:'المحادثات', ai:'الذكاء الاصطناعي', settings:'الإعدادات', search_conversations:'بحث في المحادثات', no_conversations:'لا توجد محادثات بعد.', no_matches:'لا توجد نتائج.', select_conversation:'اختر محادثة لعرضها', sign_in_sub:'سجّل الدخول برقم البائع', seller_chat_id:'رقم البائع', password:'كلمة المرور', sign_in:'تسجيل الدخول', business:'العمل', account:'الحساب', talk_to_ai:'تحدث مع مساعدك الذكي', sign_out:'تسجيل الخروج', delete_account:'حذف حسابي', language:'اللغة', delete_confirm:'سيتم حذف حسابك وكل بياناتك نهائيًا — المنتجات، العملاء، الطلبات، وسجل المحادثات. لا يمكن التراجع عن هذا.\n\nاكتب DELETE للتأكيد:', clear_chat_confirm:'مسح هذه المحادثة؟ سيتم حذف سجل الرسائل نهائيًا.', pin:'تثبيت المحادثة', unpin:'إلغاء التثبيت', mute:'كتم الإشعارات', unmute:'إلغاء الكتم', favorite_add:'إضافة للمفضلة', favorite_remove:'إزالة من المفضلة', create_contact:'إنشاء جهة اتصال', archive:'أرشفة المحادثة', unarchive:'إلغاء الأرشفة', clear_chat:'مسح المحادثة', block:'حظر الرقم', unblock:'إلغاء الحظر', reply_placeholder:'اكتب ردًا يدويًا...', ai_reply_placeholder:'راسل أحمد عن عملك...', jump_to_latest:'الانتقال للأحدث', ai_paused:'الذكاء الاصطناعي متوقف لهذا العميل — أنت ترد يدويًا', turn_ai_on:'إعادة تشغيل الذكاء الاصطناعي', search_language:'ابحث عن لغة', devices:'الأجهزة المرتبطة', appearance:'المظهر', no_devices_found:'لا توجد أجهزة.', this_device:'هذا الجهاز', last_active:'آخر نشاط', sign_out_device_confirm:'تسجيل خروج هذا الجهاز؟ سيتم تسجيل خروجه في المرة القادمة التي يتصل فيها.', link_new_device:'ربط جهاز جديد', link_sub:'امسح هذا على الجهاز الجديد، أو أدخل الرمز يدويًا', expires_in:'تنتهي الصلاحية خلال', link_instructions:'افتح monitor.sparklly.site على الجهاز الجديد واضغط "ربط برمز" في شاشة تسجيل الدخول، أو امسح رمز QR بالكاميرا.', contact_info:'معلومات جهة الاتصال', mic_error:'تعذر الوصول إلى الميكروفون: ', send_failed:'فشل الإرسال: ', device_linked_success:'تم ربط الجهاز الجديد بنجاح!', unknown_device:'جهاز غير معروف', link_code_prompt:'أدخل الرمز المكون من 6 خانات الموجود على جهازك الآخر:', cancel:'إلغاء', link_with_code:'ربط برمز', invalid_code:'هذا الرمز غير صالح.', code_used:'تم استخدام هذا الرمز مسبقًا.', code_expired:'انتهت صلاحية هذا الرمز.', link_failed:'تعذر ربط هذا الجهاز: ', could_not_generate_code:'تعذر إنشاء رمز الربط. حاول مرة أخرى.', file_too_large_title:'هذا الملف كبير جدًا ولا يمكن إرساله.', file_too_large_max:'الحجم الأقصى المسموح: 15 ميجابايت', file_too_large_yours:'حجم ملفك:', file_too_large_action:'الرجاء اختيار ملف أصغر.' },
-  es: { chats:'Chats', ai:'IA', settings:'Configuración', search_conversations:'Buscar conversaciones', no_conversations:'Aún no hay conversaciones.', no_matches:'Sin resultados.', select_conversation:'Selecciona una conversación', sign_in_sub:'Inicia sesión con tu ID de vendedor', seller_chat_id:'ID de vendedor', password:'Contraseña', sign_in:'Iniciar sesión', business:'Negocio', account:'Cuenta', talk_to_ai:'Habla con tu asistente de IA', sign_out:'Cerrar sesión', delete_account:'Eliminar mi cuenta', language:'Idioma', delete_confirm:'Esto elimina permanentemente tu cuenta y TODOS los datos: productos, clientes, pedidos e historial. No se puede deshacer.\n\nEscribe DELETE para confirmar:', clear_chat_confirm:'¿Borrar este chat? Esto elimina permanentemente el historial de mensajes.', pin:'Fijar conversación', unpin:'Dejar de fijar', mute:'Silenciar notificaciones', unmute:'Activar notificaciones', favorite_add:'Añadir a favoritos', favorite_remove:'Quitar de favoritos', create_contact:'Crear nuevo contacto', archive:'Archivar chat', unarchive:'Desarchivar chat', clear_chat:'Borrar chat', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Escribe una respuesta...', ai_reply_placeholder:'Escribe a Ahmad sobre tu negocio...', jump_to_latest:'Ir al más reciente', ai_paused:'La IA está desactivada para este cliente — estás respondiendo manualmente', turn_ai_on:'Reactivar la IA', search_language:'Buscar idiomas' },
-  fr: { chats:'Discussions', ai:'IA', settings:'Paramètres', search_conversations:'Rechercher des discussions', no_conversations:'Aucune discussion pour le moment.', no_matches:'Aucun résultat.', select_conversation:'Sélectionnez une discussion', sign_in_sub:'Connectez-vous avec votre ID vendeur', seller_chat_id:'ID vendeur', password:'Mot de passe', sign_in:'Se connecter', business:'Entreprise', account:'Compte', talk_to_ai:'Parlez à votre assistant IA', sign_out:'Déconnexion', delete_account:'Supprimer mon compte', language:'Langue', delete_confirm:'Cela supprime définitivement votre compte et TOUTES les données — produits, clients, commandes et historique. Action irréversible.\n\nTapez DELETE pour confirmer :', clear_chat_confirm:'Effacer cette discussion ? Cela supprime définitivement l\u2019historique des messages.', pin:'Épingler la discussion', unpin:'Détacher', mute:'Couper les notifications', unmute:'Réactiver les notifications', favorite_add:'Ajouter aux favoris', favorite_remove:'Retirer des favoris', create_contact:'Créer un contact', archive:'Archiver la discussion', unarchive:'Désarchiver', clear_chat:'Effacer la discussion', block:'Bloquer le numéro', unblock:'Débloquer le numéro', reply_placeholder:'Écrire une réponse manuelle...', ai_reply_placeholder:'Écrire à Ahmad à propos de votre entreprise...', jump_to_latest:'Aller au plus récent', ai_paused:"L'IA est désactivée pour ce client — vous répondez manuellement", turn_ai_on:"Réactiver l'IA", search_language:'Rechercher une langue' },
-  tr: { chats:'Sohbetler', ai:'YZ', settings:'Ayarlar', search_conversations:'Sohbetlerde ara', no_conversations:'Henüz sohbet yok.', no_matches:'Sonuç yok.', select_conversation:'Görüntülemek için bir sohbet seçin', sign_in_sub:'Satıcı kimliğinizle giriş yapın', seller_chat_id:'Satıcı kimliği', password:'Şifre', sign_in:'Giriş yap', business:'İşletme', account:'Hesap', talk_to_ai:'Yapay zeka asistanınızla konuşun', sign_out:'Çıkış yap', delete_account:'Hesabımı sil', language:'Dil', delete_confirm:'Bu, hesabınızı ve TÜM verilerinizi kalıcı olarak siler — ürünler, müşteriler, siparişler ve sohbet geçmişi. Geri alınamaz.\n\nOnaylamak için DELETE yazın:', clear_chat_confirm:'Bu sohbet temizlensin mi? Mesaj geçmişi kalıcı olarak silinecek.', pin:'Sohbeti sabitle', unpin:'Sabitlemeyi kaldır', mute:'Bildirimleri sustur', unmute:'Bildirimleri aç', favorite_add:'Favorilere ekle', favorite_remove:'Favorilerden çıkar', create_contact:'Yeni kişi oluştur', archive:'Sohbeti arşivle', unarchive:'Arşivden çıkar', clear_chat:'Sohbeti temizle', block:'Numarayı engelle', unblock:'Engeli kaldır', reply_placeholder:'Manuel yanıt yazın...', ai_reply_placeholder:'İşletmeniz hakkında Ahmad\'a yazın...', jump_to_latest:'En yeniye git', ai_paused:'Bu müşteri için YZ kapalı — manuel yanıt veriyorsunuz', turn_ai_on:'YZ\'yi tekrar aç', search_language:'Dil ara' },
-  ur: { chats:'چیٹس', ai:'اے آئی', settings:'ترتیبات', search_conversations:'گفتگو تلاش کریں', no_conversations:'ابھی کوئی گفتگو نہیں۔', no_matches:'کوئی نتیجہ نہیں۔', select_conversation:'دیکھنے کے لیے گفتگو منتخب کریں', sign_in_sub:'اپنی سیلر چیٹ آئی ڈی سے سائن ان کریں', seller_chat_id:'سیلر چیٹ آئی ڈی', password:'پاس ورڈ', sign_in:'سائن ان', business:'کاروبار', account:'اکاؤنٹ', talk_to_ai:'اپنے اے آئی اسسٹنٹ سے بات کریں', sign_out:'سائن آؤٹ', delete_account:'میرا اکاؤنٹ حذف کریں', language:'زبان', delete_confirm:'یہ آپ کا اکاؤنٹ اور تمام ڈیٹا مستقل طور پر حذف کر دے گا — پروڈکٹس، کسٹمرز، آرڈرز اور گفتگو کی تاریخ۔ اسے واپس نہیں لایا جا سکتا۔\n\nتصدیق کے لیے DELETE لکھیں:', clear_chat_confirm:'یہ چیٹ صاف کریں؟ پیغامات کی تاریخ مستقل طور پر حذف ہو جائے گی۔', pin:'گفتگو پن کریں', unpin:'پن ہٹائیں', mute:'اطلاعات خاموش کریں', unmute:'اطلاعات آن کریں', favorite_add:'پسندیدہ میں شامل کریں', favorite_remove:'پسندیدہ سے ہٹائیں', create_contact:'نیا رابطہ بنائیں', archive:'چیٹ آرکائیو کریں', unarchive:'آرکائیو سے نکالیں', clear_chat:'چیٹ صاف کریں', block:'نمبر بلاک کریں', unblock:'بلاک ہٹائیں', reply_placeholder:'دستی جواب لکھیں...', ai_reply_placeholder:'اپنے کاروبار کے بارے میں احمد کو لکھیں...', jump_to_latest:'تازہ ترین پر جائیں', ai_paused:'اس کسٹمر کے لیے اے آئی بند ہے — آپ دستی جواب دے رہے ہیں', turn_ai_on:'اے آئی دوبارہ آن کریں', search_language:'زبان تلاش کریں' },
-  hi: { chats:'चैट्स', ai:'एआई', settings:'सेटिंग्स', search_conversations:'बातचीत खोजें', no_conversations:'अभी कोई बातचीत नहीं।', no_matches:'कोई परिणाम नहीं।', select_conversation:'देखने के लिए बातचीत चुनें', sign_in_sub:'अपनी विक्रेता चैट आईडी से साइन इन करें', seller_chat_id:'विक्रेता चैट आईडी', password:'पासवर्ड', sign_in:'साइन इन करें', business:'व्यवसाय', account:'खाता', talk_to_ai:'अपने एआई सहायक से बात करें', sign_out:'साइन आउट', delete_account:'मेरा खाता हटाएं', language:'भाषा', delete_confirm:'यह आपके खाते और सभी डेटा को स्थायी रूप से हटा देगा — उत्पाद, ग्राहक, ऑर्डर और चैट इतिहास। इसे पूर्ववत नहीं किया जा सकता।\n\nपुष्टि के लिए DELETE लिखें:', clear_chat_confirm:'यह चैट साफ़ करें? संदेश इतिहास स्थायी रूप से हटा दिया जाएगा।', pin:'बातचीत पिन करें', unpin:'अनपिन करें', mute:'सूचनाएं म्यूट करें', unmute:'सूचनाएं अनम्यूट करें', favorite_add:'पसंदीदा में जोड़ें', favorite_remove:'पसंदीदा से हटाएं', create_contact:'नया संपर्क बनाएं', archive:'चैट आर्काइव करें', unarchive:'आर्काइव से निकालें', clear_chat:'चैट साफ़ करें', block:'नंबर ब्लॉक करें', unblock:'अनब्लॉक करें', reply_placeholder:'मैन्युअल जवाब लिखें...', ai_reply_placeholder:'अपने व्यवसाय के बारे में अहमद को लिखें...', jump_to_latest:'नवीनतम पर जाएं', ai_paused:'इस ग्राहक के लिए एआई बंद है — आप मैन्युअल जवाब दे रहे हैं', turn_ai_on:'एआई फिर से चालू करें', search_language:'भाषा खोजें' },
-  zh: { chats:'聊天', ai:'AI', settings:'设置', search_conversations:'搜索对话', no_conversations:'暂无对话。', no_matches:'没有匹配结果。', select_conversation:'选择一个对话查看', sign_in_sub:'使用您的卖家聊天 ID 登录', seller_chat_id:'卖家聊天 ID', password:'密码', sign_in:'登录', business:'业务', account:'账户', talk_to_ai:'与您的 AI 助手对话', sign_out:'退出登录', delete_account:'删除我的账户', language:'语言', delete_confirm:'这将永久删除您的账户和所有数据——产品、客户、订单和对话记录。此操作无法撤销。\n\n输入 DELETE 确认：', clear_chat_confirm:'清除此对话？消息记录将被永久删除。', pin:'置顶对话', unpin:'取消置顶', mute:'静音通知', unmute:'取消静音', favorite_add:'添加到收藏', favorite_remove:'从收藏中移除', create_contact:'创建新联系人', archive:'归档对话', unarchive:'取消归档', clear_chat:'清除对话', block:'屏蔽号码', unblock:'取消屏蔽', reply_placeholder:'输入手动回复...', ai_reply_placeholder:'向 Ahmad 咨询您的业务...', jump_to_latest:'跳转到最新', ai_paused:'该客户的 AI 已关闭 — 您正在手动回复', turn_ai_on:'重新开启 AI', search_language:'搜索语言' },
-  pt: { chats:'Conversas', ai:'IA', settings:'Configurações', search_conversations:'Buscar conversas', no_conversations:'Ainda não há conversas.', no_matches:'Nenhum resultado.', select_conversation:'Selecione uma conversa', sign_in_sub:'Entre com seu ID de vendedor', seller_chat_id:'ID do vendedor', password:'Senha', sign_in:'Entrar', business:'Negócio', account:'Conta', talk_to_ai:'Fale com seu assistente de IA', sign_out:'Sair', delete_account:'Excluir minha conta', language:'Idioma', delete_confirm:'Isso excluirá permanentemente sua conta e TODOS os dados — produtos, clientes, pedidos e histórico. Não pode ser desfeito.\n\nDigite DELETE para confirmar:', clear_chat_confirm:'Limpar esta conversa? O histórico de mensagens será excluído permanentemente.', pin:'Fixar conversa', unpin:'Desafixar', mute:'Silenciar notificações', unmute:'Ativar notificações', favorite_add:'Adicionar aos favoritos', favorite_remove:'Remover dos favoritos', create_contact:'Criar novo contato', archive:'Arquivar conversa', unarchive:'Desarquivar', clear_chat:'Limpar conversa', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Digite uma resposta manual...', ai_reply_placeholder:'Escreva ao Ahmad sobre seu negócio...', jump_to_latest:'Ir para o mais recente', ai_paused:'A IA está desativada para este cliente — você está respondendo manualmente', turn_ai_on:'Reativar a IA', search_language:'Buscar idiomas' },
-  de: { chats:'Chats', ai:'KI', settings:'Einstellungen', search_conversations:'Unterhaltungen durchsuchen', no_conversations:'Noch keine Unterhaltungen.', no_matches:'Keine Treffer.', select_conversation:'Wähle eine Unterhaltung aus', sign_in_sub:'Melde dich mit deiner Verkäufer-ID an', seller_chat_id:'Verkäufer-ID', password:'Passwort', sign_in:'Anmelden', business:'Geschäft', account:'Konto', talk_to_ai:'Sprich mit deinem KI-Assistenten', sign_out:'Abmelden', delete_account:'Mein Konto löschen', language:'Sprache', delete_confirm:'Dies löscht dein Konto und ALLE Daten dauerhaft — Produkte, Kunden, Bestellungen und Chatverlauf. Kann nicht rückgängig gemacht werden.\n\nGib DELETE ein, um zu bestätigen:', clear_chat_confirm:'Diesen Chat löschen? Der Nachrichtenverlauf wird dauerhaft gelöscht.', pin:'Unterhaltung anheften', unpin:'Nicht mehr anheften', mute:'Benachrichtigungen stummschalten', unmute:'Benachrichtigungen aktivieren', favorite_add:'Zu Favoriten hinzufügen', favorite_remove:'Aus Favoriten entfernen', create_contact:'Neuen Kontakt erstellen', archive:'Chat archivieren', unarchive:'Archivierung aufheben', clear_chat:'Chat löschen', block:'Nummer blockieren', unblock:'Blockierung aufheben', reply_placeholder:'Manuelle Antwort schreiben...', ai_reply_placeholder:'Schreibe Ahmad über dein Geschäft...', jump_to_latest:'Zum Neuesten springen', ai_paused:'KI ist für diesen Kunden deaktiviert — du antwortest manuell', turn_ai_on:'KI wieder aktivieren', search_language:'Sprache suchen' },
-  ru: { chats:'Чаты', ai:'ИИ', settings:'Настройки', search_conversations:'Поиск чатов', no_conversations:'Пока нет чатов.', no_matches:'Ничего не найдено.', select_conversation:'Выберите чат для просмотра', sign_in_sub:'Войдите с вашим ID продавца', seller_chat_id:'ID продавца', password:'Пароль', sign_in:'Войти', business:'Бизнес', account:'Аккаунт', talk_to_ai:'Поговорите с вашим ИИ-ассистентом', sign_out:'Выйти', delete_account:'Удалить мой аккаунт', language:'Язык', delete_confirm:'Это навсегда удалит ваш аккаунт и ВСЕ данные — товары, клиентов, заказы и историю чатов. Отменить нельзя.\n\nВведите DELETE для подтверждения:', clear_chat_confirm:'Очистить этот чат? История сообщений будет удалена навсегда.', pin:'Закрепить чат', unpin:'Открепить', mute:'Отключить уведомления', unmute:'Включить уведомления', favorite_add:'Добавить в избранное', favorite_remove:'Убрать из избранного', create_contact:'Создать новый контакт', archive:'Архивировать чат', unarchive:'Разархивировать', clear_chat:'Очистить чат', block:'Заблокировать номер', unblock:'Разблокировать', reply_placeholder:'Введите ответ вручную...', ai_reply_placeholder:'Напишите Ахмаду о вашем бизнесе...', jump_to_latest:'К последнему сообщению', ai_paused:'ИИ отключен для этого клиента — вы отвечаете вручную', turn_ai_on:'Снова включить ИИ', search_language:'Поиск языка' },
-  id: { chats:'Obrolan', ai:'AI', settings:'Pengaturan', search_conversations:'Cari percakapan', no_conversations:'Belum ada percakapan.', no_matches:'Tidak ada hasil.', select_conversation:'Pilih percakapan untuk melihatnya', sign_in_sub:'Masuk dengan ID chat penjual Anda', seller_chat_id:'ID chat penjual', password:'Kata sandi', sign_in:'Masuk', business:'Bisnis', account:'Akun', talk_to_ai:'Bicara dengan asisten AI Anda', sign_out:'Keluar', delete_account:'Hapus akun saya', language:'Bahasa', delete_confirm:'Ini akan menghapus akun dan SEMUA data Anda secara permanen — produk, pelanggan, pesanan, dan riwayat obrolan. Tidak dapat dibatalkan.\n\nKetik DELETE untuk konfirmasi:', clear_chat_confirm:'Hapus obrolan ini? Riwayat pesan akan dihapus secara permanen.', pin:'Sematkan percakapan', unpin:'Lepas sematan', mute:'Bisukan notifikasi', unmute:'Aktifkan notifikasi', favorite_add:'Tambah ke favorit', favorite_remove:'Hapus dari favorit', create_contact:'Buat kontak baru', archive:'Arsipkan obrolan', unarchive:'Batalkan arsip', clear_chat:'Hapus obrolan', block:'Blokir nomor', unblock:'Buka blokir', reply_placeholder:'Ketik balasan manual...', ai_reply_placeholder:'Tulis ke Ahmad tentang bisnis Anda...', jump_to_latest:'Lompat ke terbaru', ai_paused:'AI dimatikan untuk pelanggan ini — Anda membalas secara manual', turn_ai_on:'Aktifkan AI kembali', search_language:'Cari bahasa' },
-  fa: { chats:'چت‌ها', ai:'هوش مصنوعی', settings:'تنظیمات', search_conversations:'جستجوی گفتگوها', no_conversations:'هنوز گفتگویی وجود ندارد.', no_matches:'نتیجه‌ای یافت نشد.', select_conversation:'گفتگویی را برای مشاهده انتخاب کنید', sign_in_sub:'با شناسه فروشنده خود وارد شوید', seller_chat_id:'شناسه فروشنده', password:'رمز عبور', sign_in:'ورود', business:'کسب‌وکار', account:'حساب کاربری', talk_to_ai:'با دستیار هوش مصنوعی خود صحبت کنید', sign_out:'خروج', delete_account:'حذف حساب من', language:'زبان', delete_confirm:'این کار حساب و تمام داده‌های شما را برای همیشه حذف می‌کند — محصولات، مشتریان، سفارش‌ها و تاریخچه گفتگو. غیرقابل بازگشت است.\n\nبرای تأیید DELETE را تایپ کنید:', clear_chat_confirm:'این گفتگو پاک شود؟ تاریخچه پیام‌ها برای همیشه حذف می‌شود.', pin:'سنجاق کردن گفتگو', unpin:'برداشتن سنجاق', mute:'بی‌صدا کردن اعلان‌ها', unmute:'فعال کردن اعلان‌ها', favorite_add:'افزودن به علاقه‌مندی‌ها', favorite_remove:'حذف از علاقه‌مندی‌ها', create_contact:'ایجاد مخاطب جدید', archive:'بایگانی گفتگو', unarchive:'خروج از بایگانی', clear_chat:'پاک کردن گفتگو', block:'مسدود کردن شماره', unblock:'رفع مسدودی', reply_placeholder:'پاسخ دستی بنویسید...', ai_reply_placeholder:'درباره کسب‌وکارتان به احمد بنویسید...', jump_to_latest:'رفتن به آخرین پیام', ai_paused:'هوش مصنوعی برای این مشتری خاموش است — شما دستی پاسخ می‌دهید', turn_ai_on:'روشن کردن دوباره هوش مصنوعی', search_language:'جستجوی زبان' },
-  sw: { chats:'Mazungumzo', ai:'AI', settings:'Mipangilio', search_conversations:'Tafuta mazungumzo', no_conversations:'Bado hakuna mazungumzo.', no_matches:'Hakuna matokeo.', select_conversation:'Chagua mazungumzo kuyaona', sign_in_sub:'Ingia kwa kitambulisho chako cha muuzaji', seller_chat_id:'Kitambulisho cha muuzaji', password:'Nenosiri', sign_in:'Ingia', business:'Biashara', account:'Akaunti', talk_to_ai:'Zungumza na msaidizi wako wa AI', sign_out:'Toka', delete_account:'Futa akaunti yangu', language:'Lugha', delete_confirm:'Hii itafuta kabisa akaunti yako na data YOTE — bidhaa, wateja, maagizo, na historia ya mazungumzo. Haiwezi kutenduliwa.\n\nAndika DELETE kuthibitisha:', clear_chat_confirm:'Futa mazungumzo haya? Historia ya ujumbe itafutwa kabisa.', pin:'Bandika mazungumzo', unpin:'Ondoa bandiko', mute:'Zima arifa', unmute:'Washa arifa', favorite_add:'Ongeza kwenye vipendwa', favorite_remove:'Ondoa kwenye vipendwa', create_contact:'Unda mawasiliano mapya', archive:'Hifadhi mazungumzo', unarchive:'Toa kwenye hifadhi', clear_chat:'Futa mazungumzo', block:'Zuia namba', unblock:'Ondoa kizuizi', reply_placeholder:'Andika jibu la mkono...', ai_reply_placeholder:'Mwandikie Ahmad kuhusu biashara yako...', jump_to_latest:'Nenda kwa mpya zaidi', ai_paused:'AI imezimwa kwa mteja huyu — unajibu kwa mkono', turn_ai_on:'Washa AI tena', search_language:'Tafuta lugha' },
-  bn: { chats:'চ্যাট', ai:'এআই', settings:'সেটিংস', search_conversations:'কথোপকথন খুঁজুন', no_conversations:'এখনো কোনো কথোপকথন নেই।', no_matches:'কোনো ফলাফল নেই।', select_conversation:'দেখতে একটি কথোপকথন নির্বাচন করুন', sign_in_sub:'আপনার বিক্রেতা চ্যাট আইডি দিয়ে সাইন ইন করুন', seller_chat_id:'বিক্রেতা চ্যাট আইডি', password:'পাসওয়ার্ড', sign_in:'সাইন ইন', business:'ব্যবসা', account:'অ্যাকাউন্ট', talk_to_ai:'আপনার এআই সহকারীর সাথে কথা বলুন', sign_out:'সাইন আউট', delete_account:'আমার অ্যাকাউন্ট মুছুন', language:'ভাষা', delete_confirm:'এটি আপনার অ্যাকাউন্ট এবং সমস্ত ডেটা স্থায়ীভাবে মুছে ফেলবে — পণ্য, গ্রাহক, অর্ডার এবং চ্যাট ইতিহাস। এটি পূর্বাবস্থায় ফেরানো যাবে না।\n\nনিশ্চিত করতে DELETE লিখুন:', clear_chat_confirm:'এই চ্যাট মুছবেন? বার্তার ইতিহাস স্থায়ীভাবে মুছে যাবে।', pin:'কথোপকথন পিন করুন', unpin:'আনপিন করুন', mute:'বিজ্ঞপ্তি মিউট করুন', unmute:'বিজ্ঞপ্তি আনমিউট করুন', favorite_add:'পছন্দে যোগ করুন', favorite_remove:'পছন্দ থেকে সরান', create_contact:'নতুন পরিচিতি তৈরি করুন', archive:'চ্যাট আর্কাইভ করুন', unarchive:'আর্কাইভ থেকে সরান', clear_chat:'চ্যাট মুছুন', block:'নম্বর ব্লক করুন', unblock:'আনব্লক করুন', reply_placeholder:'ম্যানুয়াল উত্তর লিখুন...', ai_reply_placeholder:'আপনার ব্যবসা সম্পর্কে আহমাদকে লিখুন...', jump_to_latest:'সর্বশেষে যান', ai_paused:'এই গ্রাহকের জন্য এআই বন্ধ — আপনি ম্যানুয়ালি উত্তর দিচ্ছেন', turn_ai_on:'এআই আবার চালু করুন', search_language:'ভাষা খুঁজুন' }
+  en: { chats:'Chats', ai:'AI', settings:'Settings', search_conversations:'Search conversations', no_conversations:'No conversations yet.', no_matches:'No matches.', select_conversation:'Select a conversation to view it', sign_in_sub:'Sign in with your seller chat ID', seller_chat_id:'Seller chat ID', password:'Password', sign_in:'Sign in', business:'Business', account:'Account', talk_to_ai:'Talk to your AI assistant', sign_out:'Sign out', delete_account:'Delete my business data', language:'Language', delete_confirm:'This permanently deletes your account and ALL data — products, customers, orders, and conversation history. This cannot be undone.\n\nType DELETE to confirm:', clear_chat_confirm:'Clear this chat? This permanently deletes the message history for this conversation.', pin:'Pin conversation', unpin:'Unpin conversation', mute:'Mute notifications', unmute:'Unmute notifications', favorite_add:'Add to favorites', favorite_remove:'Remove from favorites', create_contact:'Create new contact', archive:'Archive chat', unarchive:'Unarchive chat', clear_chat:'Clear chat', block:'Block number', unblock:'Unblock number', reply_placeholder:'Type a manual reply...', ai_reply_placeholder:'Message Ahmad about your business...', jump_to_latest:'Jump to latest', ai_paused:"AI is off for this customer — you're replying manually", turn_ai_on:'Turn AI back on', search_language:'Search languages', devices:'Linked Devices', appearance:'Appearance', no_devices_found:'No devices found.', this_device:'This device', last_active:'Last active', sign_out_device_confirm:'Sign out this device? It will be logged out the next time it checks in.', link_new_device:'Link a New Device', link_sub:'Scan this on the new device, or enter the code manually', expires_in:'Expires in', link_instructions:'Open monitor.sparklly.site on the new device and tap "Link with a code" on the sign-in screen, or scan the QR code with its camera.', contact_info:'Contact info', mic_error:'Could not access microphone: ', send_failed:'Failed to send: ', device_linked_success:'New device linked successfully!', unknown_device:'Unknown device', link_code_prompt:'Enter the 6-character code shown on your other device:', cancel:'Cancel', link_with_code:'Link with a code', invalid_code:'That code is invalid.', code_used:'That code has already been used.', code_expired:'That code has expired.', link_failed:'Could not link this device: ', could_not_generate_code:'Could not generate a linking code. Try again.', file_too_large_title:'This file is too large to send.', file_too_large_max:'Max allowed size: 15 MB', file_too_large_yours:'Your file:', file_too_large_action:'Please choose a smaller file.' },
+  ar: { chats:'المحادثات', ai:'الذكاء الاصطناعي', settings:'الإعدادات', search_conversations:'بحث في المحادثات', no_conversations:'لا توجد محادثات بعد.', no_matches:'لا توجد نتائج.', select_conversation:'اختر محادثة لعرضها', sign_in_sub:'سجّل الدخول برقم البائع', seller_chat_id:'رقم البائع', password:'كلمة المرور', sign_in:'تسجيل الدخول', business:'العمل', account:'الحساب', talk_to_ai:'تحدث مع مساعدك الذكي', sign_out:'تسجيل الخروج', delete_account:'\u062d\u0630\u0641 \u0628\u064a\u0627\u0646\u0627\u062a \u0639\u0645\u0644\u064a', language:'اللغة', delete_confirm:'سيتم حذف حسابك وكل بياناتك نهائيًا — المنتجات، العملاء، الطلبات، وسجل المحادثات. لا يمكن التراجع عن هذا.\n\nاكتب DELETE للتأكيد:', clear_chat_confirm:'مسح هذه المحادثة؟ سيتم حذف سجل الرسائل نهائيًا.', pin:'تثبيت المحادثة', unpin:'إلغاء التثبيت', mute:'كتم الإشعارات', unmute:'إلغاء الكتم', favorite_add:'إضافة للمفضلة', favorite_remove:'إزالة من المفضلة', create_contact:'إنشاء جهة اتصال', archive:'أرشفة المحادثة', unarchive:'إلغاء الأرشفة', clear_chat:'مسح المحادثة', block:'حظر الرقم', unblock:'إلغاء الحظر', reply_placeholder:'اكتب ردًا يدويًا...', ai_reply_placeholder:'راسل أحمد عن عملك...', jump_to_latest:'الانتقال للأحدث', ai_paused:'الذكاء الاصطناعي متوقف لهذا العميل — أنت ترد يدويًا', turn_ai_on:'إعادة تشغيل الذكاء الاصطناعي', search_language:'ابحث عن لغة', devices:'الأجهزة المرتبطة', appearance:'المظهر', no_devices_found:'لا توجد أجهزة.', this_device:'هذا الجهاز', last_active:'آخر نشاط', sign_out_device_confirm:'تسجيل خروج هذا الجهاز؟ سيتم تسجيل خروجه في المرة القادمة التي يتصل فيها.', link_new_device:'ربط جهاز جديد', link_sub:'امسح هذا على الجهاز الجديد، أو أدخل الرمز يدويًا', expires_in:'تنتهي الصلاحية خلال', link_instructions:'افتح monitor.sparklly.site على الجهاز الجديد واضغط "ربط برمز" في شاشة تسجيل الدخول، أو امسح رمز QR بالكاميرا.', contact_info:'معلومات جهة الاتصال', mic_error:'تعذر الوصول إلى الميكروفون: ', send_failed:'فشل الإرسال: ', device_linked_success:'تم ربط الجهاز الجديد بنجاح!', unknown_device:'جهاز غير معروف', link_code_prompt:'أدخل الرمز المكون من 6 خانات الموجود على جهازك الآخر:', cancel:'إلغاء', link_with_code:'ربط برمز', invalid_code:'هذا الرمز غير صالح.', code_used:'تم استخدام هذا الرمز مسبقًا.', code_expired:'انتهت صلاحية هذا الرمز.', link_failed:'تعذر ربط هذا الجهاز: ', could_not_generate_code:'تعذر إنشاء رمز الربط. حاول مرة أخرى.', file_too_large_title:'هذا الملف كبير جدًا ولا يمكن إرساله.', file_too_large_max:'الحجم الأقصى المسموح: 15 ميجابايت', file_too_large_yours:'حجم ملفك:', file_too_large_action:'الرجاء اختيار ملف أصغر.' },
+  es: { chats:'Chats', ai:'IA', settings:'Configuración', search_conversations:'Buscar conversaciones', no_conversations:'Aún no hay conversaciones.', no_matches:'Sin resultados.', select_conversation:'Selecciona una conversación', sign_in_sub:'Inicia sesión con tu ID de vendedor', seller_chat_id:'ID de vendedor', password:'Contraseña', sign_in:'Iniciar sesión', business:'Negocio', account:'Cuenta', talk_to_ai:'Habla con tu asistente de IA', sign_out:'Cerrar sesión', delete_account:'Eliminar los datos de mi negocio', language:'Idioma', delete_confirm:'Esto elimina permanentemente tu cuenta y TODOS los datos: productos, clientes, pedidos e historial. No se puede deshacer.\n\nEscribe DELETE para confirmar:', clear_chat_confirm:'¿Borrar este chat? Esto elimina permanentemente el historial de mensajes.', pin:'Fijar conversación', unpin:'Dejar de fijar', mute:'Silenciar notificaciones', unmute:'Activar notificaciones', favorite_add:'Añadir a favoritos', favorite_remove:'Quitar de favoritos', create_contact:'Crear nuevo contacto', archive:'Archivar chat', unarchive:'Desarchivar chat', clear_chat:'Borrar chat', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Escribe una respuesta...', ai_reply_placeholder:'Escribe a Ahmad sobre tu negocio...', jump_to_latest:'Ir al más reciente', ai_paused:'La IA está desactivada para este cliente — estás respondiendo manualmente', turn_ai_on:'Reactivar la IA', search_language:'Buscar idiomas' },
+  fr: { chats:'Discussions', ai:'IA', settings:'Paramètres', search_conversations:'Rechercher des discussions', no_conversations:'Aucune discussion pour le moment.', no_matches:'Aucun résultat.', select_conversation:'Sélectionnez une discussion', sign_in_sub:'Connectez-vous avec votre ID vendeur', seller_chat_id:'ID vendeur', password:'Mot de passe', sign_in:'Se connecter', business:'Entreprise', account:'Compte', talk_to_ai:'Parlez à votre assistant IA', sign_out:'Déconnexion', delete_account:'Supprimer les donn\u00e9es de mon entreprise', language:'Langue', delete_confirm:'Cela supprime définitivement votre compte et TOUTES les données — produits, clients, commandes et historique. Action irréversible.\n\nTapez DELETE pour confirmer :', clear_chat_confirm:'Effacer cette discussion ? Cela supprime définitivement l\u2019historique des messages.', pin:'Épingler la discussion', unpin:'Détacher', mute:'Couper les notifications', unmute:'Réactiver les notifications', favorite_add:'Ajouter aux favoris', favorite_remove:'Retirer des favoris', create_contact:'Créer un contact', archive:'Archiver la discussion', unarchive:'Désarchiver', clear_chat:'Effacer la discussion', block:'Bloquer le numéro', unblock:'Débloquer le numéro', reply_placeholder:'Écrire une réponse manuelle...', ai_reply_placeholder:'Écrire à Ahmad à propos de votre entreprise...', jump_to_latest:'Aller au plus récent', ai_paused:"L'IA est désactivée pour ce client — vous répondez manuellement", turn_ai_on:"Réactiver l'IA", search_language:'Rechercher une langue' },
+  tr: { chats:'Sohbetler', ai:'YZ', settings:'Ayarlar', search_conversations:'Sohbetlerde ara', no_conversations:'Henüz sohbet yok.', no_matches:'Sonuç yok.', select_conversation:'Görüntülemek için bir sohbet seçin', sign_in_sub:'Satıcı kimliğinizle giriş yapın', seller_chat_id:'Satıcı kimliği', password:'Şifre', sign_in:'Giriş yap', business:'İşletme', account:'Hesap', talk_to_ai:'Yapay zeka asistanınızla konuşun', sign_out:'Çıkış yap', delete_account:'\u0130\u015fletme verilerimi sil', language:'Dil', delete_confirm:'Bu, hesabınızı ve TÜM verilerinizi kalıcı olarak siler — ürünler, müşteriler, siparişler ve sohbet geçmişi. Geri alınamaz.\n\nOnaylamak için DELETE yazın:', clear_chat_confirm:'Bu sohbet temizlensin mi? Mesaj geçmişi kalıcı olarak silinecek.', pin:'Sohbeti sabitle', unpin:'Sabitlemeyi kaldır', mute:'Bildirimleri sustur', unmute:'Bildirimleri aç', favorite_add:'Favorilere ekle', favorite_remove:'Favorilerden çıkar', create_contact:'Yeni kişi oluştur', archive:'Sohbeti arşivle', unarchive:'Arşivden çıkar', clear_chat:'Sohbeti temizle', block:'Numarayı engelle', unblock:'Engeli kaldır', reply_placeholder:'Manuel yanıt yazın...', ai_reply_placeholder:'İşletmeniz hakkında Ahmad\'a yazın...', jump_to_latest:'En yeniye git', ai_paused:'Bu müşteri için YZ kapalı — manuel yanıt veriyorsunuz', turn_ai_on:'YZ\'yi tekrar aç', search_language:'Dil ara' },
+  ur: { chats:'چیٹس', ai:'اے آئی', settings:'ترتیبات', search_conversations:'گفتگو تلاش کریں', no_conversations:'ابھی کوئی گفتگو نہیں۔', no_matches:'کوئی نتیجہ نہیں۔', select_conversation:'دیکھنے کے لیے گفتگو منتخب کریں', sign_in_sub:'اپنی سیلر چیٹ آئی ڈی سے سائن ان کریں', seller_chat_id:'سیلر چیٹ آئی ڈی', password:'پاس ورڈ', sign_in:'سائن ان', business:'کاروبار', account:'اکاؤنٹ', talk_to_ai:'اپنے اے آئی اسسٹنٹ سے بات کریں', sign_out:'سائن آؤٹ', delete_account:'\u0645\u06cc\u0631\u06d2 \u06a9\u0627\u0631\u0648\u0628\u0627\u0631 \u06a9\u0627 \u0688\u06cc\u0679\u0627 \u062d\u0630\u0641 \u06a9\u0631\u06cc\u06ba', language:'زبان', delete_confirm:'یہ آپ کا اکاؤنٹ اور تمام ڈیٹا مستقل طور پر حذف کر دے گا — پروڈکٹس، کسٹمرز، آرڈرز اور گفتگو کی تاریخ۔ اسے واپس نہیں لایا جا سکتا۔\n\nتصدیق کے لیے DELETE لکھیں:', clear_chat_confirm:'یہ چیٹ صاف کریں؟ پیغامات کی تاریخ مستقل طور پر حذف ہو جائے گی۔', pin:'گفتگو پن کریں', unpin:'پن ہٹائیں', mute:'اطلاعات خاموش کریں', unmute:'اطلاعات آن کریں', favorite_add:'پسندیدہ میں شامل کریں', favorite_remove:'پسندیدہ سے ہٹائیں', create_contact:'نیا رابطہ بنائیں', archive:'چیٹ آرکائیو کریں', unarchive:'آرکائیو سے نکالیں', clear_chat:'چیٹ صاف کریں', block:'نمبر بلاک کریں', unblock:'بلاک ہٹائیں', reply_placeholder:'دستی جواب لکھیں...', ai_reply_placeholder:'اپنے کاروبار کے بارے میں احمد کو لکھیں...', jump_to_latest:'تازہ ترین پر جائیں', ai_paused:'اس کسٹمر کے لیے اے آئی بند ہے — آپ دستی جواب دے رہے ہیں', turn_ai_on:'اے آئی دوبارہ آن کریں', search_language:'زبان تلاش کریں' },
+  hi: { chats:'चैट्स', ai:'एआई', settings:'सेटिंग्स', search_conversations:'बातचीत खोजें', no_conversations:'अभी कोई बातचीत नहीं।', no_matches:'कोई परिणाम नहीं।', select_conversation:'देखने के लिए बातचीत चुनें', sign_in_sub:'अपनी विक्रेता चैट आईडी से साइन इन करें', seller_chat_id:'विक्रेता चैट आईडी', password:'पासवर्ड', sign_in:'साइन इन करें', business:'व्यवसाय', account:'खाता', talk_to_ai:'अपने एआई सहायक से बात करें', sign_out:'साइन आउट', delete_account:'\u092e\u0947\u0930\u0947 \u0935\u094d\u092f\u0935\u0938\u093e\u092f \u0915\u093e \u0921\u0947\u091f\u093e \u0939\u091f\u093e\u090f\u0902', language:'भाषा', delete_confirm:'यह आपके खाते और सभी डेटा को स्थायी रूप से हटा देगा — उत्पाद, ग्राहक, ऑर्डर और चैट इतिहास। इसे पूर्ववत नहीं किया जा सकता।\n\nपुष्टि के लिए DELETE लिखें:', clear_chat_confirm:'यह चैट साफ़ करें? संदेश इतिहास स्थायी रूप से हटा दिया जाएगा।', pin:'बातचीत पिन करें', unpin:'अनपिन करें', mute:'सूचनाएं म्यूट करें', unmute:'सूचनाएं अनम्यूट करें', favorite_add:'पसंदीदा में जोड़ें', favorite_remove:'पसंदीदा से हटाएं', create_contact:'नया संपर्क बनाएं', archive:'चैट आर्काइव करें', unarchive:'आर्काइव से निकालें', clear_chat:'चैट साफ़ करें', block:'नंबर ब्लॉक करें', unblock:'अनब्लॉक करें', reply_placeholder:'मैन्युअल जवाब लिखें...', ai_reply_placeholder:'अपने व्यवसाय के बारे में अहमद को लिखें...', jump_to_latest:'नवीनतम पर जाएं', ai_paused:'इस ग्राहक के लिए एआई बंद है — आप मैन्युअल जवाब दे रहे हैं', turn_ai_on:'एआई फिर से चालू करें', search_language:'भाषा खोजें' },
+  zh: { chats:'聊天', ai:'AI', settings:'设置', search_conversations:'搜索对话', no_conversations:'暂无对话。', no_matches:'没有匹配结果。', select_conversation:'选择一个对话查看', sign_in_sub:'使用您的卖家聊天 ID 登录', seller_chat_id:'卖家聊天 ID', password:'密码', sign_in:'登录', business:'业务', account:'账户', talk_to_ai:'与您的 AI 助手对话', sign_out:'退出登录', delete_account:'\u5220\u9664\u6211\u7684\u4e1a\u52a1\u6570\u636e', language:'语言', delete_confirm:'这将永久删除您的账户和所有数据——产品、客户、订单和对话记录。此操作无法撤销。\n\n输入 DELETE 确认：', clear_chat_confirm:'清除此对话？消息记录将被永久删除。', pin:'置顶对话', unpin:'取消置顶', mute:'静音通知', unmute:'取消静音', favorite_add:'添加到收藏', favorite_remove:'从收藏中移除', create_contact:'创建新联系人', archive:'归档对话', unarchive:'取消归档', clear_chat:'清除对话', block:'屏蔽号码', unblock:'取消屏蔽', reply_placeholder:'输入手动回复...', ai_reply_placeholder:'向 Ahmad 咨询您的业务...', jump_to_latest:'跳转到最新', ai_paused:'该客户的 AI 已关闭 — 您正在手动回复', turn_ai_on:'重新开启 AI', search_language:'搜索语言' },
+  pt: { chats:'Conversas', ai:'IA', settings:'Configurações', search_conversations:'Buscar conversas', no_conversations:'Ainda não há conversas.', no_matches:'Nenhum resultado.', select_conversation:'Selecione uma conversa', sign_in_sub:'Entre com seu ID de vendedor', seller_chat_id:'ID do vendedor', password:'Senha', sign_in:'Entrar', business:'Negócio', account:'Conta', talk_to_ai:'Fale com seu assistente de IA', sign_out:'Sair', delete_account:'Excluir os dados do meu neg\u00f3cio', language:'Idioma', delete_confirm:'Isso excluirá permanentemente sua conta e TODOS os dados — produtos, clientes, pedidos e histórico. Não pode ser desfeito.\n\nDigite DELETE para confirmar:', clear_chat_confirm:'Limpar esta conversa? O histórico de mensagens será excluído permanentemente.', pin:'Fixar conversa', unpin:'Desafixar', mute:'Silenciar notificações', unmute:'Ativar notificações', favorite_add:'Adicionar aos favoritos', favorite_remove:'Remover dos favoritos', create_contact:'Criar novo contato', archive:'Arquivar conversa', unarchive:'Desarquivar', clear_chat:'Limpar conversa', block:'Bloquear número', unblock:'Desbloquear número', reply_placeholder:'Digite uma resposta manual...', ai_reply_placeholder:'Escreva ao Ahmad sobre seu negócio...', jump_to_latest:'Ir para o mais recente', ai_paused:'A IA está desativada para este cliente — você está respondendo manualmente', turn_ai_on:'Reativar a IA', search_language:'Buscar idiomas' },
+  de: { chats:'Chats', ai:'KI', settings:'Einstellungen', search_conversations:'Unterhaltungen durchsuchen', no_conversations:'Noch keine Unterhaltungen.', no_matches:'Keine Treffer.', select_conversation:'Wähle eine Unterhaltung aus', sign_in_sub:'Melde dich mit deiner Verkäufer-ID an', seller_chat_id:'Verkäufer-ID', password:'Passwort', sign_in:'Anmelden', business:'Geschäft', account:'Konto', talk_to_ai:'Sprich mit deinem KI-Assistenten', sign_out:'Abmelden', delete_account:'Meine Gesch\u00e4ftsdaten l\u00f6schen', language:'Sprache', delete_confirm:'Dies löscht dein Konto und ALLE Daten dauerhaft — Produkte, Kunden, Bestellungen und Chatverlauf. Kann nicht rückgängig gemacht werden.\n\nGib DELETE ein, um zu bestätigen:', clear_chat_confirm:'Diesen Chat löschen? Der Nachrichtenverlauf wird dauerhaft gelöscht.', pin:'Unterhaltung anheften', unpin:'Nicht mehr anheften', mute:'Benachrichtigungen stummschalten', unmute:'Benachrichtigungen aktivieren', favorite_add:'Zu Favoriten hinzufügen', favorite_remove:'Aus Favoriten entfernen', create_contact:'Neuen Kontakt erstellen', archive:'Chat archivieren', unarchive:'Archivierung aufheben', clear_chat:'Chat löschen', block:'Nummer blockieren', unblock:'Blockierung aufheben', reply_placeholder:'Manuelle Antwort schreiben...', ai_reply_placeholder:'Schreibe Ahmad über dein Geschäft...', jump_to_latest:'Zum Neuesten springen', ai_paused:'KI ist für diesen Kunden deaktiviert — du antwortest manuell', turn_ai_on:'KI wieder aktivieren', search_language:'Sprache suchen' },
+  ru: { chats:'Чаты', ai:'ИИ', settings:'Настройки', search_conversations:'Поиск чатов', no_conversations:'Пока нет чатов.', no_matches:'Ничего не найдено.', select_conversation:'Выберите чат для просмотра', sign_in_sub:'Войдите с вашим ID продавца', seller_chat_id:'ID продавца', password:'Пароль', sign_in:'Войти', business:'Бизнес', account:'Аккаунт', talk_to_ai:'Поговорите с вашим ИИ-ассистентом', sign_out:'Выйти', delete_account:'\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435 \u043c\u043e\u0435\u0433\u043e \u0431\u0438\u0437\u043d\u0435\u0441\u0430', language:'Язык', delete_confirm:'Это навсегда удалит ваш аккаунт и ВСЕ данные — товары, клиентов, заказы и историю чатов. Отменить нельзя.\n\nВведите DELETE для подтверждения:', clear_chat_confirm:'Очистить этот чат? История сообщений будет удалена навсегда.', pin:'Закрепить чат', unpin:'Открепить', mute:'Отключить уведомления', unmute:'Включить уведомления', favorite_add:'Добавить в избранное', favorite_remove:'Убрать из избранного', create_contact:'Создать новый контакт', archive:'Архивировать чат', unarchive:'Разархивировать', clear_chat:'Очистить чат', block:'Заблокировать номер', unblock:'Разблокировать', reply_placeholder:'Введите ответ вручную...', ai_reply_placeholder:'Напишите Ахмаду о вашем бизнесе...', jump_to_latest:'К последнему сообщению', ai_paused:'ИИ отключен для этого клиента — вы отвечаете вручную', turn_ai_on:'Снова включить ИИ', search_language:'Поиск языка' },
+  id: { chats:'Obrolan', ai:'AI', settings:'Pengaturan', search_conversations:'Cari percakapan', no_conversations:'Belum ada percakapan.', no_matches:'Tidak ada hasil.', select_conversation:'Pilih percakapan untuk melihatnya', sign_in_sub:'Masuk dengan ID chat penjual Anda', seller_chat_id:'ID chat penjual', password:'Kata sandi', sign_in:'Masuk', business:'Bisnis', account:'Akun', talk_to_ai:'Bicara dengan asisten AI Anda', sign_out:'Keluar', delete_account:'Hapus data bisnis saya', language:'Bahasa', delete_confirm:'Ini akan menghapus akun dan SEMUA data Anda secara permanen — produk, pelanggan, pesanan, dan riwayat obrolan. Tidak dapat dibatalkan.\n\nKetik DELETE untuk konfirmasi:', clear_chat_confirm:'Hapus obrolan ini? Riwayat pesan akan dihapus secara permanen.', pin:'Sematkan percakapan', unpin:'Lepas sematan', mute:'Bisukan notifikasi', unmute:'Aktifkan notifikasi', favorite_add:'Tambah ke favorit', favorite_remove:'Hapus dari favorit', create_contact:'Buat kontak baru', archive:'Arsipkan obrolan', unarchive:'Batalkan arsip', clear_chat:'Hapus obrolan', block:'Blokir nomor', unblock:'Buka blokir', reply_placeholder:'Ketik balasan manual...', ai_reply_placeholder:'Tulis ke Ahmad tentang bisnis Anda...', jump_to_latest:'Lompat ke terbaru', ai_paused:'AI dimatikan untuk pelanggan ini — Anda membalas secara manual', turn_ai_on:'Aktifkan AI kembali', search_language:'Cari bahasa' },
+  fa: { chats:'چت‌ها', ai:'هوش مصنوعی', settings:'تنظیمات', search_conversations:'جستجوی گفتگوها', no_conversations:'هنوز گفتگویی وجود ندارد.', no_matches:'نتیجه‌ای یافت نشد.', select_conversation:'گفتگویی را برای مشاهده انتخاب کنید', sign_in_sub:'با شناسه فروشنده خود وارد شوید', seller_chat_id:'شناسه فروشنده', password:'رمز عبور', sign_in:'ورود', business:'کسب‌وکار', account:'حساب کاربری', talk_to_ai:'با دستیار هوش مصنوعی خود صحبت کنید', sign_out:'خروج', delete_account:'\u062d\u0630\u0641 \u062f\u0627\u062f\u0647\u200c\u0647\u0627\u06cc \u06a9\u0633\u0628\u200c\u0648\u06a9\u0627\u0631 \u0645\u0646', language:'زبان', delete_confirm:'این کار حساب و تمام داده‌های شما را برای همیشه حذف می‌کند — محصولات، مشتریان، سفارش‌ها و تاریخچه گفتگو. غیرقابل بازگشت است.\n\nبرای تأیید DELETE را تایپ کنید:', clear_chat_confirm:'این گفتگو پاک شود؟ تاریخچه پیام‌ها برای همیشه حذف می‌شود.', pin:'سنجاق کردن گفتگو', unpin:'برداشتن سنجاق', mute:'بی‌صدا کردن اعلان‌ها', unmute:'فعال کردن اعلان‌ها', favorite_add:'افزودن به علاقه‌مندی‌ها', favorite_remove:'حذف از علاقه‌مندی‌ها', create_contact:'ایجاد مخاطب جدید', archive:'بایگانی گفتگو', unarchive:'خروج از بایگانی', clear_chat:'پاک کردن گفتگو', block:'مسدود کردن شماره', unblock:'رفع مسدودی', reply_placeholder:'پاسخ دستی بنویسید...', ai_reply_placeholder:'درباره کسب‌وکارتان به احمد بنویسید...', jump_to_latest:'رفتن به آخرین پیام', ai_paused:'هوش مصنوعی برای این مشتری خاموش است — شما دستی پاسخ می‌دهید', turn_ai_on:'روشن کردن دوباره هوش مصنوعی', search_language:'جستجوی زبان' },
+  sw: { chats:'Mazungumzo', ai:'AI', settings:'Mipangilio', search_conversations:'Tafuta mazungumzo', no_conversations:'Bado hakuna mazungumzo.', no_matches:'Hakuna matokeo.', select_conversation:'Chagua mazungumzo kuyaona', sign_in_sub:'Ingia kwa kitambulisho chako cha muuzaji', seller_chat_id:'Kitambulisho cha muuzaji', password:'Nenosiri', sign_in:'Ingia', business:'Biashara', account:'Akaunti', talk_to_ai:'Zungumza na msaidizi wako wa AI', sign_out:'Toka', delete_account:'Futa data ya biashara yangu', language:'Lugha', delete_confirm:'Hii itafuta kabisa akaunti yako na data YOTE — bidhaa, wateja, maagizo, na historia ya mazungumzo. Haiwezi kutenduliwa.\n\nAndika DELETE kuthibitisha:', clear_chat_confirm:'Futa mazungumzo haya? Historia ya ujumbe itafutwa kabisa.', pin:'Bandika mazungumzo', unpin:'Ondoa bandiko', mute:'Zima arifa', unmute:'Washa arifa', favorite_add:'Ongeza kwenye vipendwa', favorite_remove:'Ondoa kwenye vipendwa', create_contact:'Unda mawasiliano mapya', archive:'Hifadhi mazungumzo', unarchive:'Toa kwenye hifadhi', clear_chat:'Futa mazungumzo', block:'Zuia namba', unblock:'Ondoa kizuizi', reply_placeholder:'Andika jibu la mkono...', ai_reply_placeholder:'Mwandikie Ahmad kuhusu biashara yako...', jump_to_latest:'Nenda kwa mpya zaidi', ai_paused:'AI imezimwa kwa mteja huyu — unajibu kwa mkono', turn_ai_on:'Washa AI tena', search_language:'Tafuta lugha' },
+  bn: { chats:'চ্যাট', ai:'এআই', settings:'সেটিংস', search_conversations:'কথোপকথন খুঁজুন', no_conversations:'এখনো কোনো কথোপকথন নেই।', no_matches:'কোনো ফলাফল নেই।', select_conversation:'দেখতে একটি কথোপকথন নির্বাচন করুন', sign_in_sub:'আপনার বিক্রেতা চ্যাট আইডি দিয়ে সাইন ইন করুন', seller_chat_id:'বিক্রেতা চ্যাট আইডি', password:'পাসওয়ার্ড', sign_in:'সাইন ইন', business:'ব্যবসা', account:'অ্যাকাউন্ট', talk_to_ai:'আপনার এআই সহকারীর সাথে কথা বলুন', sign_out:'সাইন আউট', delete_account:'\u0986\u09ae\u09be\u09b0 \u09ac\u09cd\u09af\u09ac\u09b8\u09be\u09b0 \u09a1\u09c7\u099f\u09be \u09ae\u09c1\u099b\u09c1\u09a8', language:'ভাষা', delete_confirm:'এটি আপনার অ্যাকাউন্ট এবং সমস্ত ডেটা স্থায়ীভাবে মুছে ফেলবে — পণ্য, গ্রাহক, অর্ডার এবং চ্যাট ইতিহাস। এটি পূর্বাবস্থায় ফেরানো যাবে না।\n\nনিশ্চিত করতে DELETE লিখুন:', clear_chat_confirm:'এই চ্যাট মুছবেন? বার্তার ইতিহাস স্থায়ীভাবে মুছে যাবে।', pin:'কথোপকথন পিন করুন', unpin:'আনপিন করুন', mute:'বিজ্ঞপ্তি মিউট করুন', unmute:'বিজ্ঞপ্তি আনমিউট করুন', favorite_add:'পছন্দে যোগ করুন', favorite_remove:'পছন্দ থেকে সরান', create_contact:'নতুন পরিচিতি তৈরি করুন', archive:'চ্যাট আর্কাইভ করুন', unarchive:'আর্কাইভ থেকে সরান', clear_chat:'চ্যাট মুছুন', block:'নম্বর ব্লক করুন', unblock:'আনব্লক করুন', reply_placeholder:'ম্যানুয়াল উত্তর লিখুন...', ai_reply_placeholder:'আপনার ব্যবসা সম্পর্কে আহমাদকে লিখুন...', jump_to_latest:'সর্বশেষে যান', ai_paused:'এই গ্রাহকের জন্য এআই বন্ধ — আপনি ম্যানুয়ালি উত্তর দিচ্ছেন', turn_ai_on:'এআই আবার চালু করুন', search_language:'ভাষা খুঁজুন' }
 };
 
 let currentLang = localStorage.getItem('sparkly_lang') || 'en';
@@ -6239,6 +6239,81 @@ document.addEventListener('click', function(ev) {
   else if (el.dataset.tplDelete) tplDelete(el.dataset.tplDelete);
 });
 
+// <w4-media-door:js:start>
+// Media saving goes through the Seller Media door (POST /webhook/seller-media) with the person's own login instead of the public key:
+//   action 'mediaLinks'   (a read)  the media addresses of this seller's chats and calls
+//   action 'saveReceipts' (a write) the receipts of files that are safely on this device, deviceId and up to 100 paths per call
+// The seller is never sent: the login decides it. w4MediaPost answers one of three things:
+//   { fallback: true }                       the door could not take the call and did nothing (no login on this device, a refused connection or a
+//                                            network problem, 503/404/502, the door's own "not_available", or for a READ also a 429): the caller runs the older direct path.
+//   { ok: true, body }                       the door did it.
+//   { ok: false, code, message, relogin }    the door refused, or a WRITE got a 429. NEVER falls back (a login problem, a refusal, "slow down").
+// After a 429 or 503 on a read the door is left alone for 30 seconds (the older direct path is used meanwhile).
+const SELLER_MEDIA_URL = 'https://sparklly.site/webhook/seller-media';
+const W4_PAUSE_MS = 30000;
+const W4_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not save the change. Nothing was changed.',
+  slowDown: 'Please try again in a moment.'
+};
+let w4MediaPausedUntil = 0;
+async function w4MediaPost(action, isWrite, extra) {
+  if (Date.now() < w4MediaPausedUntil) return { fallback: true };
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { fallback: true };
+  let r;
+  try {
+    r = await fetch(SELLER_MEDIA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return { fallback: true }; }
+  if (r.status === 503) { w4MediaPausedUntil = Date.now() + W4_PAUSE_MS; return { fallback: true }; }
+  if (r.status === 429) {
+    if (isWrite) return { ok: false, code: 'rate_limited', message: W4_TEXT.slowDown };
+    w4MediaPausedUntil = Date.now() + W4_PAUSE_MS; return { fallback: true };
+  }
+  if (r.status === 404 || r.status === 502) return { fallback: true };
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { ok: true, body: j };
+  const code = j && (j.error || j.code);
+  if (code === 'not_available') return { fallback: true };
+  if (code === 'not_logged_in') return { ok: false, code: code, message: W4_TEXT.relogin, relogin: true };
+  return { ok: false, code: code || 'failed', message: (j && typeof j.message === 'string' && j.message) ? j.message : W4_TEXT.failed };
+}
+// Shapes the door accepts. A value outside them is not sent to the door at all: the older direct upsert takes it, exactly as before.
+function w4PathOk(p) { return typeof p === 'string' && p.length > 0 && p.length <= 500 && !/[\u0000-\u001f\u007f]/.test(p); }
+function w4DeviceOk(d) { return typeof d === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d); }
+// Older direct receipt upsert (the fallback). Answers true when the server accepted it.
+async function w4DirectReceipts(device, paths) {
+  const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(paths.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
+  });
+  return !!resp.ok;
+}
+// Stores the receipts of files that are safely on this device: the door in groups of up to 100, the older direct upsert when the door cannot take them.
+// Answers the paths that are now confirmed. A door refusal (or a 429) stops here with no direct write: those paths are tried again at the next round.
+async function w4SaveReceipts(device, paths) {
+  const saved = [];
+  let rest = paths.slice();
+  if (w4DeviceOk(device)) {
+    const viaDoor = rest.filter(w4PathOk);
+    const other = rest.filter(p => !w4PathOk(p));
+    rest = other;
+    for (let i = 0; i < viaDoor.length; i += 100) {
+      const chunk = viaDoor.slice(i, i + 100);
+      const r = await w4MediaPost('saveReceipts', true, { deviceId: device, paths: chunk });
+      if (r.fallback) { rest = viaDoor.slice(i).concat(other); break; }
+      if (!r.ok) { return saved; }
+      chunk.forEach(p => saved.push(p));
+    }
+  }
+  if (rest.length) { try { if (await w4DirectReceipts(device, rest)) rest.forEach(p => saved.push(p)); } catch (e) {} }
+  return saved;
+}
+// <w4-media-door:js:end>
+
 // ---- The phone keeps its own copy of photos, videos, voice notes and call audio (WhatsApp style) ----
 // Files are saved in the browser's media cache; the service worker plays them from there. After a file is
 // safely on this device, a "receipt" is stored on the server. A file may only ever be removed from the
@@ -6266,12 +6341,18 @@ window.saveMediaToDevice = async function() {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     const found = new Set();
     const grab = (text) => String(text || '').split(/[\s|,]+/).forEach(w => { if (w.startsWith('http') && w.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(w); });
-    const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
-    rows.forEach(r => grab(r.message));
-    try {
-      const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
-      calls.forEach(r => grab(r.audio_url));
-    } catch (e) {}
+    // Door first (the media addresses of this seller's chats and calls); the older two direct reads when the door cannot answer.
+    const door = await w4MediaPost('mediaLinks', false);
+    if (door.fallback) {
+      const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
+      rows.forEach(r => grab(r.message));
+      try {
+        const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
+        calls.forEach(r => grab(r.audio_url));
+      } catch (e) {}
+    } else if (door.ok && Array.isArray(door.body.urls)) {
+      door.body.urls.forEach(u => { if (typeof u === 'string' && u.startsWith('http') && u.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(u); });
+    } else { return; }   // the door refused (for example a login problem): skip this round, the next one tries again
     const cache = await caches.open(DEVICE_MEDIA_CACHE);
     const sent = new Set(JSON.parse(localStorage.getItem('sparkly_receipts_sent') || '[]'));
     let downloaded = 0;
@@ -6288,12 +6369,8 @@ window.saveMediaToDevice = async function() {
     }
     if (toConfirm.length) {
       const device = getDeviceId();
-      const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(toConfirm.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
-      });
-      if (resp.ok) { toConfirm.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
+      const saved = await w4SaveReceipts(device, toConfirm);
+      if (saved.length) { saved.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
     }
     if (window.refreshDeviceMediaInfo) window.refreshDeviceMediaInfo();
   } catch (e) {} finally { _deviceSaveBusy = false; }
@@ -9260,11 +9337,58 @@ window.openAhmadChat = async function() {
   await renderAhmadChatPanel();
 };
 
+// <w3-business-read-door:js:start>
+// The Business chat (Sparkly Closer) and the Sparkly assistant chat read the Seller Business Read door (POST /webhook/seller-business-read,
+// actions conversations, messages, assistantLog, assistantOlder) with the person's own login, instead of reading business_chat_conversations,
+// business_chat_messages and seller_web_chat_log with the public key. w3BizRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 404/502/503/429, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, no_conversation, ...). That never falls back.
+const SELLER_BUSINESS_READ_URL = 'https://sparklly.site/webhook/seller-business-read';
+const W3_BIZ_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3BizPausedUntil = 0;
+async function w3BizRead(action, extra) {
+  if (Date.now() < w3BizPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_BUSINESS_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3BizPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read (the screen's own catch runs). A login problem also asks the person to sign in again.
+function w3BizRefusal(door) {
+  try { debugLog('business read door refused: ' + (door && door.code)); } catch (e) {}
+  if (door && door.code === 'not_logged_in') { try { alert(W3_BIZ_RELOGIN); } catch (e) {} }
+  const e = new Error('Business read refused: ' + (door && door.code));
+  e.w3Refused = true;
+  return e;
+}
+// <w3-business-read-door:js:end>
+
 async function renderAhmadChatPanel(silent) {
   debugLog('renderAhmadChatPanel called, silent=' + silent + ', SELLER_CHAT_ID=' + SELLER_CHAT_ID);
   let rows;
   try {
-    rows = await sb(
+    // Seller Business Read door first (action assistantLog: the newest 300, newest first). A refusal never falls back: a silent refresh keeps
+    // the screen as it is, a first draw ends like a failed read (below). Door cannot answer: the direct read, as before.
+    const doorA = await w3BizRead('assistantLog');
+    if (doorA && doorA.ok === false) { const refusal = w3BizRefusal(doorA); if (silent) return; throw refusal; }
+    rows = doorA && Array.isArray(doorA.rows) ? doorA.rows.slice() : await sb(   // W3-FALLBACK-REMOVE
       // Fetch the NEWEST 300 (descending + limit), not the oldest — with
       // ascending+limit, once total messages exceed 300, every message
       // after that point becomes permanently invisible no matter how many
@@ -9384,7 +9508,10 @@ window.loadOlderAhmadMessages = async function() {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    // Seller Business Read door first (action assistantOlder: the 100 rows before this time); a refusal never falls back.
+    const doorO = await w3BizRead('assistantOlder', { before: String(oldest) });
+    if (doorO && doorO.ok === false) throw w3BizRefusal(doorO);
+    const older = doorO && Array.isArray(doorO.rows) ? doorO.rows.slice() : await sb(   // W3-FALLBACK-REMOVE
       'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&created_at=lt.' + encodeURIComponent(oldest) +
       '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=100'
     );
@@ -10123,7 +10250,7 @@ async function w1LoginAfterAuth(authData, email) {
 // Upgrade flow for an old chat-ID account: the screens and the Seller Migrate door calls are in the w1-migrate-door block below.
 function showMigrateAccountScreen(step, errorMsg) { w1MigShow(step === 2 ? 2 : 1, errorMsg); }
 
-// "Delete my account" opens the Delete my business screen: a typed confirmation, a saved copy first, a waiting time, an undo window and a
+// The Settings row "Delete my business data" opens the Delete my business screen: a typed confirmation, a saved copy first, a waiting time, an undo window and a
 // count report, all through the Seller Delete Business door (with the person's login). The old one-step delete (a database function called
 // with the public key) is gone.
 window.confirmDeleteAccount = function() {
@@ -12546,6 +12673,45 @@ function openCallActionMenu(row, x, y) {
 }
 
 // The small window: the call's audio on top and, for "Transcript", what was said under it.
+// <w3-call-detail-door:js:start>
+// The call window reads ONE call from the Seller Call Detail door (POST /webhook/seller-call-detail, action call) with the person's own
+// login instead of reading call_recordings with the public key. The transcript is asked for only in the transcript view.
+// w3CallDetail returns { row } (the call, with its transcript in transcript mode), { noCall: true } when the door says the call is not this
+// seller's or does not exist, or null when the door cannot answer (no login, 404/502/503/429, a refused call, a network problem): the
+// caller then uses its older direct read. After a 429 or 503 the door is left alone for 30 seconds.
+const SELLER_CALL_DETAIL_URL = 'https://sparklly.site/webhook/seller-call-detail';
+let w3CallPausedUntil = 0;
+async function w3CallDetail(callId, mode) {
+  if (Date.now() < w3CallPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_CALL_DETAIL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, action: 'call', callId: String(callId), mode: mode === 'transcript' ? 'transcript' : 'audio' })
+    });
+  } catch (e) { return null; }   // a network problem: the older direct read runs
+  if (r.status === 429 || r.status === 503) w3CallPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true && j.call && typeof j.call === 'object') {
+    const row = Object.assign({}, j.call);
+    if (mode === 'transcript') row.transcript = j.transcript;
+    return { row: row };
+  }
+  // A REAL refusal (an object with ok false and an error word, except not_available) never falls back. no_call is the door saying there is
+  // no such call for this seller: the "not found" text. Any other answer is a contract mismatch or not_available: the older read runs.
+  if (!j || typeof j !== 'object' || Array.isArray(j) || j.ok !== false) return null;
+  const code = j.error || j.code;
+  if (typeof code !== 'string' || !code || code === 'not_available') return null;
+  if (code === 'no_call') return { noCall: true };
+  return { refused: true, code: code };
+}
+// <w3-call-detail-door:js:end>
 window.showCallWindow = async function(callId, mode) {
   closeVoiceTranscript();
   if (!callId) return;
@@ -12600,10 +12766,18 @@ window.showCallWindow = async function(callId, mode) {
 
   const fail = (text) => { players.textContent = ''; if (lines) { lines.textContent = text; lines.classList.add('empty'); } else { players.textContent = text; } };
   try {
-    const select = 'audio_url,duration_seconds,ended_at,phone_number,audio_deleted_at' + (mode === 'transcript' ? ',transcript' : '');
-    const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
+    // Seller Call Detail door first; the older direct read only when the door cannot answer (W3-FALLBACK-REMOVE).
+    const door = await w3CallDetail(callId, mode);
+    let r;
+    if (door && door.refused) throw new Error('Call detail door refused: ' + door.code);   // a real refusal never falls back: the existing "Could not load the call" text below
+    if (door && door.noCall) r = null;
+    else if (door && door.row) r = door.row;
+    else {
+      const select = 'audio_url,duration_seconds,ended_at,phone_number,audio_deleted_at' + (mode === 'transcript' ? ',transcript' : '');
+      const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
+      r = rows && rows[0];
+    }
     if (!document.body.contains(overlay)) return; // closed while it was loading
-    const r = rows && rows[0];
     if (!r) { fail(T('Recording not found.', 'التسجيل غير موجود.')); return; }
 
     const dur = formatCallDuration(r.duration_seconds);
@@ -13118,13 +13292,67 @@ function w1NoticeTap(n) {
 window.w1OpenChatsFromNotice = async function(id) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) { /* the list still opens */ }
   try { checkNotificationsDot(); } catch (e) { /* not important */ }
   closeNotificationsPanel();
   goToChats();
 };
 // w1-notice-types:js:end
+
+// <w3-inbox-read-door:js:start>
+// The notification list and the Inbox / AI agent cards read the Seller Inbox Read door (POST /webhook/seller-inbox-read, actions notifications,
+// notification, inboxList, question, chatNeeded, groups) with the person's own login, instead of reading seller_notifications, pending_questions
+// and customer_groups with the public key. w3InboxRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 404/502/503/429, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, no_notification, no_question, ...). That never falls back.
+const SELLER_INBOX_READ_URL = 'https://sparklly.site/webhook/seller-inbox-read';
+const W3_INBOX_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3InboxPausedUntil = 0;
+async function w3InboxRead(action, extra) {
+  if (Date.now() < w3InboxPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_INBOX_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3InboxPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read: the screen's own catch shows the words (the sign-in words for a login problem).
+function w3InboxRefusal(door) {
+  const e = new Error('Inbox read refused: ' + (door && door.code));
+  e.w3Refused = true;
+  e.w3Relogin = !!(door && door.code === 'not_logged_in');
+  return e;
+}
+// A refusal in a tap that has no screen text of its own: only a login problem is told to the person.
+function w3InboxRefusedNote(door) {
+  try { debugLog('inbox read door refused: ' + (door && door.code)); } catch (e) {}
+  if (door && door.code === 'not_logged_in') { try { alert(W3_INBOX_RELOGIN); } catch (e) {} }
+}
+// One card by its number: [card], or [] when the door says there is no such card or refuses; the direct read only when the door cannot answer.
+async function w3QuestionRows(qid) {
+  const door = await w3InboxRead('question', { id: qid });
+  if (door && door.ok === false) { if (door.code !== 'no_question') w3InboxRefusedNote(door); return []; }
+  if (door && door.question && typeof door.question === 'object') return [door.question];
+  return await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');   // W3-FALLBACK-REMOVE
+}
+// <w3-inbox-read-door:js:end>
 
 function formatNotificationTime(iso) {
   const d = new Date(iso);
@@ -13156,13 +13384,16 @@ async function loadNotifications() {
   const listEl = document.getElementById('notifications-list');
   listEl.innerHTML = '<div class="spinner"></div>';
   try {
-    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');
+    const doorN = await w3InboxRead('notifications');   // Seller Inbox Read door first
+    if (doorN && doorN.ok === false) throw w3InboxRefusal(doorN);
+    const rows = doorN && Array.isArray(doorN.notifications) ? doorN.notifications : await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');   // W3-FALLBACK-REMOVE
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="notifications-empty-msg">Nothing here yet — updates from your AI (daily summaries, ad performance, strategy suggestions) will show up here.</div>';
       return;
     }
     listEl.innerHTML = rows.map(renderNotificationItem).join('');
   } catch (e) {
+    if (e && e.w3Refused) { listEl.innerHTML = '<div id="notifications-empty-msg">' + (e.w3Relogin ? W3_INBOX_RELOGIN : 'Could not load notifications, please try again.') + '</div>'; return; }
     listEl.innerHTML = '<div id="notifications-empty-msg">Could not load notifications — please try again.</div>';
   }
 }
@@ -13227,14 +13458,14 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
 window.openQuestionFromNotification = async function(id, qid) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
   goToChats();
   await openSellerInboxFromChats();
   try {
-    const rows = await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');
+    const rows = await w3QuestionRows(qid);
     if (rows && rows[0] && (rows[0].status === 'pending' || rows[0].status === 'lesson')) openInboxDetail(rows[0]);
     else if (rows && rows[0]) alert('You already answered this one.');
   } catch (e) {}
@@ -13243,7 +13474,7 @@ window.openQuestionFromNotification = async function(id, qid) {
 window.openEscalationChat = async function(id, phone) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
@@ -13257,17 +13488,19 @@ window.openEscalationChat = async function(id, phone) {
  * instructions about it — a focused thread just about this one alert. */
 window.discussNotification = async function(id) {
   try {
-    const rows = await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');
+    const doorD = await w3InboxRead('notification', { id: id });   // Seller Inbox Read door first
+    if (doorD && doorD.ok === false) { if (doorD.code !== 'no_notification') w3InboxRefusedNote(doorD); return; }   // not found or refused: nothing, as today
+    const rows = doorD && doorD.notification && typeof doorD.notification === 'object' ? [doorD.notification] : await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');   // W3-FALLBACK-REMOVE
     const n = rows && rows[0];
     if (!n) return;
 
     if (!n.is_read) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+        await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
           method: 'PATCH',
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
           body: JSON.stringify({ is_read: true })
-        });
+        }); });
         checkNotificationsDot();
       } catch (e) {}
     }
@@ -13287,11 +13520,11 @@ window.discussNotification = async function(id) {
 
 window.toggleNotificationRead = async function(id, markAsRead) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+    await w1NfRun('setRead', { id: w1NfId(id), read: !!markAsRead }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: markAsRead })
-    });
+    }); });
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13299,11 +13532,11 @@ window.toggleNotificationRead = async function(id, markAsRead) {
 
 window.markAllNotificationsRead = async function() {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
+    await w1NfMarkAll(function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: true })
-    });
+    }); });
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13338,10 +13571,10 @@ function updateDeleteSelectedButtonState() {
 
 window.deleteOneNotification = async function(id) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+    await w1NfRun('deleteOne', { id: w1NfId(id) }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    }); }, 'Notification deleted.');
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13351,10 +13584,10 @@ window.deleteSelectedNotifications = async function() {
   const ids = Array.from(document.querySelectorAll('.notification-item-checkbox:checked')).map((cb) => cb.dataset.id);
   if (ids.length === 0) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
+    await w1NfRun('deleteSelected', { ids: ids.map(w1NfId) }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    }); }, 'Notifications deleted.');
     exitNotificationsSelectMode();
     await loadNotifications();
     await checkNotificationsDot();
@@ -13404,7 +13637,9 @@ async function loadInboxList() {
   const listEl = document.getElementById('inbox-list');
   listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');
+    const doorI = await w3InboxRead('inboxList');   // Seller Inbox Read door first
+    if (doorI && doorI.ok === false) throw w3InboxRefusal(doorI);
+    const rows = doorI && Array.isArray(doorI.questions) ? doorI.questions : await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');   // W3-FALLBACK-REMOVE
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="inbox-empty-msg">Nothing waiting — the AI hasn\'t needed to ask you anything.</div>';
       return;
@@ -13424,6 +13659,7 @@ async function loadInboxList() {
       listEl.appendChild(item);
     });
   } catch (e) {
+    if (e && e.w3Refused) { listEl.innerHTML = '<div id="inbox-empty-msg">' + (e.w3Relogin ? W3_INBOX_RELOGIN : 'Could not load the inbox, please try again.') + '</div>'; return; }
     listEl.innerHTML = '<div id="inbox-empty-msg">Could not load the inbox — please try again.</div>';
     debugLog('loadInboxList failed: ' + (e && e.message));
   }
@@ -13541,7 +13777,9 @@ window.agentSelectScope = function(btn) {
 let agentGroups = [];
 async function agentLoadGroups(selectId) {
   try {
-    const rows = await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');
+    const doorG = await w3InboxRead('groups');   // Seller Inbox Read door first; a refusal shows no groups (no fallback)
+    if (doorG && doorG.ok === false) w3InboxRefusedNote(doorG);
+    const rows = doorG ? (doorG.ok === true && Array.isArray(doorG.groups) ? doorG.groups : []) : await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');   // W3-FALLBACK-REMOVE
     agentGroups = Array.isArray(rows) ? rows : [];
   } catch (e) { agentGroups = []; }
   const sel = document.getElementById('inbox-agent-group-select');
@@ -13709,7 +13947,9 @@ window.submitLesson = async function() {
 // "needs you in the chat" case, ask the seller how it was solved (this customer only, or for everyone).
 async function startLessonIfNeeded(phone) {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');
+    const doorC = await w3InboxRead('chatNeeded', { phone: phone });   // Seller Inbox Read door first
+    if (doorC && doorC.ok === false) { try { debugLog('inbox read door refused: ' + doorC.code); } catch (e2) {} return; }   // a refusal never falls back
+    const rows = doorC && 'question' in doorC ? [doorC.question] : await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');   // W3-FALLBACK-REMOVE
     const q = rows && rows[0];
     if (!q) return;
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
@@ -13717,7 +13957,7 @@ async function startLessonIfNeeded(phone) {
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
-      const fresh = await sb('pending_questions?id=eq.' + q.id + '&select=*&limit=1');
+      const fresh = await w3QuestionRows(q.id);
       if (fresh && fresh[0]) openInboxDetail(fresh[0]);
     }
   } catch (e) {}
@@ -14205,7 +14445,9 @@ window.deleteBcConversationFromMenu = function() {
 async function loadBusinessChatConversationList() {
   const listEl = document.getElementById('bc-conv-list');
   try {
-    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');
+    const doorL = await w3BizRead('conversations');   // Seller Business Read door first; a refusal never falls back
+    if (doorL && doorL.ok === false) throw w3BizRefusal(doorL);
+    const rows = doorL && Array.isArray(doorL.conversations) ? doorL.conversations : await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');   // W3-FALLBACK-REMOVE
     listEl.innerHTML = '';
     (rows || []).forEach(conv => {
       const item = document.createElement('div');
@@ -14293,7 +14535,10 @@ window.openExistingBusinessConversation = async function(conversationId) {
   showBcEmptyState(false);
   messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');
+    // Seller Business Read door first. no_conversation is the empty chat (the empty state); any other refusal ends like a failed read.
+    const doorM = await w3BizRead('messages', { conversationId: String(conversationId) });
+    if (doorM && doorM.ok === false && doorM.code !== 'no_conversation') throw w3BizRefusal(doorM);
+    const rows = doorM ? (doorM.ok === true && Array.isArray(doorM.messages) ? doorM.messages : []) : await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');   // W3-FALLBACK-REMOVE
     messagesEl.innerHTML = '';
     bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
     if (!rows || rows.length === 0) {
@@ -18988,6 +19233,104 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-notifications-door:js:start -->
+<script>
+// The Notifications panel writes (mark read or unread, mark all read, delete one, delete selected, and the "open" buttons that mark a notice read)
+// go through the Seller Notifications door (POST /webhook/seller-notifications) instead of writing straight to the seller_notifications table with
+// the public key (the web app changed or deleted a notification by its id alone). The door finds the seller from the login, keeps an undo copy first
+// and answers a refusal in plain words. Door first. The older direct write runs when the door is down or not available (503, 404, 502,
+// "not available", or the connection fails; the door is then left alone for 30 seconds) or when this device has no login. A 429 shows "try again in a
+// moment" and is not sent the older way; a door refusal never falls back. An Undo button follows a delete and "mark all read".
+const SELLER_NOTIFICATIONS_URL = 'https://sparklly.site/webhook/seller-notifications';
+const W1_NF_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  busy: 'Too many tries. Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', allRead: 'All notifications marked as read.'
+};
+const W1_NF = { pausedUntil: 0, timer: null, undoIds: [] };
+const W1_NF_PAUSE_MS = 30000;
+function w1NfId(id) { const n = Number(id); return Number.isFinite(n) && String(n) === String(id) ? n : id; }
+// Door first: the answer, or null when the older direct path must run. Throws an Error with plain words for a refusal and a 429.
+async function w1NfTry(action, extra) {
+  if (Date.now() < W1_NF.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_NOTIFICATIONS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+  if (r.status === 429) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; throw new Error(W1_NF_TEXT.busy); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_NF_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+    throw new Error(code === 'not_logged_in' ? W1_NF_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_NF_TEXT.failed));
+  }
+  return j;
+}
+// A quiet mark-read before a button navigates: a problem never stops the navigation.
+async function w1NfQuietRead(id, direct) {
+  try { const r = await w1NfTry('setRead', { id: w1NfId(id), read: true }); if (r === null) return direct(); return r; } catch (e) { return null; }
+}
+// One write: the door, or `direct()` when the older path must run. A refusal shows a short note and stops the screen's own reload.
+async function w1NfRun(action, extra, direct, offerText) {
+  let r;
+  try { r = await w1NfTry(action, extra); } catch (e) { w1NfNote(e && e.message ? e.message : W1_NF_TEXT.failed, true); throw e; }
+  if (r === null) return direct();
+  if (offerText && r.undoId && !r.unchanged) w1NfNote(offerText, false, [r.undoId]);
+  return r;
+}
+// Mark all read: the door answers at most 1000 per call and says `more: true` when the screen should call again.
+async function w1NfMarkAll(direct) {
+  const ids = [];
+  for (let i = 0; i < 20; i++) {
+    let r;
+    try { r = await w1NfTry('markAllRead', {}); } catch (e) { w1NfNote(e && e.message ? e.message : W1_NF_TEXT.failed, true); throw e; }
+    if (r === null) return i === 0 ? direct() : undefined;
+    if (r.undoId && !r.unchanged) ids.push(r.undoId);
+    if (r.more !== true) break;
+  }
+  if (ids.length) w1NfNote(W1_NF_TEXT.allRead, false, ids);
+}
+function w1NfNote(text, isError, undoIds) {
+  let bar = document.getElementById('w1-nf-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-nf-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-nf-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-nf-undo-btn'; btn.textContent = W1_NF_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1NfUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-nf-note-msg').textContent = text;
+  document.getElementById('w1-nf-note-msg').style.color = isError ? 'var(--danger)' : '';
+  W1_NF.undoIds = undoIds || [];
+  document.getElementById('w1-nf-undo-btn').style.display = W1_NF.undoIds.length ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W1_NF.timer);
+  W1_NF.timer = setTimeout(function() { bar.style.display = 'none'; W1_NF.undoIds = []; }, isError ? 6000 : 10000);
+}
+async function w1NfUndo() {
+  const ids = W1_NF.undoIds.slice().reverse(); if (!ids.length) return;
+  W1_NF.undoIds = [];
+  document.getElementById('w1-nf-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-nf-note-msg');
+  try {
+    for (const id of ids) { const r = await w1NfTry('undo', { undoId: id }); if (r === null) throw new Error(W1_NF_TEXT.failed); }
+    msg.textContent = W1_NF_TEXT.undone; msg.style.color = '';
+  } catch (e) { msg.textContent = e && e.message ? e.message : W1_NF_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_NF.timer);
+  W1_NF.timer = setTimeout(function() { document.getElementById('w1-nf-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadNotifications === 'function') await loadNotifications(); } catch (e) {}
+  try { if (typeof checkNotificationsDot === 'function') await checkNotificationsDot(); } catch (e) {}
+}
+</script>
+<!-- w1-notifications-door:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
