@@ -13631,7 +13631,7 @@ window.inboxDismissAlert = async function() {
   if (!q) return;
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    const r = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: '(seen)' }) });
+    const r = await w1IcRun('dismissAlert', { id: q.id }, function() { return fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: '(seen)' }) }); }, 'Card closed.');
     if (!r.ok) throw new Error('Could not update (' + r.status + ')');
     closeInboxDetail();
     await loadInboxList();
@@ -13664,6 +13664,10 @@ window.submitLesson = async function() {
   const btn = document.getElementById('inbox-lesson-save-btn');
   btn.disabled = true;
   try {
+    // The Seller Inbox Cards door first (the learned answer and the card in one call, all or nothing); the older two writes run when it is not available.
+    const w1Lesson = await w1IcTry('submitLesson', { id: q.id, answer: lessonScope === 'all_customers' ? text : '(solved in the chat)', scope: lessonScope, summary: q.question, department: q.department || 'manager' });
+    if (w1Lesson !== null) { w1IcOffer(w1Lesson, 'Lesson saved.'); }
+    else {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
     if (lessonScope === 'all_customers') {
       const r1 = await fetch(SUPABASE_URL + '/rest/v1/seller_learned_answers', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, question_summary: q.question, answer: text, scope: 'all_customers', department: q.department || 'manager' }) });
@@ -13671,6 +13675,7 @@ window.submitLesson = async function() {
     }
     const r2 = await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'answered', answer: lessonScope === 'all_customers' ? text : '(solved in the chat)', answer_scope: lessonScope }) });
     if (!r2.ok) throw new Error('Could not update (' + r2.status + ')');
+    }
     alert(lessonScope === 'all_customers' ? 'Saved. When a customer has a problem like this, the AI will handle it by itself like this:\n\n' + text : 'Okay. This stays only with this customer; the AI will not use it for others.');
     closeInboxDetail();
     await loadInboxList();
@@ -13690,7 +13695,7 @@ async function startLessonIfNeeded(phone) {
     const q = rows && rows[0];
     if (!q) return;
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lesson' }) });
+    if ((await w1IcTry('startLesson', { phone: phone })) === null) await fetch(SUPABASE_URL + '/rest/v1/pending_questions?id=eq.' + q.id, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lesson' }) });
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
@@ -18901,6 +18906,114 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-inbox-door:js:start -->
+<script>
+// The Inbox card writes (the "Good" / "Adjust" choice of an agent card with its rule choices, "Got it" on an alert, the lesson form, and starting a
+// lesson when the AI is turned back on) go through the Seller Inbox Cards door (POST /webhook/seller-inbox-cards) instead of writing straight to
+// pending_questions, rule_resolutions and seller_learned_answers with the public key (a card was changed by its id alone). The door finds the seller
+// from the login, saves the rules or the learned answer together with the card (all or nothing), keeps an undo copy first and refuses a card that is
+// already answered. Door first. The older direct writes run when the door is down or not available (503, 404, 502, "not available", or the connection
+// fails; the door is then left alone for 30 seconds) or when this device has no login. A 429 shows "try again in a moment" and is not sent the older
+// way; a door refusal never falls back. An Undo button follows a saved card.
+const SELLER_INBOX_CARDS_URL = 'https://sparklly.site/webhook/seller-inbox-cards';
+const W1_IC_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  busy: 'Too many tries. Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.'
+};
+const W1_IC = { pausedUntil: 0, timer: null, undoId: '', stash: null };
+const W1_IC_PAUSE_MS = 30000;
+async function w1IcTry(action, extra) {
+  if (Date.now() < W1_IC.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_INBOX_CARDS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_IC.pausedUntil = Date.now() + W1_IC_PAUSE_MS; return null; }
+  if (r.status === 429) { W1_IC.pausedUntil = Date.now() + W1_IC_PAUSE_MS; throw new Error(W1_IC_TEXT.busy); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { W1_IC.pausedUntil = Date.now() + W1_IC_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_IC_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') { W1_IC.pausedUntil = Date.now() + W1_IC_PAUSE_MS; return null; }
+    throw new Error(code === 'not_logged_in' ? W1_IC_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_IC_TEXT.failed));
+  }
+  return j;
+}
+// One card write that the screen treats like a fetch answer (ok, status). `direct()` is the older request.
+async function w1IcRun(action, extra, direct, offerText) {
+  const r = await w1IcTry(action, extra);
+  if (r === null) return direct();
+  w1IcOffer(r, offerText);
+  return { ok: true, status: 200, door: r };
+}
+function w1IcOffer(r, text) {
+  if (!r || !r.undoId || r.unchanged) return;
+  let bar = document.getElementById('w1-ic-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-ic-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-ic-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-ic-undo-btn'; btn.textContent = W1_IC_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1IcUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-ic-note-msg').textContent = text || 'Saved.';
+  document.getElementById('w1-ic-note-msg').style.color = '';
+  document.getElementById('w1-ic-undo-btn').style.display = '';
+  W1_IC.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_IC.timer);
+  W1_IC.timer = setTimeout(function() { bar.style.display = 'none'; W1_IC.undoId = ''; }, 10000);
+}
+async function w1IcUndo() {
+  const id = W1_IC.undoId; if (!id) return;
+  W1_IC.undoId = '';
+  document.getElementById('w1-ic-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-ic-note-msg');
+  try { const r = await w1IcTry('undo', { undoId: id }); if (r === null) throw new Error(W1_IC_TEXT.failed); msg.textContent = W1_IC_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_IC_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_IC.timer);
+  W1_IC.timer = setTimeout(function() { document.getElementById('w1-ic-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadInboxList === 'function') await loadInboxList(); } catch (e) {}
+  try { if (typeof checkInboxDot === 'function') await checkInboxDot(); } catch (e) {}
+}
+// The "Good" / "Adjust" choice of an agent card is two calls on the screen (the rule choices, then the card). With the door the rule choices are held
+// and sent together with the card in ONE call (all or nothing); with the older path they are written first, exactly as before.
+(function() {
+  const saveOrig = window.agentSaveResolutions;
+  const closeOrig = window.agentCloseCard;
+  window.agentSaveResolutions = async function(q, decision, instruction) {
+    W1_IC.stash = null;
+    if (Date.now() < W1_IC.pausedUntil) return saveOrig.apply(this, arguments);
+    const gid = agentScope === 'group' ? await agentPrepareGroup(q) : null;
+    W1_IC.stash = { id: q.id, decision: decision, instruction: instruction || null, gid: gid, args: Array.prototype.slice.call(arguments) };
+  };
+  window.agentCloseCard = async function(q, answer) {
+    const st = W1_IC.stash && W1_IC.stash.id === q.id ? W1_IC.stash : null;
+    W1_IC.stash = null;
+    const scope = agentScope === 'all' ? 'all_customers' : (agentScope === 'group' ? 'group' : 'this_customer');
+    const rules = st ? ((q.meta && q.meta.breaks) || []).map(function(b) {
+      const rule = { decision: st.decision };
+      if (b.id) rule.guidelineId = b.id; if (b.topic) rule.topic = b.topic; if (st.instruction) rule.instruction = st.instruction;
+      return rule;
+    }) : [];
+    const body = { id: q.id, answer: String(answer).slice(0, 900), scope: scope };
+    if (rules.length) body.rules = rules;
+    if (scope === 'group' && st && st.gid) body.groupId = st.gid;
+    const r = st ? await w1IcTry('closeCard', body) : null;
+    if (r !== null) { w1IcOffer(r, 'Card saved.'); return; }
+    if (st) await saveOrig.apply(this, st.args);   // the door is not available: the rule choices are written the older way first
+    return closeOrig.apply(this, arguments);
+  };
+})();
+</script>
+<!-- w1-inbox-door:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
