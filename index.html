@@ -6334,12 +6334,42 @@ const _sendChains = {};
 const _sendPending = {};
 const _needsReload = {};
 const _holdAfter = {};   // phone -> WhatsApp id of the media/voice note just sent
+// <w3-delivery-marks:js:start>
+// Delivery ticks read the Seller Delivery Marks door (POST /webhook/seller-delivery-marks, action marks) with the person's own login
+// instead of reading message_status with the public key. It returns the marks of the logged-in seller's own number only.
+// Returns an array of marks, or null when the door cannot answer (no login, 404/502/503 "not available", a refused filter, a network
+// problem, or no connected number): the caller then uses the older direct read, so the ticks keep working.
+const SELLER_DELIVERY_MARKS_URL = 'https://sparklly.site/webhook/seller-delivery-marks';
+// The door's nginx rule allows about 30 calls a minute per address. After a 429 or 503 the door is left alone for 30 seconds and the
+// older direct read is used meanwhile, so a fast poll never hammers a door that said "slow down".
+let w3MarksPausedUntil = 0;
+async function w3DeliveryMarks(filters) {
+  if (Date.now() < w3MarksPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_DELIVERY_MARKS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: 'marks' }, filters || {}))
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3MarksPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    if (j && j.ok === true && j.connected !== false && Array.isArray(j.marks)) return j.marks;
+    return null;
+  } catch (e) { return null; }
+}
+// <w3-delivery-marks:js:end>
+
 async function waitForReceipt(waId) {
   const max = window._sendHoldMaxMs || SEND_HOLD_MAX_MS, poll = window._sendHoldPollMs || SEND_HOLD_POLL_MS;
   const t0 = Date.now();
   while (Date.now() - t0 < max) {
     try {
-      const r = await sb('message_status?wa_message_id=eq.' + encodeURIComponent(waId) + '&select=status&limit=1');
+      // Delivery Marks door first; the older direct read only when the door cannot answer (W3-FALLBACK-REMOVE).
+      const marks = await w3DeliveryMarks({ waMessageId: String(waId), limit: 1 });
+      const r = marks !== null ? marks : await sb('message_status?wa_message_id=eq.' + encodeURIComponent(waId) + '&select=status&limit=1');
       const st = r && r[0] && r[0].status;
       if (st === 'sent' || st === 'delivered' || st === 'read' || st === 'played' || st === 'failed') return st;
     } catch (e) { /* offline or a hiccup: keep trying until the time is up */ }
@@ -6382,12 +6412,17 @@ function tickHtml(state, err) {
 
 // What WhatsApp reported for this chat. Reports are kept per message id.
 async function fetchDeliveryContext(phone) {
-  if (!window._sellerPnid) {
-    try { const me = await w1MeGet(); window._sellerPnid = (me && me.phoneNumberId) || ''; } catch (e) {}
+  // Delivery Marks door first (the logged-in seller's own number only; no number id needed here). When the door cannot answer
+  // (no login, "not available", a problem) the older direct read below runs exactly as before (W3-FALLBACK-REMOVE).
+  let rows = await w3DeliveryMarks({ phone: String(phone), limit: 400 });
+  if (rows === null) {
+    if (!window._sellerPnid) {
+      try { const me = await w1MeGet(); window._sellerPnid = (me && me.phoneNumberId) || ''; } catch (e) {}
+    }
+    if (!window._sellerPnid) return null;
+    rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
+      '&select=wa_message_id,status,sent_at,delivered_at,read_at,played_at,error_code,error_text&order=updated_at.desc&limit=400');
   }
-  if (!window._sellerPnid) return null;
-  const rows = await sb('message_status?phone_number=eq.' + encodeURIComponent(phone) + '&business_phone_number_id=eq.' + encodeURIComponent(window._sellerPnid) +
-    '&select=wa_message_id,status,sent_at,delivered_at,read_at,played_at,error_code,error_text&order=updated_at.desc&limit=400');
   const ctx = { byId: {}, lastRead: 0, lastDelivered: 0, firstAt: 0, sig: '' };
   (rows || []).forEach(function(s) {
     ctx.byId[s.wa_message_id] = s;
@@ -6796,9 +6831,47 @@ function avatarColor(phone) {
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
+// <w3-chats-read-door:js:start>
+// The chat screens read the Seller Chats Read door (POST /webhook/seller-chats-read, actions chatList, chatPoll, thread, older) with the
+// person's own login instead of reading conversations, client_status, customers and call_recordings with the public key.
+// w3ChatsRead returns the door's answer (an object with ok true) or null when the door cannot answer (no login, 404/502/503/429, a refused
+// call such as not_available, a network problem): the caller then uses its older direct reads, so the chats keep working.
+const SELLER_CHATS_READ_URL = 'https://sparklly.site/webhook/seller-chats-read';
+let w3ChatsPausedUntil = 0;
+async function w3ChatsRead(action, extra) {
+  if (Date.now() < w3ChatsPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_CHATS_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3ChatsPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    return j && j.ok === true ? j : null;
+  } catch (e) { return null; }
+}
+// The call items of the open chat, from the door's call rows (id, duration_seconds, ended_at): the same cards fetchCallRecordingCards makes.
+function w3CallCardsFromRows(found) {
+  return (Array.isArray(found) ? found : []).map(r => ({ kind: 'call_recording', id: 'call-' + r.id, callId: r.id, role: 'system', message: '', timestamp: r.ended_at, durationSeconds: r.duration_seconds }));
+}
+// The chat list: the cursor of the last door answer (the door answers a few bytes when nothing changed) and the list that answer built.
+let w3ChatListCursor = null;
+// <w3-chats-read-door:js:end>
+
 async function loadConversations() {
   heartbeatSession();
-  const rows = await sb(
+  // Seller Chats Read door first. changed === false: the list is as it was, nothing is rebuilt (it is still drawn, so "3m ago" keeps moving).
+  // Any other case where the door cannot answer: the four direct reads below run exactly as before (W3-FALLBACK-REMOVE).
+  const door = await w3ChatsRead('chatList', w3ChatListCursor ? { since: w3ChatListCursor } : {});
+  const keepList = !!(door && door.changed === false);
+  if (!keepList) {
+  const useDoor = !!(door && Array.isArray(door.conversations) && Array.isArray(door.clientStatus) && Array.isArray(door.customers));
+  w3ChatListCursor = useDoor && typeof door.cursor === 'string' ? door.cursor : null;
+  const rows = useDoor ? door.conversations : await sb(
     'conversations?seller_id=eq.' + SELLER_CHAT_ID +
     '&select=phone_number,message,role,timestamp,channel&order=timestamp.desc&limit=500'
   );
@@ -6810,13 +6883,13 @@ async function loadConversations() {
     if (r.phone_number in holdFrom && !(Date.parse(r.timestamp) < holdFrom[r.phone_number])) return;
     if (!byPhone[r.phone_number]) byPhone[r.phone_number] = isHoldRow(r) ? Object.assign({}, r, { message: '[media could not be loaded]' }) : r;
   });
-  const statuses = await sb(
+  const statuses = useDoor ? door.clientStatus : await sb(
     'client_status?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ai_active,pinned,muted,archived,favorite,blocked'
   );
   const statusMap = {};
   statuses.forEach(s => { statusMap[s.phone_number] = s; });
 
-  const custs = await sb(
+  const custs = useDoor ? door.customers : await sb(
     'customers?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone,name'
   );
   const nameMap = {};
@@ -6824,7 +6897,8 @@ async function loadConversations() {
 
   // Latest call items, so a call can show as "Call 3:49" in the list preview.
   let recentCalls = [];
-  try {
+  if (useDoor) recentCalls = Array.isArray(door.calls) ? door.calls : [];
+  else try {
     recentCalls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&select=phone_number,ended_at,duration_seconds&order=ended_at.desc&limit=200') || [];
   } catch (e) { recentCalls = []; }
   const _ar = (typeof currentLang !== 'undefined' && currentLang === 'ar');
@@ -6861,6 +6935,7 @@ async function loadConversations() {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return new Date(b.timestamp) - new Date(a.timestamp);
     });
+  }
 
   renderChannelPills();
   renderConvoList();
@@ -8266,6 +8341,8 @@ window.saveCustomerName = async function(phone) {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
   try {
+    // The Seller Customers door first (it finds this seller's customer by phone or creates it); the older direct write runs when it is not available.
+    if ((await w1CuTry('saveName', { phone: phone, name: newName })) !== null) { await openProfile(phone); return; }
     const existing = await sb('customers?phone=eq.' + encodeURIComponent(phone) + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=id');
     if (existing && existing.length > 0) {
       await fetch(
@@ -8367,13 +8444,16 @@ window.loadOlderThreadMessages = async function(phone) {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    // Seller Chats Read door first (action older: the 100 rows before this time and their call items); older direct reads as the fallback.
+    const doorOlder = await w3ChatsRead('older', { phone: String(phone), before: String(oldest) });
+    const useDoorOlder = !!(doorOlder && Array.isArray(doorOlder.rows));
+    const older = useDoorOlder ? doorOlder.rows.slice() : await sb(
       'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
       '&timestamp=lt.' + encodeURIComponent(oldest) +
       '&select=id,role,message,timestamp,starred,pinned,channel&order=timestamp.desc&limit=100'
     );
     older.reverse();
-    const olderCards = await fetchCallRecordingCards(phone, older.length >= 100 ? older[0].timestamp : null, oldest);
+    const olderCards = useDoorOlder ? w3CallCardsFromRows(doorOlder.calls) : await fetchCallRecordingCards(phone, older.length >= 100 ? older[0].timestamp : null, oldest);
 
     const hiddenIds = getLocallyDeletedIds();
     const visibleOlder = mergeCallCards(older, olderCards).filter(m => !hiddenIds.has(String(m.id)));
@@ -8656,14 +8736,22 @@ async function fastPollOpenChat() {
   const phone = activePhone;
   _fastPollBusy = true;
   try {
-    const q = 'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID;
-    const both = await Promise.all([
-      sb(q + '&select=id,timestamp&order=timestamp.desc&limit=1'),
-      sb(q + '&message=like.' + encodeURIComponent(HOLD_MARK + '*') + '&select=id&order=timestamp.desc&limit=3')
-    ]);
+    // Seller Chats Read door first (action chatPoll): its cursor has the same format as holdCursor. When the door cannot answer, the two
+    // older direct reads run as before (W3-FALLBACK-REMOVE).
+    const door = await w3ChatsRead('chatPoll', { phone: String(phone) });
     if (phone !== activePhone) return;
-    const r = both[0];
-    const newest = holdCursor(r && r[0] ? r[0] : null, (both[1] || []).map(function(x) { return x.id; }));
+    let newest;
+    if (door && typeof door.cursor === 'string') newest = door.cursor;
+    else {
+      const q = 'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID;
+      const both = await Promise.all([
+        sb(q + '&select=id,timestamp&order=timestamp.desc&limit=1'),
+        sb(q + '&message=like.' + encodeURIComponent(HOLD_MARK + '*') + '&select=id&order=timestamp.desc&limit=3')
+      ]);
+      if (phone !== activePhone) return;
+      const r = both[0];
+      newest = holdCursor(r && r[0] ? r[0] : null, (both[1] || []).map(function(x) { return x.id; }));
+    }
     if (newest !== (window._fastNewest[phone] || '')) await loadThread(phone, true);
   } catch (e) {} finally { _fastPollBusy = false; }
 }
@@ -8723,7 +8811,11 @@ async function loadThread(phone, silent) {
     wasNearBottom = (oldBox.scrollHeight - oldBox.scrollTop - oldBox.clientHeight) < 120;
   }
 
-  let rows = await sb(
+  // Seller Chats Read door first (action thread: the newest 200 rows, the typing time and the call items). When the door cannot answer,
+  // the three older direct reads below run as before (W3-FALLBACK-REMOVE).
+  const doorThread = await w3ChatsRead('thread', { phone: String(phone) });
+  const useDoorThread = !!(doorThread && Array.isArray(doorThread.rows));
+  let rows = useDoorThread ? doorThread.rows.slice() : await sb(
     // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
     // the oldest — otherwise any customer conversation that grows past 200
     // total messages would silently stop showing new messages forever,
@@ -8741,9 +8833,11 @@ async function loadThread(phone, silent) {
   rows.forEach(function(r) { if (r.role === 'assistant') { const d = computeDeliveryState(r, deliveryCtx); r.deliveryState = d.state; r.deliveryError = d.error; } });
   // Call recordings for the same window as the loaded messages (everything, unless
   // there are older messages still to load).
-  const callCards = await fetchCallRecordingCards(phone, rowsLoaded >= 200 && rows.length ? rows[0].timestamp : null, null);
+  const callCards = useDoorThread ? w3CallCardsFromRows(doorThread.calls) : await fetchCallRecordingCards(phone, rowsLoaded >= 200 && rows.length ? rows[0].timestamp : null, null);
   let isTypingNow = false;
-  try {
+  if (useDoorThread) {
+    if (doorThread.aiTypingUntil) { try { isTypingNow = new Date(doorThread.aiTypingUntil) > new Date(); } catch (e) {} }
+  } else try {
     const statusRows = await sb(
       'client_status?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=ai_typing_until'
     );
@@ -10158,7 +10252,15 @@ window.saveCustomerForm = async function() {
   try {
     const body = { name, phone, address, city: document.getElementById('cf-city').value.trim() || null, notes: document.getElementById('cf-notes').value.trim() || null, updated_at: new Date().toISOString() };
     let res;
-    if (currentEditingCustomerId) {
+    if (!currentEditingCustomerId) {
+      const dupFirst = customersCache.find(x => (x.phone || '') === phone);
+      if (dupFirst) { alert('A customer with this phone number already exists: ' + (dupFirst.name || dupFirst.phone)); return; }
+    }
+    // The Seller Customers door first (this seller's customer only); the older direct write below runs when it is not available.
+    const w1Form = await w1CuTry('saveCustomer', Object.assign({ name: name, phone: phone, address: address, city: document.getElementById('cf-city').value.trim(), notes: document.getElementById('cf-notes').value.trim() }, currentEditingCustomerId ? { customerId: currentEditingCustomerId } : {}));
+    if (w1Form !== null) {
+      res = { ok: true };
+    } else if (currentEditingCustomerId) {
       res = await fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'PATCH', headers: CUST_H(), body: JSON.stringify(body) });
     } else {
       const dup = customersCache.find(x => (x.phone || '') === phone);
@@ -10176,7 +10278,7 @@ window.deleteCurrentCustomer = async function() {
   if (!currentEditingCustomerId) return;
   if (!confirm('Delete this customer? Their past orders stay, but the customer is removed from your list. This cannot be undone.')) return;
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'DELETE', headers: CUST_H() });
+    const res = await w1CuDelete(currentEditingCustomerId, function() { return fetch(SUPABASE_URL + '/rest/v1/customers?id=eq.' + currentEditingCustomerId, { method: 'DELETE', headers: CUST_H() }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     cachedCustomerCatalog = null;
     closeCustomerForm();
@@ -10678,9 +10780,9 @@ function ensureRateSnapshot(o, cfg) {
   const snap = { date: new Date().toISOString().slice(0, 10), from: cfg.cur, to: cfg.altCur, rate: cfg.altRate, op: cfg.altOp };
   o.rate_snapshot = snap;
   try {
-    fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + o.id, { method: 'PATCH',
+    w1OrRun('ensureRateSnapshot', { orderId: o.id, snapshot: snap }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + o.id, { method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ rate_snapshot: snap }) });
+      body: JSON.stringify({ rate_snapshot: snap }) }); }).catch(function() {});
   } catch (e) {}
   return snap;
 }
@@ -10689,9 +10791,9 @@ window.saveInvoiceNote = async function(orderId, btn) {
   if (!ta) return;
   const old = btn.textContent; btn.textContent = '...';
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH',
+    const r = await w1OrRun('saveInvoiceNote', { orderId: orderId, note: ta.value.trim() }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ seller_note: ta.value.trim() || null }) });
+      body: JSON.stringify({ seller_note: ta.value.trim() || null }) }); });
     btn.textContent = r.ok ? 'Saved ✓' : 'Failed';
   } catch (e) { btn.textContent = 'Failed'; }
   setTimeout(() => { btn.textContent = old; }, 1600);
@@ -10989,10 +11091,10 @@ window.deleteOrder = async function() {
   try {
     // order_items has ON DELETE CASCADE on order_id, so its line items are
     // cleaned up automatically — no need to delete them separately here.
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+    const res = await w1OrDelete(currentOrderId, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Prefer': 'return=minimal' }
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     closeOrderDetail();
@@ -11073,7 +11175,7 @@ window.confirmReturn = async function() {
   const returnType = amount >= productTotal ? 'full' : 'partial';
 
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+    const res = await w1OrRun('confirmReturn', { orderId: currentOrderId, returnType: returnType, returnAmount: amount, shippingPayer: currentReturnShippingPayer }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({
@@ -11082,7 +11184,7 @@ window.confirmReturn = async function() {
         return_type: returnType,
         return_shipping_payer: currentReturnShippingPayer
       })
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     closePaymentModal();
@@ -11349,7 +11451,8 @@ window.saveNewCustomerFromPOS = async function() {
     return;
   }
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/customers?on_conflict=phone,seller_id', {
+    // The Seller Customers door first: a new phone creates the customer, an existing customer is NOT overwritten (the older write replaced its name, address and creation time).
+    if ((await w1CuTry('addFromPos', { phone: phone, name: name, address: address })) === null) await fetch(SUPABASE_URL + '/rest/v1/customers?on_conflict=phone,seller_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(Object.assign({ phone, name: name || null, seller_id: SELLER_CHAT_ID, created_at: new Date().toISOString() }, address ? { address } : {}))
@@ -11838,7 +11941,9 @@ window.saveManualOrder = async function() {
     if (payload.order_status === 'SHIPPED') payload.shipped_at = new Date().toISOString();
     if (payload.order_status === 'DELIVERED') payload.delivered_at = new Date().toISOString();
 
-    let orderId;
+    // The Seller Orders door first (one call for the order and its lines, all or nothing); the older direct writes below run when it is not available.
+    let orderId = await w1OrSave(payload, currentOrderCart);
+    if (orderId === null) {
     if (currentEditingOrderId) {
       // Editing an existing order — update it in place, then replace all of
       // its line items wholesale (simplest correct way to reconcile an
@@ -11904,6 +12009,7 @@ window.saveManualOrder = async function() {
       }
     }
 
+    }
     closeOrderCreateForm();
     await loadOrders();
     if (currentEditingOrderId) {
@@ -11933,7 +12039,7 @@ async function recordOrderPayment(orderId, mode, value) {
   const delta = Math.round((newTotal - old) * 100) / 100;
   if (Math.abs(delta) < 0.005) return { changed: false, newTotal };
   const payments = (Array.isArray(cur.payments) ? cur.payments : []).concat([{ date: new Date().toISOString(), amount: delta, tz: (function(){ try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })() }]);
-  const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH', headers: H, body: JSON.stringify({ amount_received: newTotal, payments }) });
+  const r = await w1OrRun('recordPayment', { orderId: orderId, amountReceived: newTotal, tz: payments[payments.length - 1].tz || '' }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + orderId, { method: 'PATCH', headers: H, body: JSON.stringify({ amount_received: newTotal, payments }) }); });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return { changed: true, newTotal, tot };
 }
@@ -11998,11 +12104,11 @@ window.updateOrderStatus = async function(newStatus) {
       if (!isNaN(num) && num !== 0) await recordOrderPayment(currentOrderId, 'add', num);
     }
 
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
+    const res = await w1OrRun('setStatus', { orderId: currentOrderId, status: newStatus }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + currentOrderId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify(payload)
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     closeOrderDetail();
@@ -12055,11 +12161,53 @@ function setOrdersBoxCount(n, pulse) {
   document.title = n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' + ordersBoxBaseTitle : ordersBoxBaseTitle;
 }
 
-async function checkOrdersBox() {
+// <w3-dots-door:js:start>
+// The three always-on dots (Orders box count, Inbox dot, Notifications dot) read ONE small answer from the Seller Counts door
+// (POST /webhook/seller-counts, action dots) with the person's own login, instead of three table reads with the public key.
+// w3DotsGet returns { orders, inbox, notifications } or null when the door cannot answer (no login, 404/502/503/429, a refused call,
+// a network problem): each dot then uses its older direct read below, so the dots keep working.
+// allowShared is true only for the 15 s timers: the three timers fire together and share ONE call (answer kept for 3 seconds). Every
+// other caller (for example right after a notification was marked read) is not given an older answer; it only joins a call already in flight.
+const SELLER_COUNTS_URL = 'https://sparklly.site/webhook/seller-counts';
+let w3DotsPausedUntil = 0;
+let w3DotsInflight = null;
+let w3DotsLast = { at: 0, value: null };
+async function w3DotsFetch() {
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_COUNTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, action: 'dots' })
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3DotsPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    return j && j.ok === true ? { orders: j.orders, inbox: j.inbox, notifications: j.notifications } : null;
+  } catch (e) { return null; }
+}
+async function w3DotsGet(allowShared) {
+  if (Date.now() < w3DotsPausedUntil) return null;
+  if (allowShared && w3DotsLast.value && Date.now() - w3DotsLast.at < 3000) return w3DotsLast.value;
+  if (!w3DotsInflight) {
+    w3DotsInflight = w3DotsFetch().then(function(v) { w3DotsLast = { at: Date.now(), value: v }; return v; }).finally(function() { w3DotsInflight = null; });
+  }
+  return w3DotsInflight;
+}
+// <w3-dots-door:js:end>
+
+async function checkOrdersBox(allowShared) {
   if (!SELLER_CHAT_ID) return;
   try {
-    const rows = await sb('orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=in.(PENDING,AWAITING_SHIPPING)&select=id&limit=100');
-    const n = (rows || []).length;
+    let n;
+    const d = await w3DotsGet(allowShared === true);
+    if (d && typeof d.orders === 'number') n = d.orders;
+    else if (d && d.orders === null) return;   // the door could not read this one: change nothing this tick
+    else {
+      const rows = await sb('orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=in.(PENDING,AWAITING_SHIPPING)&select=id&limit=100');   // W3-FALLBACK-REMOVE
+      n = (rows || []).length;
+    }
     const grew = ordersBoxLastCount !== null && n > ordersBoxLastCount;
     ordersBoxLastCount = n;
     setOrdersBoxCount(n, grew);
@@ -12233,9 +12381,9 @@ window.submitBoxShipping = async function(orderId, input, free, btn) {
   if (btn) btn.disabled = true;
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
-    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
+    const r = await w1OrRun('submitShipping', { orderId: orderId, shippingCost: amount }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
       method: 'PATCH', headers, body: JSON.stringify({ shipping_cost: amount, shipping_confirmed: true })
-    });
+    }); }, ['not_waiting']);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const rows = await r.json();
     if (!rows || !rows.length) alert(obT('This order was already completed.', 'هذا الطلب مكتمل مسبقاً.'));
@@ -12256,11 +12404,11 @@ window.markBoxOrderShipped = async function(orderId, btn, noInvoice) {
   try {
     // Filtered by seller as well as order id, so an order that isn't this
     // seller's can never be changed from here.
-    const res = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID), {
+    const res = await w1OrRun('setStatus', { orderId: orderId, status: 'SHIPPED' }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID), {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ order_status: 'SHIPPED', shipped_at: new Date().toISOString() })
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     ordersBoxOrders = ordersBoxOrders.filter(o => o.id !== orderId);
     ordersBoxLastCount = ordersBoxOrders.length;
@@ -12884,10 +13032,16 @@ let inboxSelectedScope = 'this_customer';
 let inboxPollTimer = null;
 let inboxAttachedFile = null; // { url, name, isImage }
 
-async function checkInboxDot() {
+async function checkInboxDot(allowShared) {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=id&limit=1');
-    const hasPending = rows && rows.length > 0;
+    let hasPending;
+    const d = await w3DotsGet(allowShared === true);
+    if (d && typeof d.inbox === 'boolean') hasPending = d.inbox;
+    else if (d && d.inbox === null) return;   // the door could not read this one: change nothing this tick
+    else {
+      const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=id&limit=1');   // W3-FALLBACK-REMOVE
+      hasPending = rows && rows.length > 0;
+    }
     const dot1 = document.getElementById('bc-inbox-dot');
     const dot2 = document.getElementById('chats-inbox-dot');
     if (dot1) dot1.classList.toggle('has-pending', hasPending);
@@ -12897,10 +13051,16 @@ async function checkInboxDot() {
 
 let notificationsPollTimer = null;
 
-async function checkNotificationsDot() {
+async function checkNotificationsDot(allowShared) {
   try {
-    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&is_read=eq.false&select=id&limit=1');
-    const hasUnread = rows && rows.length > 0;
+    let hasUnread;
+    const d = await w3DotsGet(allowShared === true);
+    if (d && typeof d.notifications === 'boolean') hasUnread = d.notifications;
+    else if (d && d.notifications === null) return;   // the door could not read this one: change nothing this tick
+    else {
+      const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&is_read=eq.false&select=id&limit=1');   // W3-FALLBACK-REMOVE
+      hasUnread = rows && rows.length > 0;
+    }
     const dot = document.getElementById('bc-notifications-dot');
     if (dot) dot.classList.toggle('has-pending', hasUnread);
   } catch (e) {}
@@ -13045,13 +13205,14 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     // Only an order that is still waiting can be completed, so a double tap or a stale screen changes nothing.
-    const r = await fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
+    const r = await w1OrRun('submitShipping', { orderId: orderId, shippingCost: amount, notificationId: notifId }, function() { return fetch(SUPABASE_URL + '/rest/v1/orders?id=eq.' + encodeURIComponent(orderId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=eq.AWAITING_SHIPPING', {
       method: 'PATCH', headers, body: JSON.stringify({ shipping_cost: amount, shipping_confirmed: true })
-    });
+    }); }, ['not_waiting']);
     const rows = r.ok ? await r.json() : null;
     if (!r.ok) throw new Error('HTTP ' + r.status);
     if (!rows || !rows.length) { alert('This order was already completed.'); }
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + notifId, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ is_read: true }) });
+    // The door marks the card read itself (after the price is saved); the direct mark below runs only for the older path or when it did not.
+    if (!(r.door && r.door.notificationMarked === true)) await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + notifId, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ is_read: true }) });
     await loadNotifications();
     checkNotificationsDot();
     showBizSaveHint && showBizSaveHint();
@@ -15059,11 +15220,11 @@ window.toggleCurrencyOperation = async function(btn) {
   const newValue = turningToDivide ? 'divide' : 'multiply';
   btn.disabled = true;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+    await w1BsTable('seller_sales_config', 'alt_currency_operation', newValue, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ chat_id: SELLER_CHAT_ID, alt_currency_operation: newValue })
-    });
+    }); });
     btn.classList.toggle('on', turningToDivide);
     document.getElementById('biz-alt-currency-op-label').textContent = turningToDivide ? 'Divide main currency by rate' : 'Multiply main currency by rate';
     showBizSaveHint();
@@ -15082,11 +15243,11 @@ window.toggleBizSetting = async function(btn) {
   btn.disabled = true;
   try {
     if (table) {
-      await fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
+      await w1BsTable(table, key, turningOn, function() { return fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: turningOn })
-      });
+      }); });
     } else {
       await saveBotSetting(key, turningOn ? 'true' : 'false');
     }
@@ -15110,8 +15271,11 @@ window.toggleReferralActive = async function(btn) {
   btn.disabled = true;
   try {
     if (!turningOn) {
-      await saveBotSetting('referral_reward', '');
-      await saveBotSetting('referral_discount', '');
+      // One action empties both (one undo copy); the older two saves run when the door is not available.
+      if ((await w1BsTry('clearReferral', {})) === null) {
+        await saveBotSetting('referral_reward', '');
+        await saveBotSetting('referral_discount', '');
+      }
       const rewardEl = document.getElementById('biz-referral-reward');
       const discountEl = document.getElementById('biz-referral-discount');
       if (rewardEl) rewardEl.value = '';
@@ -15354,11 +15518,11 @@ async function saveReplyDelaySeconds(sec) {
     return;
   }
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+    const res = await w1BsTable('seller_sales_config', 'reply_delay_seconds', sec, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ chat_id: SELLER_CHAT_ID, reply_delay_seconds: sec })
-    });
+    }); });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     showBizSaveHint();
   } catch (e) {
@@ -15400,11 +15564,11 @@ window.saveBizField = async function(el) {
       // Numeric fields (pos_settings thresholds, invoice numbers) need real
       // numbers, not strings, or PostgREST rejects the write.
       const finalValue = el.dataset.numeric === 'true' ? (value.trim() === '' ? null : Number(value.trim().replace(/[^\d.-]/g, ''))) : value;
-      await fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
+      await w1BsTable(table, key, finalValue, function() { return fetch(SUPABASE_URL + '/rest/v1/' + table + '?on_conflict=chat_id', {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify({ chat_id: SELLER_CHAT_ID, [key]: finalValue })
-      });
+      }); });
     } else {
       await saveBotSetting(key, value);
     }
@@ -15430,11 +15594,11 @@ function setInvoiceLogoPreview(url) {
 }
 
 async function saveInvoiceLogoUrl(url) {
-  const res = await fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
+  const res = await w1BsTable('seller_sales_config', 'invoice_logo_url', url, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_sales_config?on_conflict=chat_id', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({ chat_id: SELLER_CHAT_ID, invoice_logo_url: url })
-  });
+  }); });
   if (!res.ok) throw new Error('HTTP ' + res.status);
 }
 
@@ -15497,6 +15661,7 @@ window.removeInvoiceLogo = async function() {
 
 async function saveBotSetting(key, value) {
   if (w1BotHandles(key) && await w1BotTry(key, value)) return; // W1-FALLBACK-REMOVE: when the door says not_available the older direct write below runs; remove this line once the door is open to everyone
+  if (!w1BotHandles(key) && (await w1BsTry('setBotKey', { key: key, value: String(value) })) !== null) return;   // the other keys (winback, offers, referral): the same door, its own action
   const res = await fetch(SUPABASE_URL + '/rest/v1/bot_settings?on_conflict=chat_id,key', {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -16767,12 +16932,12 @@ function startApp() {
   window._fastPollTimer = setInterval(fastPollOpenChat, FAST_POLL_MS);   // open chat only, visible page only
   setInterval(function() { if (activePhone && !document.hidden && document.getElementById('messages')) window.refreshTicks(activePhone); }, 5000);
   if (inboxPollTimer) clearInterval(inboxPollTimer);
-  inboxPollTimer = setInterval(checkInboxDot, 15000);
+  inboxPollTimer = setInterval(function() { checkInboxDot(true); }, 15000);
   if (notificationsPollTimer) clearInterval(notificationsPollTimer);
-  notificationsPollTimer = setInterval(checkNotificationsDot, 15000);
+  notificationsPollTimer = setInterval(function() { checkNotificationsDot(true); }, 15000);
   checkOrdersBox();
   if (ordersBoxPollTimer) clearInterval(ordersBoxPollTimer);
-  ordersBoxPollTimer = setInterval(checkOrdersBox, 15000);
+  ordersBoxPollTimer = setInterval(function() { checkOrdersBox(true); }, 15000);
   debugLog('startApp: polling interval started (every 8s)');
   checkWhatsAppConnectedThenOnboarding();
   // Sparkly Closer (the AI chat) is the primary surface now, not the
@@ -17749,7 +17914,7 @@ function w1BotHandles(key) { return W1_BOT_KEYS.indexOf(key) >= 0; }
 async function w1BotCall(action, extra) {
   if (W1_BOT.fallback) throw w1BotNotAvailable();
   const token = await getValidAuthToken();
-  if (!token) throw new Error(W1_BOT_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_BOT_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -17808,11 +17973,11 @@ document.addEventListener('focusin', function(e) {
 
 // Called by the screen's saveBotSetting for the 14 keys. Throws an Error with a plain message when the door refuses.
 async function w1BotDoorSet(key, value) {
-  try { await w1BotLoad(); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, W1_BOT.value[key]); throw e; }
+  try { await w1BotLoad(); } catch (e) { if (!(e && (e.w1NotAvailable || e.w1NoLogin))) w1BotShow(key, W1_BOT.value[key]); throw e; }
   const was = W1_BOT.effective[key];
   const wasValue = W1_BOT.value[key];
   let r;
-  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && e.w1NotAvailable)) w1BotShow(key, wasValue); throw e; }
+  try { r = await w1BotCall('set', { key: key, value: String(value) }); } catch (e) { if (!(e && (e.w1NotAvailable || e.w1NoLogin))) w1BotShow(key, wasValue); throw e; }
   W1_BOT.value[key] = String(r.after);
   W1_BOT.effective[key] = String(r.after);
   if (r.changed === true) w1BotOfferUndo(key, r.before === null || r.before === undefined ? was : r.before);
@@ -17821,7 +17986,7 @@ async function w1BotDoorSet(key, value) {
 // Door first; when it answers not_available (the seller is not on its list yet) the screen keeps the older direct write, exactly as before.
 async function w1BotTry(key, value) {
   if (W1_BOT.fallback) return false;
-  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
+  try { await w1BotDoorSet(key, value); return true; } catch (e) { if (e && e.w1NoLogin) return false; if (e && e.w1NotAvailable) { W1_BOT.fallback = true; return false; } throw e; }
 }
 
 // ---- Undo: a short-lived button; it sends the old value back through the same door (limits checked, a new undo copy kept).
@@ -20742,12 +20907,297 @@ w1GateRegister('ax-menu-row', 'https://sparklly.site/webhook/seller-ads', 'overv
 w1GateRegister('dx-menu-row', 'https://sparklly.site/webhook/seller-delete-business', 'request', { confirmText: 'w1-gate-probe-not-a-phrase' });
 </script>
 <!-- w1-menu-gate-delete:js:end -->
+<!-- w1-customers-door:js:start -->
+<script>
+// Customer writes (the chat profile name, the customer form, "Add new customer" in a sale, delete) go through the Seller Customers door
+// (POST /webhook/seller-customers) instead of writing straight to the customers table with the public key (edit and delete used the row id alone).
+// The door finds the seller from the login, scopes every query to it, keeps an undo copy first, and answers a refusal in plain words
+// (a phone this seller already has, a customer that orders or messages still refer to). Door first; when it answers "not available" every screen
+// keeps its older direct write exactly as before. A short Undo button follows a delete.
+const SELLER_CUSTOMERS_URL = 'https://sparklly.site/webhook/seller-customers';
+const W1_CU_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', deleted: 'Customer deleted.',
+  inUse: 'This customer cannot be deleted because ',
+  usedBy: { orders: 'they have orders', messages: 'they have messages in the history', history: 'they are in a list history' }
+};
+const W1_CU = { fallback: false, timer: null, undoId: '' };
+function w1CuNotAvailable() { const e = new Error(W1_CU_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1CuCall(action, extra) {
+  if (W1_CU.fallback) throw w1CuNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) { const noLogin = new Error(W1_CU_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_CUSTOMERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_CU_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1CuNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_CU_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1CuNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_CU_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_CU_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1CuTry(action, extra) {
+  if (W1_CU.fallback) return null;
+  try { return await w1CuCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_CU.fallback = true; return null; } throw e; }
+}
+// Delete: check what refers to the customer, then apply with the digest (a customer that is in use is refused with the reason, nothing changes).
+async function w1CuDelete(customerId, direct) {
+  const chk = await w1CuTry('deleteCheck', { customerId: customerId });
+  if (chk === null) return direct();
+  if (chk.canDelete === false) {
+    const why = (Array.isArray(chk.blockedBy) ? chk.blockedBy : []).map(function(k) { return W1_CU_TEXT.usedBy[k]; }).filter(Boolean).join(' and ');
+    throw new Error(W1_CU_TEXT.inUse + (why || 'other records still refer to them') + '.');
+  }
+  const ap = await w1CuCall('deleteApply', { customerId: customerId, digest: chk.digest });
+  w1CuOffer(ap);
+  return { ok: true, status: 200, door: ap };
+}
+function w1CuOffer(r) {
+  if (!r || !r.undoId) return;
+  let bar = document.getElementById('w1-cu-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-cu-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-cu-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-cu-undo-btn'; btn.textContent = W1_CU_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1CuUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-cu-note-msg').textContent = W1_CU_TEXT.deleted;
+  document.getElementById('w1-cu-note-msg').style.color = '';
+  document.getElementById('w1-cu-undo-btn').style.display = '';
+  W1_CU.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_CU.timer);
+  W1_CU.timer = setTimeout(function() { bar.style.display = 'none'; W1_CU.undoId = ''; }, 10000);
+}
+async function w1CuUndo() {
+  const id = W1_CU.undoId; if (!id) return;
+  W1_CU.undoId = '';
+  document.getElementById('w1-cu-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-cu-note-msg');
+  try { await w1CuCall('undo', { undoId: id }); msg.textContent = W1_CU_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_CU_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_CU.timer);
+  W1_CU.timer = setTimeout(function() { document.getElementById('w1-cu-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadCustomersList === 'function') await loadCustomersList(); } catch (e) {}
+}
+</script>
+<!-- w1-customers-door:js:end -->
 <!-- w1-menu-gate-alerts:js:start -->
 <script>
 // Hides the Alert check menu entry until its door answers (see the w1-menu-gate block).
 w1GateRegister('ac-menu-row', 'https://sparklly.site/webhook/seller-alerts', 'availability');
 </script>
 <!-- w1-menu-gate-alerts:js:end -->
+<!-- w1-settings-door:js:start -->
+<script>
+// Business settings writes: the sales settings (currency, reply delay, invoice logo and the other columns of seller_sales_config), the point-of-sale
+// settings (pos_settings), and the other assistant keys (winback, offers, referral) go through the Seller Bot Settings door (POST
+// /webhook/seller-bot-settings: setSalesConfig, setPosSetting, setBotKey, clearReferral) instead of writing straight to the tables with the public key.
+// The door finds the seller from the login, writes only the allowed columns and keys (never the invoice counter or the confirmation mode), keeps
+// an undo copy first, and answers a refusal in plain words. The 14 assistant keys keep their own door code (the w1-bot-settings-door block).
+// Door first; when it answers "not available" every control keeps its older direct write exactly as before. An Undo button follows a change.
+const W1_BS_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', saved: 'Setting saved.'
+};
+const W1_BS = { fallback: false, timer: null, undoId: '' };
+function w1BsNotAvailable() { const e = new Error(W1_BS_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1BsCall(action, extra) {
+  if (W1_BS.fallback) throw w1BsNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) { const noLogin = new Error(W1_BS_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_BOT_SETTINGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_BS_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1BsNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_BS_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1BsNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_BS_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_BS_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1BsTry(action, extra) {
+  if (W1_BS.fallback) return null;
+  try { const r = await w1BsCall(action, extra); w1BsOffer(r); return r; } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_BS.fallback = true; return null; } throw e; }
+}
+// One column of seller_sales_config or pos_settings. Answers like a fetch answer; `direct()` is the older upsert.
+async function w1BsTable(table, column, value, direct) {
+  const action = table === 'seller_sales_config' ? 'setSalesConfig' : (table === 'pos_settings' ? 'setPosSetting' : '');
+  if (!action) return direct();
+  const r = await w1BsTry(action, { column: column, value: value });
+  if (r === null) return direct();
+  return { ok: true, status: 200, door: r };
+}
+function w1BsOffer(r) {
+  if (!r || !r.undoId || r.unchanged) return;
+  let bar = document.getElementById('w1-bs-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-bs-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-bs-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bs-undo-btn'; btn.textContent = W1_BS_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1BsUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-bs-note-msg').textContent = W1_BS_TEXT.saved;
+  document.getElementById('w1-bs-note-msg').style.color = '';
+  document.getElementById('w1-bs-undo-btn').style.display = '';
+  W1_BS.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_BS.timer);
+  W1_BS.timer = setTimeout(function() { bar.style.display = 'none'; W1_BS.undoId = ''; }, 10000);
+}
+async function w1BsUndo() {
+  const id = W1_BS.undoId; if (!id) return;
+  W1_BS.undoId = '';
+  document.getElementById('w1-bs-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-bs-note-msg');
+  try { await w1BsCall('undo', { undoId: id }); msg.textContent = W1_BS_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_BS_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_BS.timer);
+  W1_BS.timer = setTimeout(function() { document.getElementById('w1-bs-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadBizSettings === 'function') await loadBizSettings(); } catch (e) {}
+}
+</script>
+<!-- w1-settings-door:js:end -->
+<!-- w1-orders-door:js:start -->
+<script>
+// Order writes (orders, invoices, the Orders box, the shipping price card) go through the Seller Orders door (POST /webhook/seller-orders)
+// instead of writing straight to the orders and order_items tables with the public key. The door finds the seller from the login, checks that the
+// order is that seller's on every query, keeps an undo copy first, and makes a sale or an edit (order and lines) all or nothing.
+// Door first; when it answers "not available" (not live yet, or the seller is not on its list) every screen keeps its older direct write exactly
+// as before. The screens' own messages, buttons and reads are unchanged. A short Undo button follows a delete, a return, a status change and a payment.
+const SELLER_ORDERS_URL = 'https://sparklly.site/webhook/seller-orders';
+const W1_OR_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.',
+  deleteApply: 'Order deleted.', confirmReturn: 'Return recorded.', setStatus: 'Order status changed.', recordPayment: 'Payment recorded.'
+};
+const W1_OR_UNDO_SHOW_MS = 10000;
+const W1_OR = { fallback: false, timer: null, undoId: '' };
+function w1OrNotAvailable() { const e = new Error(W1_OR_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1OrCall(action, extra) {
+  if (W1_OR.fallback) throw w1OrNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) { const noLogin = new Error(W1_OR_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_ORDERS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_OR_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1OrNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_OR_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1OrNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_OR_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_OR_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1OrTry(action, extra) {
+  if (W1_OR.fallback) return null;
+  try { return await w1OrCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_OR.fallback = true; return null; } throw e; }
+}
+// Runs one write: the door, or `direct()` (the older fetch) when the door is not available. Answers like a fetch answer (ok, status, json).
+// A refusal throws an Error with the door's plain words, which the screen's own catch shows as before. `emptyCodes`: refusals that the older
+// path showed as "no row changed" (an empty answer), so the screen keeps its own message for them.
+async function w1OrRun(action, extra, direct, emptyCodes) {
+  let r;
+  try { r = await w1OrTry(action, extra); } catch (e) {
+    if (e && emptyCodes && emptyCodes.indexOf(e.code) >= 0) return { ok: true, status: 200, json: async function() { return []; } };
+    throw e;
+  }
+  if (r === null) return direct();
+  w1OrOffer(action, r);
+  return { ok: true, status: 200, door: r, json: async function() { return [{}]; } };
+}
+// Delete: check (counts and a digest), then apply with the digest. The screen already asked "Delete this order?".
+async function w1OrDelete(orderId, direct) {
+  const chk = await w1OrTry('deleteCheck', { orderId: orderId });
+  if (chk === null) return direct();
+  const ap = await w1OrCall('deleteApply', { orderId: orderId, digest: chk.digest });
+  w1OrOffer('deleteApply', ap);
+  return { ok: true, status: 200, door: ap };
+}
+// A sale or an edit: one call for the order and its lines. Answers the order id, or null when the older path must run.
+async function w1OrSave(payload, cart) {
+  const order = Object.assign({}, payload);
+  ['seller_id', 'created_at', 'shipped_at', 'delivered_at'].forEach(function(k) { delete order[k]; });
+  const items = cart.map(function(i) {
+    return { product_id: i.product_id, product_name: i.product_name, unit_price: i.unit_price, quantity: i.quantity, line_total: i.unit_price * i.quantity,
+      discount_type: i.discount_type || null, discount_value: i.discount_value || 0, discount_amount: getItemDiscountAmount(i) };
+  });
+  const extra = currentEditingOrderId ? { orderId: currentEditingOrderId } : { createdAt: payload.created_at };
+  const r = await w1OrTry('saveOrder', Object.assign({ order: order, items: items }, extra));
+  if (r === null) return null;
+  return String(r.orderId);
+}
+// A short note with an Undo button after a change that can be taken back.
+function w1OrOffer(action, r) {
+  if (!r || !r.undoId || r.unchanged || !W1_OR_TEXT[action] || action === 'undo') return;
+  let bar = document.getElementById('w1-or-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-or-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-or-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-or-undo-btn'; btn.textContent = W1_OR_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1OrUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-or-note-msg').textContent = W1_OR_TEXT[action];
+  document.getElementById('w1-or-note-msg').style.color = '';
+  document.getElementById('w1-or-undo-btn').style.display = '';
+  W1_OR.undoId = r.undoId;
+  bar.style.display = 'flex';
+  clearTimeout(W1_OR.timer);
+  W1_OR.timer = setTimeout(function() { bar.style.display = 'none'; W1_OR.undoId = ''; }, W1_OR_UNDO_SHOW_MS);
+}
+async function w1OrUndo() {
+  const id = W1_OR.undoId; if (!id) return;
+  W1_OR.undoId = '';
+  document.getElementById('w1-or-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-or-note-msg');
+  try { await w1OrCall('undo', { undoId: id }); msg.textContent = W1_OR_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_OR_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_OR.timer);
+  W1_OR.timer = setTimeout(function() { document.getElementById('w1-or-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadOrders === 'function') await loadOrders(); } catch (e) {}
+  try { if (typeof checkOrdersBox === 'function') await checkOrdersBox(); } catch (e) {}
+}
+</script>
+<!-- w1-orders-door:js:end -->
 <!-- w1-menu-gate-import:js:start -->
 <script>
 // Hides the Import and barcodes menu entry until its door answers (see the w1-menu-gate block).
@@ -21867,5 +22317,193 @@ async function w1DlFinish(code) {
 })();
 </script>
 <!-- w1-device-flow:js:end -->
+<!-- w1-chats-door:js:start -->
+<script>
+// Customer chat writes (Chats list and open chat) go through the Seller Chats door (POST /webhook/seller-chats) instead of writing straight to
+// the conversations and client_status tables with the public key. The door finds the seller from the login and scopes every change to it.
+// Clear chat: check (counts), then apply, with an Undo button for a short time. Archive and block: setFlag, with Undo. AI toggle: setAi.
+// Forward: the mark after the send. Door first; when it answers "not available" (the seller is not on its list yet, or it is off) every screen keeps
+// the older direct write exactly as before. Nothing else on these screens changes.
+const SELLER_CHATS_URL = 'https://sparklly.site/webhook/seller-chats';
+const W1_CH_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  notAvailable: 'This is not available yet. Please try again later.',
+  noConnection: 'Could not reach the server. Check your internet connection and try again.',
+  failed: 'We could not save the change. Nothing was changed.',
+  cleared: 'Chat cleared.', undo: 'Undo', undone: 'The change was undone.',
+  archived: 'Chat archived.', unarchived: 'Chat moved back to your chats.', blocked: 'Customer blocked.', unblocked: 'Customer unblocked.'
+};
+const W1_CH_UNDO_SHOW_MS = 10000;
+const W1_CH = { fallback: false, timer: null, undoId: '' };
+function w1ChNotAvailable() { const e = new Error(W1_CH_TEXT.notAvailable); e.w1NotAvailable = true; return e; }
+async function w1ChCall(action, extra) {
+  if (W1_CH.fallback) throw w1ChNotAvailable();
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) { const noLogin = new Error(W1_CH_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_CHATS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { throw new Error(W1_CH_TEXT.noConnection); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) throw w1ChNotAvailable();
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_CH_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') throw w1ChNotAvailable();
+    const err = new Error(code === 'not_logged_in' ? W1_CH_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_CH_TEXT.failed));
+    err.code = code; throw err;
+  }
+  return j;
+}
+// Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
+async function w1ChTry(action, extra) {
+  if (W1_CH.fallback) return null;
+  try { return await w1ChCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_CH.fallback = true; return null; } throw e; }
+}
+// A short note at the bottom; with an undoId it also has an Undo button for a few seconds.
+function w1ChNote(text, isError, undoId) {
+  let bar = document.getElementById('w1-ch-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-ch-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-ch-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-ch-undo-btn'; btn.textContent = W1_CH_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1ChUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-ch-note-msg').textContent = text;
+  document.getElementById('w1-ch-note-msg').style.color = isError ? 'var(--danger)' : '';
+  W1_CH.undoId = undoId || '';
+  document.getElementById('w1-ch-undo-btn').style.display = undoId ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W1_CH.timer);
+  W1_CH.timer = setTimeout(function() { bar.style.display = 'none'; W1_CH.undoId = ''; }, isError ? 6000 : W1_CH_UNDO_SHOW_MS);
+}
+async function w1ChUndo() {
+  const id = W1_CH.undoId; if (!id) return;
+  W1_CH.undoId = '';
+  document.getElementById('w1-ch-undo-btn').style.display = 'none';
+  try {
+    await w1ChCall('undo', { undoId: id });
+    w1ChNote(W1_CH_TEXT.undone, false);
+  } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); }
+  try { if (typeof loadConversations === 'function') await loadConversations(); } catch (e) {}
+  try { if (activePhone && typeof loadThread === 'function') await loadThread(activePhone, true); } catch (e) {}
+}
+
+// ---- Clear chat (the screen already asked "Clear this chat?"): check, then apply with the digest of the check.
+(function() {
+  const orig = window.clearChatNow;
+  window.clearChatNow = async function(phone) {
+    let chk;
+    try { chk = await w1ChTry('clearCheck', { phone: phone }); } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); return; }
+    if (chk === null) return orig.apply(this, arguments);
+    let ap = null;
+    try { ap = await w1ChCall('clearApply', { phone: phone, digest: chk.digest }); } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); }
+    if (activePhone === phone && ap) { activePhone = null; goToChats(); }
+    await loadConversations();
+    if (ap && ap.undoId && ap.count > 0) w1ChNote(W1_CH_TEXT.cleared, false, ap.undoId);
+  };
+})();
+
+// ---- Archive and block (Chats list action sheet)
+(function() {
+  const orig = window.updateClientStatusField;
+  window.updateClientStatusField = async function(phone, field, value) {
+    if (field !== 'archived' && field !== 'blocked') return orig.apply(this, arguments);
+    let r;
+    try { r = await w1ChTry('setFlag', { phone: phone, field: field, value: !!value }); } catch (e) { w1ChNote(e && e.message ? e.message : W1_CH_TEXT.failed, true); return; }
+    if (r === null) return orig.apply(this, arguments);
+    try { await loadConversations(); } catch (e) {}
+    if (r.undoId && !r.unchanged) w1ChNote(W1_CH_TEXT[field === 'archived' ? (value ? 'archived' : 'unarchived') : (value ? 'blocked' : 'unblocked')], false, r.undoId);
+  };
+})();
+
+// ---- The AI toggle of one customer (open chat header). A customer with no status row changes nothing and still looks successful, as before.
+(function() {
+  const origPause = window.pauseAI; const origResume = window.resumeAI;
+  window.pauseAI = async function(phone) {
+    const btn = document.getElementById('ai-toggle');
+    if (W1_CH.fallback) return origPause.apply(this, arguments);
+    if (btn) btn.disabled = true;
+    let r;
+    try { r = await w1ChTry('setAi', { phone: phone, active: false }); } catch (e) { if (!(e && e.code === 'no_client')) { alert('Failed to pause AI: ' + (e && e.message ? e.message : W1_CH_TEXT.failed)); if (btn) btn.disabled = false; return; } r = {}; }
+    if (r === null) { if (btn) btn.disabled = false; return origPause.apply(this, arguments); }
+    try { await loadConversations(); await loadThread(phone); } catch (e) { alert('Failed to pause AI: ' + e.message); if (btn) btn.disabled = false; }
+  };
+  window.resumeAI = async function(phone) {
+    if (W1_CH.fallback) return origResume.apply(this, arguments);
+    let r;
+    try { r = await w1ChTry('setAi', { phone: phone, active: true }); } catch (e) { if (!(e && e.code === 'no_client')) { alert('Failed to resume AI: ' + (e && e.message ? e.message : W1_CH_TEXT.failed)); return; } r = {}; }
+    if (r === null) return origResume.apply(this, arguments);
+    try { await loadConversations(); await loadThread(phone); startLessonIfNeeded(phone); } catch (e) { alert('Failed to resume AI: ' + e.message); }
+  };
+})();
+
+// ---- Forward (the message is sent through the Send Text / Send Voice door first; the mark is recorded afterwards)
+window.forwardMessageTo = async function(phone) {
+  closeForwardPicker();
+  const audioUrl = window._forwardAudio;
+  window._forwardAudio = null;
+  try {
+    const authToken = await getValidAuthToken();
+    let res;
+    if (audioUrl) {
+      // Forward the voice note itself: download it, then send it through the same voice path as a new recording.
+      const blob = await (await fetch(audioUrl)).blob();
+      const dataUrl = await new Promise(function(resolve, reject) {
+        const fr = new FileReader();
+        fr.onload = function() { resolve(fr.result); };
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+      res = await fetch(SELLER_SEND_VOICE_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, audioBase64: dataUrl, audioMimeType: blob.type || 'audio/ogg', sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+    } else {
+      res = await fetch(SELLER_SEND_TEXT_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: window._forwardText || '', sellerChatId: SELLER_CHAT_ID, token: authToken })
+      });
+    }
+    const rawData = await res.json();
+    const data = Array.isArray(rawData) ? rawData[0] : rawData;
+    if (!data || !data.success) alert('Failed to forward: ' + (data && data.reason ? data.reason : 'unknown error'));
+    if (data && data.success && data.waMessageId) {
+      // The send saved the row; mark it as forwarded so it shows the "Forwarded" label in the chat. Through the Seller Chats door first
+      // (this seller's own message only); when the door is not available yet, the older direct mark below runs, exactly as before.
+      let w1Marked = false;
+      try { w1Marked = (await w1ChTry('markForwarded', { waMessageId: data.waMessageId })) !== null; } catch (e) { w1Marked = true; }
+      if (!w1Marked) {
+        try {
+          await fetch(SUPABASE_URL + '/rest/v1/conversations?wa_message_id=eq.' + encodeURIComponent(data.waMessageId), {
+            method: 'PATCH',
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+            body: JSON.stringify({ is_forwarded: true })
+          });
+        } catch (e) {}
+      }
+      if (phone === activePhone) { try { await loadThread(phone, true); } catch (e) {} }
+    }
+    await loadConversations();
+  } catch (e) {
+    alert('Failed to forward: ' + e.message);
+  }
+};
+// The "Connect WhatsApp first" guard that wraps this action (see the connect-later block) is put back around the new version.
+(function() {
+  const inner = window.forwardMessageTo;
+  window.forwardMessageTo = function() {
+    if (typeof w1WaBlocked === 'function' && w1WaBlocked()) { w1WaNeed(); return Promise.resolve(); }
+    return inner.apply(this, arguments);
+  };
+})();
+</script>
+<!-- w1-chats-door:js:end -->
 </body>
 </html>

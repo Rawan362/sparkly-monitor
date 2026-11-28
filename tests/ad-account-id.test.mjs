@@ -257,13 +257,14 @@ test('every other field of Business settings still saves the way it did', { skip
     const h = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: h });
     if (/\/webhook\/seller-ads$/.test(u)) { calls.push(1); return route.fulfill({ status: 200, headers: h, body: '{}' }); }
+    if (/\/webhook\/seller-bot-settings$/.test(u)) return route.fulfill({ status: 503, headers: h, body: '{}' });   // the settings door is not available here: the older direct save runs
     if (route.request().method() === 'POST' && /\/rest\/v1\/seller_sales_config/.test(u)) { posts.push(JSON.parse(route.request().postData() || '{}')); return route.fulfill({ status: 201, headers: h, body: '' }); }
     return route.fulfill({ status: 200, contentType: 'application/json', headers: h, body: '[]' });
   });
   await page.goto(base + '/index.html');
   await page.waitForLoadState('load');
   await page.waitForTimeout(800);
-  await page.evaluate(() => { SELLER_CHAT_ID = 'seller-test'; bizLoadedFor = 'seller-test'; document.getElementById('app').style.display = 'flex'; const el = document.getElementById('biz-currency-label'); el.value = 'XYZ'; return saveBizField(el); });
+  await page.evaluate(() => { SELLER_CHAT_ID = 'seller-test'; window.getValidAuthToken = async () => 'made-up-token'; bizLoadedFor = 'seller-test'; document.getElementById('app').style.display = 'flex'; const el = document.getElementById('biz-currency-label'); el.value = 'XYZ'; return saveBizField(el); });
   assert.equal(calls.length, 0, 'the Ads door is not asked for another field');
   assert.deepEqual(posts, [{ chat_id: 'seller-test', currency_label: 'XYZ' }]);
 });
