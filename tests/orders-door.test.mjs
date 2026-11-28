@@ -230,10 +230,13 @@ test('the door is not available: every write keeps the older direct request exac
   await page.close();
 });
 
-test('login problems: no token means no door call and no direct write; a refused login never falls back', { skip }, async () => {
+test('login problems: no login on this device means no door call and the older write runs; a refusal by the door never falls back', { skip }, async () => {
   const a = await open();
   await a.page.evaluate(async () => { window.getValidAuthToken = async () => null; currentOrderId = 'o1'; await updateOrderStatus('SHIPPED'); });
-  assert.equal(a.door.length, 0); assert.deepEqual(a.direct, []);
-  assert.ok(a.alerts.some((m) => m.endsWith('Please sign out and sign in again, then try once more.')));
+  assert.equal(a.door.length, 0); assert.equal(a.direct.length, 1, 'the older direct write ran');
   await a.page.close();
+  const b = await open({ door: () => ({ status: 200, json: { ok: false, error: 'not_logged_in', message: 'x' } }) });
+  await b.page.evaluate(async () => { currentOrderId = 'o1'; await updateOrderStatus('SHIPPED'); });
+  assert.deepEqual(b.direct, []); assert.ok(b.alerts.some((m) => m.endsWith('Please sign out and sign in again, then try once more.')));
+  await b.page.close();
 });
