@@ -13201,6 +13201,60 @@ window.w1OpenChatsFromNotice = async function(id) {
 };
 // w1-notice-types:js:end
 
+// <w3-inbox-read-door:js:start>
+// The notification list and the Inbox / AI agent cards read the Seller Inbox Read door (POST /webhook/seller-inbox-read, actions notifications,
+// notification, inboxList, question, chatNeeded, groups) with the person's own login, instead of reading seller_notifications, pending_questions
+// and customer_groups with the public key. w3InboxRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 404/502/503/429, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, no_notification, no_question, ...). That never falls back.
+const SELLER_INBOX_READ_URL = 'https://sparklly.site/webhook/seller-inbox-read';
+const W3_INBOX_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3InboxPausedUntil = 0;
+async function w3InboxRead(action, extra) {
+  if (Date.now() < w3InboxPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_INBOX_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3InboxPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read: the screen's own catch shows the words (the sign-in words for a login problem).
+function w3InboxRefusal(door) {
+  const e = new Error('Inbox read refused: ' + (door && door.code));
+  e.w3Refused = true;
+  e.w3Relogin = !!(door && door.code === 'not_logged_in');
+  return e;
+}
+// A refusal in a tap that has no screen text of its own: only a login problem is told to the person.
+function w3InboxRefusedNote(door) {
+  try { debugLog('inbox read door refused: ' + (door && door.code)); } catch (e) {}
+  if (door && door.code === 'not_logged_in') { try { alert(W3_INBOX_RELOGIN); } catch (e) {} }
+}
+// One card by its number: [card], or [] when the door says there is no such card or refuses; the direct read only when the door cannot answer.
+async function w3QuestionRows(qid) {
+  const door = await w3InboxRead('question', { id: qid });
+  if (door && door.ok === false) { if (door.code !== 'no_question') w3InboxRefusedNote(door); return []; }
+  if (door && door.question && typeof door.question === 'object') return [door.question];
+  return await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');   // W3-FALLBACK-REMOVE
+}
+// <w3-inbox-read-door:js:end>
+
 function formatNotificationTime(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
@@ -13231,13 +13285,16 @@ async function loadNotifications() {
   const listEl = document.getElementById('notifications-list');
   listEl.innerHTML = '<div class="spinner"></div>';
   try {
-    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');
+    const doorN = await w3InboxRead('notifications');   // Seller Inbox Read door first
+    if (doorN && doorN.ok === false) throw w3InboxRefusal(doorN);
+    const rows = doorN && Array.isArray(doorN.notifications) ? doorN.notifications : await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');   // W3-FALLBACK-REMOVE
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="notifications-empty-msg">Nothing here yet — updates from your AI (daily summaries, ad performance, strategy suggestions) will show up here.</div>';
       return;
     }
     listEl.innerHTML = rows.map(renderNotificationItem).join('');
   } catch (e) {
+    if (e && e.w3Refused) { listEl.innerHTML = '<div id="notifications-empty-msg">' + (e.w3Relogin ? W3_INBOX_RELOGIN : 'Could not load notifications, please try again.') + '</div>'; return; }
     listEl.innerHTML = '<div id="notifications-empty-msg">Could not load notifications — please try again.</div>';
   }
 }
@@ -13309,7 +13366,7 @@ window.openQuestionFromNotification = async function(id, qid) {
   goToChats();
   await openSellerInboxFromChats();
   try {
-    const rows = await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');
+    const rows = await w3QuestionRows(qid);
     if (rows && rows[0] && (rows[0].status === 'pending' || rows[0].status === 'lesson')) openInboxDetail(rows[0]);
     else if (rows && rows[0]) alert('You already answered this one.');
   } catch (e) {}
@@ -13332,7 +13389,9 @@ window.openEscalationChat = async function(id, phone) {
  * instructions about it — a focused thread just about this one alert. */
 window.discussNotification = async function(id) {
   try {
-    const rows = await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');
+    const doorD = await w3InboxRead('notification', { id: id });   // Seller Inbox Read door first
+    if (doorD && doorD.ok === false) { if (doorD.code !== 'no_notification') w3InboxRefusedNote(doorD); return; }   // not found or refused: nothing, as today
+    const rows = doorD && doorD.notification && typeof doorD.notification === 'object' ? [doorD.notification] : await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');   // W3-FALLBACK-REMOVE
     const n = rows && rows[0];
     if (!n) return;
 
@@ -13479,7 +13538,9 @@ async function loadInboxList() {
   const listEl = document.getElementById('inbox-list');
   listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');
+    const doorI = await w3InboxRead('inboxList');   // Seller Inbox Read door first
+    if (doorI && doorI.ok === false) throw w3InboxRefusal(doorI);
+    const rows = doorI && Array.isArray(doorI.questions) ? doorI.questions : await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');   // W3-FALLBACK-REMOVE
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="inbox-empty-msg">Nothing waiting — the AI hasn\'t needed to ask you anything.</div>';
       return;
@@ -13499,6 +13560,7 @@ async function loadInboxList() {
       listEl.appendChild(item);
     });
   } catch (e) {
+    if (e && e.w3Refused) { listEl.innerHTML = '<div id="inbox-empty-msg">' + (e.w3Relogin ? W3_INBOX_RELOGIN : 'Could not load the inbox, please try again.') + '</div>'; return; }
     listEl.innerHTML = '<div id="inbox-empty-msg">Could not load the inbox — please try again.</div>';
     debugLog('loadInboxList failed: ' + (e && e.message));
   }
@@ -13616,7 +13678,9 @@ window.agentSelectScope = function(btn) {
 let agentGroups = [];
 async function agentLoadGroups(selectId) {
   try {
-    const rows = await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');
+    const doorG = await w3InboxRead('groups');   // Seller Inbox Read door first; a refusal shows no groups (no fallback)
+    if (doorG && doorG.ok === false) w3InboxRefusedNote(doorG);
+    const rows = doorG ? (doorG.ok === true && Array.isArray(doorG.groups) ? doorG.groups : []) : await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');   // W3-FALLBACK-REMOVE
     agentGroups = Array.isArray(rows) ? rows : [];
   } catch (e) { agentGroups = []; }
   const sel = document.getElementById('inbox-agent-group-select');
@@ -13784,7 +13848,9 @@ window.submitLesson = async function() {
 // "needs you in the chat" case, ask the seller how it was solved (this customer only, or for everyone).
 async function startLessonIfNeeded(phone) {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');
+    const doorC = await w3InboxRead('chatNeeded', { phone: phone });   // Seller Inbox Read door first
+    if (doorC && doorC.ok === false) { try { debugLog('inbox read door refused: ' + doorC.code); } catch (e2) {} return; }   // a refusal never falls back
+    const rows = doorC && 'question' in doorC ? [doorC.question] : await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');   // W3-FALLBACK-REMOVE
     const q = rows && rows[0];
     if (!q) return;
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
@@ -13792,7 +13858,7 @@ async function startLessonIfNeeded(phone) {
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
-      const fresh = await sb('pending_questions?id=eq.' + q.id + '&select=*&limit=1');
+      const fresh = await w3QuestionRows(q.id);
       if (fresh && fresh[0]) openInboxDetail(fresh[0]);
     }
   } catch (e) {}
