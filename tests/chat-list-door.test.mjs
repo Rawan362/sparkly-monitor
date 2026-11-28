@@ -120,14 +120,13 @@ test('the second tick sends the last cursor; "changed: false" keeps the list, st
   assert.equal(w.calls.rest.length, 0);
 });
 
-test('503, 404, 502, 429, a refusal, a network problem, or no login: the four direct reads run as before, and the cursor is dropped', async () => {
+test('503, 404, 502, 429, not_available, a network problem, or no login: the four direct reads run as before, and the cursor is dropped', async () => {
   for (const over of [
     { door: () => ({ status: 503, body: { code: 'not_ready' } }) },
     { door: () => ({ status: 404, body: {} }) },
     { door: () => ({ status: 502, body: {} }) },
     { door: () => ({ status: 429, body: {} }) },
     { door: () => ({ body: { ok: false, error: 'not_available' } }) },
-    { door: () => ({ body: { ok: false, error: 'not_logged_in' } }) },
     { door: () => ({ throws: true }) },
     { noLogin: true }
   ]) {
@@ -154,4 +153,16 @@ test('after a 429 or 503 the door is left alone for a while', async () => {
   await run(w, 'loadConversations()');
   assert.equal(w.calls.door.length, 1);
   assert.equal(w.calls.rest.length, 8);
+});
+
+test('a door refusal (a login problem or any other) never falls back: no direct read, and the list on screen stays as it is', async () => {
+  for (const error of ['not_logged_in', 'no_seller', 'read_failed']) {
+    const w = world({ door: (b, n) => (n === 1 ? { body: DOOR_LIST } : { body: { ok: false, error } }) });
+    await run(w, 'loadConversations()');
+    const before = run(w, 'JSON.stringify(conversations)');
+    await run(w, 'loadConversations()');
+    assert.equal(w.calls.rest.length, 0, error);
+    assert.equal(run(w, 'JSON.stringify(conversations)'), before, error);
+    assert.equal(run(w, 'w3ChatListCursor'), 'c1', error);
+  }
 });
