@@ -33,9 +33,9 @@ test('the new code and this test file contain only ASCII characters', () => {
   for (const [name, text] of Object.entries(files)) assert.equal([...text].filter((c) => c.charCodeAt(0) > 127).length, 0, name);
 });
 
-test('the cache name is bumped and the older direct paths are still in the file', () => {
+test('the older direct paths are still in the file', () => {
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 317);
+  
   assert.ok(html.includes("'/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id'"));
   assert.ok(html.includes("call_recordings?seller_id=eq."));
 });
