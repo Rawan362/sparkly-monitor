@@ -14135,6 +14135,157 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// <w3-business-write-door:js:start>
+// The Business chat writes go through two doors with the person's own login, instead of writing straight to business_chat_conversations and
+// business_chat_messages with the public key (a chat by its id alone, and the messages of a chat with no seller at all):
+//   - Seller Business Chats (POST /webhook/seller-business-chats): rename, setPinned, create, deleteCheck + deleteApply, undo;
+//   - Seller Business Messages (POST /webhook/seller-business-messages): deleteFromCheck + deleteFromApply (Retry and Edit), undo.
+// w3BwCall answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs the older direct write exactly as before (no login on this device, HTTP 404/502/503/429,
+//     the door saying not_available, a network problem). After a 429 or a 503 that door is left alone for 30 seconds;
+//   - { ok: false, code, message }: the door REFUSED (not_logged_in, no_chat, changed, ...). That never falls back: the plain words are shown.
+const W3_BW_DOORS = {
+  chats: { url: 'https://sparklly.site/webhook/seller-business-chats', pausedUntil: 0 },
+  messages: { url: 'https://sparklly.site/webhook/seller-business-messages', pausedUntil: 0 }
+};
+const W3_BW_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.',
+  rename: 'Chat renamed.', pinned: 'Chat pinned.', unpinned: 'Chat unpinned.', deleteApply: 'Chat deleted.', deleteFromApply: 'Messages removed.',
+  changedChat: 'This chat changed, look at it again.'
+};
+const W3_BW_SHOW_MS = 10000;
+const W3_BW = { timer: null, which: '', undoId: '', then: '' };
+async function w3BwCall(which, action, extra) {
+  const door = W3_BW_DOORS[which];
+  if (Date.now() < door.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(door.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) door.pausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = String((j && (j.error || j.code)) || 'bad_answer');
+  if (code === 'not_available') return null;
+  return { ok: false, code: code, message: code === 'not_logged_in' ? W3_BW_TEXT.relogin : (code === 'changed' && (action === 'deleteApply' || action === 'deleteCheck') ? W3_BW_TEXT.changedChat : (j && typeof j.message === 'string' && j.message ? j.message : W3_BW_TEXT.failed)) };
+}
+// The older direct writes, exactly as the screen sent them before the doors (W3-FALLBACK-REMOVE).
+async function w3BwDirectPatch(convId, fields) {
+  await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
+    method: 'PATCH',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(fields)
+  });
+}
+async function w3BwDirectDeleteChat(convId) {
+  await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+  });
+}
+async function w3BwDirectDeleteFrom(convId, from) {
+  await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + convId + '&created_at=gte.' + encodeURIComponent(from), {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+  });
+}
+// A short note, with an Undo button when the door gave something to undo, for about ten seconds. `then`: what to reload after an Undo.
+function w3BwNote(text, which, undoId, then, isError) {
+  let bar = document.getElementById('w3-bw-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w3-bw-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w3-bw-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w3-bw-undo-btn'; btn.textContent = W3_BW_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w3BwUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  const msgEl = document.getElementById('w3-bw-note-msg');
+  msgEl.textContent = text;
+  msgEl.style.color = isError ? 'var(--danger)' : '';
+  W3_BW.which = which || ''; W3_BW.undoId = undoId || ''; W3_BW.then = then || '';
+  document.getElementById('w3-bw-undo-btn').style.display = W3_BW.undoId ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W3_BW.timer);
+  W3_BW.timer = setTimeout(function() { bar.style.display = 'none'; W3_BW.undoId = ''; }, W3_BW_SHOW_MS);
+}
+function w3BwOffer(text, which, r, then) {
+  if (r && r.undoId && !r.unchanged) w3BwNote(text, which, r.undoId, then, false);
+}
+async function w3BwUndo() {
+  const which = W3_BW.which, id = W3_BW.undoId, then = W3_BW.then;
+  if (!id) return;
+  W3_BW.undoId = '';
+  const r = await w3BwCall(which, 'undo', { undoId: id });
+  if (r === null) w3BwNote(W3_BW_TEXT.failed, '', '', '', true);
+  else if (r.ok === false) w3BwNote(r.message, '', '', '', true);
+  else w3BwNote(W3_BW_TEXT.undone, '', '', '', false);
+  try { await loadBusinessChatConversationList(); } catch (e) {}
+  if (then === 'chat' && activeConversationId) { try { await openExistingBusinessConversation(activeConversationId); } catch (e) {} }
+}
+// A refusal: the door's plain words (the sign-in words for a login problem). Nothing was changed.
+function w3BwRefused(door) {
+  try { debugLog('business write door refused: ' + (door && door.code)); } catch (e) {}
+  w3BwNote(door && door.message ? door.message : W3_BW_TEXT.failed, '', '', '', true);
+}
+// Each of these answers null when the change is done (by the door or by the older direct write), or the door's refusal object.
+async function w3BwRename(convId, title) {
+  const r = await w3BwCall('chats', 'rename', { conversationId: String(convId), title: title });
+  if (r === null) { await w3BwDirectPatch(convId, { title: title }); return null; }
+  if (r.ok === false) return r;
+  w3BwOffer(W3_BW_TEXT.rename, 'chats', r, 'list');
+  return null;
+}
+async function w3BwPin(convId, pinned) {
+  const r = await w3BwCall('chats', 'setPinned', { conversationId: String(convId), pinned: !!pinned });
+  if (r === null) { await w3BwDirectPatch(convId, { pinned: !!pinned }); return null; }
+  if (r.ok === false) return r;
+  w3BwOffer(pinned ? W3_BW_TEXT.pinned : W3_BW_TEXT.unpinned, 'chats', r, 'list');
+  return null;
+}
+// A new chat: { conv } from the door, { refused } when the door refused, or null when the older direct request must run.
+async function w3BwCreate() {
+  const r = await w3BwCall('chats', 'create');
+  if (r === null) return null;
+  if (r.ok === false) return { refused: r };
+  return { conv: r.conversation && typeof r.conversation === 'object' ? r.conversation : null };
+}
+async function w3BwDeleteChat(convId) {
+  const chk = await w3BwCall('chats', 'deleteCheck', { conversationId: String(convId) });
+  if (chk === null) { await w3BwDirectDeleteChat(convId); return null; }
+  if (chk.ok === false) return chk.code === 'no_chat' ? null : chk;   // already gone: nothing to delete, the screen goes on
+  const ap = await w3BwCall('chats', 'deleteApply', { conversationId: String(convId), digest: chk.digest });
+  if (ap === null) { await w3BwDirectDeleteChat(convId); return null; }   // the door went away before it changed anything
+  if (ap.ok === false) return ap;
+  w3BwOffer(W3_BW_TEXT.deleteApply, 'chats', ap, 'list');
+  return null;
+}
+// Retry and Edit: the messages of a chat from one message on. Check, then apply with the digest straight away. A changed answer is tried once more.
+async function w3BwDeleteFrom(convId, from) {
+  let last = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const chk = await w3BwCall('messages', 'deleteFromCheck', { conversationId: String(convId), from: from });
+    if (chk === null) { await w3BwDirectDeleteFrom(convId, from); return null; }
+    if (chk.ok === false) return chk;
+    const ap = await w3BwCall('messages', 'deleteFromApply', { conversationId: String(convId), from: from, digest: chk.digest });
+    if (ap === null) { await w3BwDirectDeleteFrom(convId, from); return null; }   // the door went away before it changed anything
+    if (ap.ok === true) { w3BwOffer(W3_BW_TEXT.deleteFromApply, 'messages', ap, 'chat'); return null; }
+    last = ap;
+    if (ap.code !== 'changed') break;
+  }
+  return last;
+}
+// <w3-business-write-door:js:end>
+
 window.renameBcConversationPrompt = async function() {
   const convId = bcMenuTargetConvId;
   closeBcConvMenu();
@@ -14144,11 +14295,8 @@ window.renameBcConversationPrompt = async function() {
   const newTitle = prompt('Rename conversation', currentTitle);
   if (!newTitle || !newTitle.trim()) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ title: newTitle.trim() })
-    });
+    const refused = await w3BwRename(convId, newTitle.trim());   // Seller Business Chats door first; the older direct write when it cannot answer
+    if (refused) { w3BwRefused(refused); return; }
     await loadBusinessChatConversationList();
   } catch (e) {
     debugLog('renameBcConversationPrompt failed: ' + (e && e.message));
@@ -14162,11 +14310,8 @@ window.toggleBcConversationPin = async function() {
   const item = document.querySelector('.bc-conv-item[data-id="' + convId + '"]');
   const currentlyPinned = item && item.dataset.pinned === 'true';
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ pinned: !currentlyPinned })
-    });
+    const refused = await w3BwPin(convId, !currentlyPinned);   // Seller Business Chats door first; the older direct write when it cannot answer
+    if (refused) { w3BwRefused(refused); return; }
     await loadBusinessChatConversationList();
   } catch (e) {
     debugLog('toggleBcConversationPin failed: ' + (e && e.message));
@@ -14227,13 +14372,19 @@ function closeBcSidebarOnMobile() {
 
 window.startNewBusinessChat = async function() {
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-      body: JSON.stringify({ chat_id: SELLER_CHAT_ID, title: 'New Chat' })
-    });
-    const rows = await res.json();
-    const newConv = rows && rows[0];
+    let newConv;
+    const doorC = await w3BwCreate();   // Seller Business Chats door first; the older direct request when it cannot answer
+    if (doorC && doorC.refused) { w3BwRefused(doorC.refused); return; }
+    if (doorC) newConv = doorC.conv;
+    else {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations', {   // W3-FALLBACK-REMOVE
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({ chat_id: SELLER_CHAT_ID, title: 'New Chat' })
+      });
+      const rows = await res.json();
+      newConv = rows && rows[0];
+    }
     if (!newConv) return;
     activeConversationId = newConv.id;
     bcHistory = [];
@@ -14286,10 +14437,8 @@ window.openExistingBusinessConversation = async function(conversationId) {
 
 window.deleteBusinessConversation = async function(conversationId) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + conversationId, {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
+    const refused = await w3BwDeleteChat(conversationId);   // Seller Business Chats door first (check, then apply); the older direct delete when it cannot answer
+    if (refused) { w3BwRefused(refused); if (refused.code === 'changed') await loadBusinessChatConversationList(); return; }
     if (activeConversationId === conversationId) {
       await loadBusinessChatConversationList();
       const list = document.querySelectorAll('.bc-conv-item');
@@ -14428,10 +14577,8 @@ window.retryAiMessage = async function(wrapEl) {
     // see the old answer and the retry will look like it did nothing.
     if (activeConversationId && staleTimestamp) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(staleTimestamp), {
-          method: 'DELETE',
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-        });
+        const refused = await w3BwDeleteFrom(activeConversationId, staleTimestamp);   // Seller Business Messages door first; the older direct delete when it cannot answer
+        if (refused) { w3BwRefused(refused); await openExistingBusinessConversation(activeConversationId); return; }
       } catch (e) {}
     }
     await sendBusinessChatTurn(userText);
@@ -14463,10 +14610,8 @@ window.editUserMessage = async function(wrapEl) {
     // after it from Supabase too, for a saved conversation.
     if (activeConversationId && editedTimestamp) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(editedTimestamp), {
-          method: 'DELETE',
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-        });
+        const refused = await w3BwDeleteFrom(activeConversationId, editedTimestamp);   // Seller Business Messages door first; the older direct delete when it cannot answer
+        if (refused) { w3BwRefused(refused); await openExistingBusinessConversation(activeConversationId); return; }
       } catch (e) {}
     }
     document.getElementById('bc-input').value = text;
