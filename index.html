@@ -9239,11 +9239,58 @@ window.openAhmadChat = async function() {
   await renderAhmadChatPanel();
 };
 
+// <w3-business-read-door:js:start>
+// The Business chat (Sparkly Closer) and the Sparkly assistant chat read the Seller Business Read door (POST /webhook/seller-business-read,
+// actions conversations, messages, assistantLog, assistantOlder) with the person's own login, instead of reading business_chat_conversations,
+// business_chat_messages and seller_web_chat_log with the public key. w3BizRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 404/502/503/429, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, no_conversation, ...). That never falls back.
+const SELLER_BUSINESS_READ_URL = 'https://sparklly.site/webhook/seller-business-read';
+const W3_BIZ_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3BizPausedUntil = 0;
+async function w3BizRead(action, extra) {
+  if (Date.now() < w3BizPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_BUSINESS_READ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3BizPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read (the screen's own catch runs). A login problem also asks the person to sign in again.
+function w3BizRefusal(door) {
+  try { debugLog('business read door refused: ' + (door && door.code)); } catch (e) {}
+  if (door && door.code === 'not_logged_in') { try { alert(W3_BIZ_RELOGIN); } catch (e) {} }
+  const e = new Error('Business read refused: ' + (door && door.code));
+  e.w3Refused = true;
+  return e;
+}
+// <w3-business-read-door:js:end>
+
 async function renderAhmadChatPanel(silent) {
   debugLog('renderAhmadChatPanel called, silent=' + silent + ', SELLER_CHAT_ID=' + SELLER_CHAT_ID);
   let rows;
   try {
-    rows = await sb(
+    // Seller Business Read door first (action assistantLog: the newest 300, newest first). A refusal never falls back: a silent refresh keeps
+    // the screen as it is, a first draw ends like a failed read (below). Door cannot answer: the direct read, as before.
+    const doorA = await w3BizRead('assistantLog');
+    if (doorA && doorA.ok === false) { const refusal = w3BizRefusal(doorA); if (silent) return; throw refusal; }
+    rows = doorA && Array.isArray(doorA.rows) ? doorA.rows.slice() : await sb(   // W3-FALLBACK-REMOVE
       // Fetch the NEWEST 300 (descending + limit), not the oldest — with
       // ascending+limit, once total messages exceed 300, every message
       // after that point becomes permanently invisible no matter how many
@@ -9363,7 +9410,10 @@ window.loadOlderAhmadMessages = async function() {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    // Seller Business Read door first (action assistantOlder: the 100 rows before this time); a refusal never falls back.
+    const doorO = await w3BizRead('assistantOlder', { before: String(oldest) });
+    if (doorO && doorO.ok === false) throw w3BizRefusal(doorO);
+    const older = doorO && Array.isArray(doorO.rows) ? doorO.rows.slice() : await sb(   // W3-FALLBACK-REMOVE
       'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&created_at=lt.' + encodeURIComponent(oldest) +
       '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=100'
     );
@@ -14182,7 +14232,9 @@ window.deleteBcConversationFromMenu = function() {
 async function loadBusinessChatConversationList() {
   const listEl = document.getElementById('bc-conv-list');
   try {
-    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');
+    const doorL = await w3BizRead('conversations');   // Seller Business Read door first; a refusal never falls back
+    if (doorL && doorL.ok === false) throw w3BizRefusal(doorL);
+    const rows = doorL && Array.isArray(doorL.conversations) ? doorL.conversations : await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');   // W3-FALLBACK-REMOVE
     listEl.innerHTML = '';
     (rows || []).forEach(conv => {
       const item = document.createElement('div');
@@ -14270,7 +14322,10 @@ window.openExistingBusinessConversation = async function(conversationId) {
   showBcEmptyState(false);
   messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');
+    // Seller Business Read door first. no_conversation is the empty chat (the empty state); any other refusal ends like a failed read.
+    const doorM = await w3BizRead('messages', { conversationId: String(conversationId) });
+    if (doorM && doorM.ok === false && doorM.code !== 'no_conversation') throw w3BizRefusal(doorM);
+    const rows = doorM ? (doorM.ok === true && Array.isArray(doorM.messages) ? doorM.messages : []) : await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');   // W3-FALLBACK-REMOVE
     messagesEl.innerHTML = '';
     bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
     if (!rows || rows.length === 0) {
