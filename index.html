@@ -12140,11 +12140,53 @@ function setOrdersBoxCount(n, pulse) {
   document.title = n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' + ordersBoxBaseTitle : ordersBoxBaseTitle;
 }
 
-async function checkOrdersBox() {
+// <w3-dots-door:js:start>
+// The three always-on dots (Orders box count, Inbox dot, Notifications dot) read ONE small answer from the Seller Counts door
+// (POST /webhook/seller-counts, action dots) with the person's own login, instead of three table reads with the public key.
+// w3DotsGet returns { orders, inbox, notifications } or null when the door cannot answer (no login, 404/502/503/429, a refused call,
+// a network problem): each dot then uses its older direct read below, so the dots keep working.
+// allowShared is true only for the 15 s timers: the three timers fire together and share ONE call (answer kept for 3 seconds). Every
+// other caller (for example right after a notification was marked read) is not given an older answer; it only joins a call already in flight.
+const SELLER_COUNTS_URL = 'https://sparklly.site/webhook/seller-counts';
+let w3DotsPausedUntil = 0;
+let w3DotsInflight = null;
+let w3DotsLast = { at: 0, value: null };
+async function w3DotsFetch() {
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_COUNTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, action: 'dots' })
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3DotsPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    return j && j.ok === true ? { orders: j.orders, inbox: j.inbox, notifications: j.notifications } : null;
+  } catch (e) { return null; }
+}
+async function w3DotsGet(allowShared) {
+  if (Date.now() < w3DotsPausedUntil) return null;
+  if (allowShared && w3DotsLast.value && Date.now() - w3DotsLast.at < 3000) return w3DotsLast.value;
+  if (!w3DotsInflight) {
+    w3DotsInflight = w3DotsFetch().then(function(v) { w3DotsLast = { at: Date.now(), value: v }; return v; }).finally(function() { w3DotsInflight = null; });
+  }
+  return w3DotsInflight;
+}
+// <w3-dots-door:js:end>
+
+async function checkOrdersBox(allowShared) {
   if (!SELLER_CHAT_ID) return;
   try {
-    const rows = await sb('orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=in.(PENDING,AWAITING_SHIPPING)&select=id&limit=100');
-    const n = (rows || []).length;
+    let n;
+    const d = await w3DotsGet(allowShared === true);
+    if (d && typeof d.orders === 'number') n = d.orders;
+    else if (d && d.orders === null) return;   // the door could not read this one: change nothing this tick
+    else {
+      const rows = await sb('orders?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&order_status=in.(PENDING,AWAITING_SHIPPING)&select=id&limit=100');   // W3-FALLBACK-REMOVE
+      n = (rows || []).length;
+    }
     const grew = ordersBoxLastCount !== null && n > ordersBoxLastCount;
     ordersBoxLastCount = n;
     setOrdersBoxCount(n, grew);
@@ -12969,10 +13011,16 @@ let inboxSelectedScope = 'this_customer';
 let inboxPollTimer = null;
 let inboxAttachedFile = null; // { url, name, isImage }
 
-async function checkInboxDot() {
+async function checkInboxDot(allowShared) {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=id&limit=1');
-    const hasPending = rows && rows.length > 0;
+    let hasPending;
+    const d = await w3DotsGet(allowShared === true);
+    if (d && typeof d.inbox === 'boolean') hasPending = d.inbox;
+    else if (d && d.inbox === null) return;   // the door could not read this one: change nothing this tick
+    else {
+      const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=id&limit=1');   // W3-FALLBACK-REMOVE
+      hasPending = rows && rows.length > 0;
+    }
     const dot1 = document.getElementById('bc-inbox-dot');
     const dot2 = document.getElementById('chats-inbox-dot');
     if (dot1) dot1.classList.toggle('has-pending', hasPending);
@@ -12982,10 +13030,16 @@ async function checkInboxDot() {
 
 let notificationsPollTimer = null;
 
-async function checkNotificationsDot() {
+async function checkNotificationsDot(allowShared) {
   try {
-    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&is_read=eq.false&select=id&limit=1');
-    const hasUnread = rows && rows.length > 0;
+    let hasUnread;
+    const d = await w3DotsGet(allowShared === true);
+    if (d && typeof d.notifications === 'boolean') hasUnread = d.notifications;
+    else if (d && d.notifications === null) return;   // the door could not read this one: change nothing this tick
+    else {
+      const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&is_read=eq.false&select=id&limit=1');   // W3-FALLBACK-REMOVE
+      hasUnread = rows && rows.length > 0;
+    }
     const dot = document.getElementById('bc-notifications-dot');
     if (dot) dot.classList.toggle('has-pending', hasUnread);
   } catch (e) {}
@@ -16853,12 +16907,12 @@ function startApp() {
   window._fastPollTimer = setInterval(fastPollOpenChat, FAST_POLL_MS);   // open chat only, visible page only
   setInterval(function() { if (activePhone && !document.hidden && document.getElementById('messages')) window.refreshTicks(activePhone); }, 5000);
   if (inboxPollTimer) clearInterval(inboxPollTimer);
-  inboxPollTimer = setInterval(checkInboxDot, 15000);
+  inboxPollTimer = setInterval(function() { checkInboxDot(true); }, 15000);
   if (notificationsPollTimer) clearInterval(notificationsPollTimer);
-  notificationsPollTimer = setInterval(checkNotificationsDot, 15000);
+  notificationsPollTimer = setInterval(function() { checkNotificationsDot(true); }, 15000);
   checkOrdersBox();
   if (ordersBoxPollTimer) clearInterval(ordersBoxPollTimer);
-  ordersBoxPollTimer = setInterval(checkOrdersBox, 15000);
+  ordersBoxPollTimer = setInterval(function() { checkOrdersBox(true); }, 15000);
   debugLog('startApp: polling interval started (every 8s)');
   checkWhatsAppConnectedThenOnboarding();
   // Sparkly Closer (the AI chat) is the primary surface now, not the
