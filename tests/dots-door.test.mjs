@@ -117,13 +117,12 @@ test('a field the door could not read (null) changes nothing for that dot and ma
   assert.equal(w.calls.rest.length, 0);
 });
 
-test('the door says 503, 404, 502, 429, refuses, has a network problem, or the device has no login: the older direct reads run as before', async () => {
+test('the door says 503, 404, 502, 429, not available, has a network problem, or the device has no login: the older direct reads run as before', async () => {
   for (const over of [
     { door: () => ({ status: 503, body: { code: 'not_ready' } }) },
     { door: () => ({ status: 404, body: {} }) },
     { door: () => ({ status: 502, body: {} }) },
     { door: () => ({ status: 429, body: {} }) },
-    { door: () => ({ body: { ok: false, error: 'not_logged_in' } }) },
     { door: () => ({ body: { ok: false, error: 'not_available' } }) },
     { door: () => { throw new Error('network'); } },
     { noLogin: true }
@@ -151,4 +150,24 @@ test('the Orders box count is remembered so the next tick can tell that it grew'
   vm.runInContext('ordersBoxLastCount = 3', w);
   await run(w, 'checkOrdersBox()');
   assert.equal(vm.runInContext('ordersBoxLastCount', w), 7);
+});
+
+test('a REAL refusal never falls back: the three dots stay exactly as they are this tick and no direct read is made', async () => {
+  for (const error of ['not_logged_in', 'no_seller', 'lookup_failed', 'read_failed']) {
+    const w = world({ door: () => ({ body: { ok: false, error } }), rows: [{ id: 9 }] });
+    await run(w, 'checkOrdersBox(); checkInboxDot(); checkNotificationsDot();');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(w.state.count, undefined, error);
+    assert.deepEqual(w.classes, { 'bc-inbox-dot': false, 'chats-inbox-dot': false, 'bc-notifications-dot': false }, error);
+    assert.equal(w.calls.rest.length, 0, error);
+  }
+});
+
+test('a contract mismatch is NOT a refusal and falls back: an array, an empty object, ok false with no error word, a string, nothing', async () => {
+  for (const body of [[], {}, { ok: false }, { ok: false, error: '' }, 'text', null, { ok: 'yes' }]) {
+    const w = world({ door: () => ({ body }), rows: [{ id: 9 }] });
+    await run(w, 'checkOrdersBox(); checkInboxDot(); checkNotificationsDot();');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(w.calls.rest.length, 3, JSON.stringify(body));
+  }
 });
