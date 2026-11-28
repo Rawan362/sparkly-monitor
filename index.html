@@ -6239,6 +6239,79 @@ document.addEventListener('click', function(ev) {
   else if (el.dataset.tplDelete) tplDelete(el.dataset.tplDelete);
 });
 
+// <w4-writes-door:js:start>
+// Media saving and the Small Writes screens go through two doors with the person's own login instead of writing with the public key:
+//   POST /webhook/seller-media         { token, action: 'mediaLinks' | 'saveReceipts', ... }
+//   POST /webhook/seller-small-writes  { token, action: 'assistantMessage' | 'newGroup' | 'addGroupMembers' | 'logDebtPayment' | 'chooseEngine', ... }
+// The seller is never sent: the login decides it. w4Post answers one of three things:
+//   { fallback: true }                       the door could not take the call and did nothing (no login on this device, a network problem or a
+//                                            refused call, 404/502/503/429, or the door's own "not_available"): the caller runs the older direct path.
+//   { ok: true, body }                       the door did it.
+//   { ok: false, code, message, relogin }    the door refused (a login problem or any other refusal). NEVER falls back: the caller shows the words.
+// After a 429 or 503 the door is left alone for 30 seconds (the older direct path is used meanwhile).
+const SELLER_MEDIA_URL = 'https://sparklly.site/webhook/seller-media';
+const SELLER_SMALL_WRITES_URL = 'https://sparklly.site/webhook/seller-small-writes';
+const W4_PAUSE_MS = 30000;
+const W4_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not save the change. Nothing was changed.'
+};
+const w4PausedUntil = {};
+async function w4Post(url, action, extra) {
+  if (Date.now() < (w4PausedUntil[url] || 0)) return { fallback: true };
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { fallback: true };
+  let r;
+  try {
+    r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return { fallback: true }; }
+  if (r.status === 429 || r.status === 503) { w4PausedUntil[url] = Date.now() + W4_PAUSE_MS; return { fallback: true }; }
+  if (r.status === 404 || r.status === 502) return { fallback: true };
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { ok: true, body: j };
+  const code = j && (j.error || j.code);
+  if (code === 'not_available') return { fallback: true };
+  if (code === 'not_logged_in') return { ok: false, code: code, message: W4_TEXT.relogin, relogin: true };
+  return { ok: false, code: code || 'failed', message: (j && typeof j.message === 'string' && j.message) ? j.message : W4_TEXT.failed };
+}
+// Shapes the doors accept. A value outside them is not sent to the door at all: the older direct path takes it, exactly as before.
+function w4PathOk(p) { return typeof p === 'string' && p.length > 0 && p.length <= 500 && !/[\u0000-\u001f\u007f]/.test(p); }
+function w4DeviceOk(d) { return typeof d === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d); }
+function w4PhoneOk(p) { return typeof p === 'string' && /^[0-9]{6,20}$/.test(p); }
+function w4ModelOk(m) { return typeof m === 'string' && /^[A-Za-z0-9._:\/-]{1,100}$/.test(m); }
+// Older direct receipt upsert (the fallback). Answers true when the server accepted it.
+async function w4DirectReceipts(device, paths) {
+  const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(paths.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
+  });
+  return !!resp.ok;
+}
+// Stores the receipts of files that are safely on this device: the door in groups of up to 100, the older direct upsert when the door cannot take them.
+// Answers the paths that are now confirmed. A door refusal stops here (those paths are tried again at the next round).
+async function w4SaveReceipts(device, paths) {
+  const saved = [];
+  let rest = paths.slice();
+  if (w4DeviceOk(device)) {
+    const viaDoor = rest.filter(w4PathOk);
+    const other = rest.filter(p => !w4PathOk(p));
+    rest = other;
+    for (let i = 0; i < viaDoor.length; i += 100) {
+      const chunk = viaDoor.slice(i, i + 100);
+      const r = await w4Post(SELLER_MEDIA_URL, 'saveReceipts', { deviceId: device, paths: chunk });
+      if (r.fallback) { rest = viaDoor.slice(i).concat(other); break; }
+      if (!r.ok) { return saved; }
+      chunk.forEach(p => saved.push(p));
+    }
+  }
+  if (rest.length) { try { if (await w4DirectReceipts(device, rest)) rest.forEach(p => saved.push(p)); } catch (e) {} }
+  return saved;
+}
+// <w4-writes-door:js:end>
+
 // ---- The phone keeps its own copy of photos, videos, voice notes and call audio (WhatsApp style) ----
 // Files are saved in the browser's media cache; the service worker plays them from there. After a file is
 // safely on this device, a "receipt" is stored on the server. A file may only ever be removed from the
@@ -6266,12 +6339,18 @@ window.saveMediaToDevice = async function() {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     const found = new Set();
     const grab = (text) => String(text || '').split(/[\s|,]+/).forEach(w => { if (w.startsWith('http') && w.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(w); });
-    const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
-    rows.forEach(r => grab(r.message));
-    try {
-      const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
-      calls.forEach(r => grab(r.audio_url));
-    } catch (e) {}
+    // Door first (the media addresses of this seller's chats and calls); the older two direct reads when the door cannot answer.
+    const door = await w4Post(SELLER_MEDIA_URL, 'mediaLinks');
+    if (door.fallback) {
+      const rows = await sb('conversations?seller_id=eq.' + SELLER_CHAT_ID + '&message=like.*chat-media*&select=message&order=timestamp.desc&limit=300') || [];
+      rows.forEach(r => grab(r.message));
+      try {
+        const calls = await sb('call_recordings?seller_id=eq.' + SELLER_CHAT_ID + '&audio_deleted_at=is.null&select=audio_url&order=ended_at.desc&limit=100') || [];
+        calls.forEach(r => grab(r.audio_url));
+      } catch (e) {}
+    } else if (door.ok && Array.isArray(door.body.urls)) {
+      door.body.urls.forEach(u => { if (typeof u === 'string' && u.startsWith('http') && u.indexOf(DEVICE_MEDIA_MARK) !== -1) found.add(u); });
+    } else { return; }   // the door refused (for example a login problem): skip this round, the next one tries again
     const cache = await caches.open(DEVICE_MEDIA_CACHE);
     const sent = new Set(JSON.parse(localStorage.getItem('sparkly_receipts_sent') || '[]'));
     let downloaded = 0;
@@ -6288,12 +6367,8 @@ window.saveMediaToDevice = async function() {
     }
     if (toConfirm.length) {
       const device = getDeviceId();
-      const resp = await fetch(SUPABASE_URL + '/rest/v1/media_device_receipts?on_conflict=seller_id,object_path,device_id', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(toConfirm.map(p => ({ seller_id: SELLER_CHAT_ID, object_path: p, device_id: device })))
-      });
-      if (resp.ok) { toConfirm.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
+      const saved = await w4SaveReceipts(device, toConfirm);
+      if (saved.length) { saved.forEach(p => sent.add(p)); localStorage.setItem('sparkly_receipts_sent', JSON.stringify(Array.from(sent).slice(-3000))); }
     }
     if (window.refreshDeviceMediaInfo) window.refreshDeviceMediaInfo();
   } catch (e) {} finally { _deviceSaveBusy = false; }
@@ -9436,11 +9511,15 @@ window.sendAhmadMessage = async function() {
   textarea.focus(); // the old renderAhmadChatPanel() rebuild was destroying and recreating this element, losing focus every time — this fixes that
 
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, role: 'seller', message })
-    });
+    // Door first (Small Writes: assistantMessage); the older direct write when the door cannot take it.
+    const w4r = message.length <= 8000 ? await w4Post(SELLER_SMALL_WRITES_URL, 'assistantMessage', { message: message }) : { fallback: true };
+    if (w4r.fallback) {
+      await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ seller_id: SELLER_CHAT_ID, role: 'seller', message })
+      });
+    } else if (!w4r.ok) { throw new Error(w4r.message); }
     // Nudges the Ahmad workflow to process this — wired up in the next step, safe to fail for now
     fetch(AHMAD_CHAT_WEBHOOK, {
       method: 'POST',
@@ -13530,6 +13609,12 @@ window.agentNewGroup = async function() {
   const name = (prompt('Name of the new group (for example: Wholesale customers):') || '').trim();
   if (!name) return;
   try {
+    const w4r = name.length <= 100 ? await w4Post(SELLER_SMALL_WRITES_URL, 'newGroup', { name: name }) : { fallback: true };
+    if (!w4r.fallback) {
+      if (!w4r.ok) throw new Error(w4r.message);
+      await agentLoadGroups(w4r.body.groupId);
+      return;
+    }
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const r = await fetch(SUPABASE_URL + '/rest/v1/customer_groups', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, name }) });
     if (!r.ok) throw new Error('Could not create the group (' + r.status + ')');
@@ -13545,6 +13630,16 @@ async function agentPrepareGroup(q) {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' };
   const extra = String(document.getElementById('inbox-agent-group-numbers').value || '').split(/[\s,;]+/).map(x => x.replace(/\D/g, '')).filter(x => x.length >= 6);
   const phones = Array.from(new Set([String(q.phone_number).replace(/^\+/, '')].concat(extra)));
+  // Door first (Small Writes: addGroupMembers, up to 200 numbers per call); the older direct write when the door cannot take it.
+  if (phones.every(w4PhoneOk)) {
+    let viaDoor = true;
+    for (let i = 0; i < phones.length; i += 200) {
+      const w4r = await w4Post(SELLER_SMALL_WRITES_URL, 'addGroupMembers', { groupId: gid, phones: phones.slice(i, i + 200) });
+      if (w4r.fallback) { viaDoor = false; break; }
+      if (!w4r.ok) throw new Error(w4r.message);
+    }
+    if (viaDoor) return gid;
+  }
   const r = await fetch(SUPABASE_URL + '/rest/v1/customer_group_members?on_conflict=group_id,phone_number', { method: 'POST', headers, body: JSON.stringify(phones.map(p => ({ group_id: gid, seller_id: SELLER_CHAT_ID, phone_number: p }))) });
   if (!r.ok) throw new Error('Could not add customers to the group (' + r.status + ')');
   return gid;
@@ -14908,11 +15003,15 @@ window.recordDebtPayment = async function() {
   try {
     // Log the payment itself as a permanent record — "on this date, this
     // much was paid" — independent of how it gets allocated below.
-    await fetch(SUPABASE_URL + '/rest/v1/debt_payments', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, phone, amount, payment_date: new Date().toISOString() })
-    });
+    // Door first (Small Writes: logDebtPayment; the door's own clock is the payment date). A refusal stops here, before anything is allocated.
+    const w4r = await w4Post(SELLER_SMALL_WRITES_URL, 'logDebtPayment', { phone: phone, amount: amount });
+    if (w4r.fallback) {
+      await fetch(SUPABASE_URL + '/rest/v1/debt_payments', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ seller_id: SELLER_CHAT_ID, phone, amount, payment_date: new Date().toISOString() })
+      });
+    } else if (!w4r.ok) { throw new Error(w4r.message); }
 
     // Allocate the payment across their outstanding invoices, oldest first,
     // updating each order's amount_received until the payment is used up —
@@ -16004,12 +16103,19 @@ window.engineChoose = async function(kind, id) {
   const col = { chat: 'chat_model', customer: 'customer_model', call: 'call_model' }[kind];
   const where = { chat: 'your AI chat', customer: 'customer messages (text, voice notes) and Test Mode', call: 'phone calls' }[kind];
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
-      method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ seller_id: SELLER_CHAT_ID, [col]: id, updated_at: new Date().toISOString() })
-    });
-    if (!res.ok) throw new Error('save failed ' + res.status);
+    // Door first (Small Writes: chooseEngine); the older direct write when the door cannot take it. A refusal is shown, never retried directly.
+    const w4r = ['chat', 'customer', 'call'].indexOf(kind) >= 0 && w4ModelOk(id) ? await w4Post(SELLER_SMALL_WRITES_URL, 'chooseEngine', { kind: kind, model: id }) : { fallback: true };
+    if (w4r.fallback) {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ seller_id: SELLER_CHAT_ID, [col]: id, updated_at: new Date().toISOString() })
+      });
+      if (!res.ok) throw new Error('save failed ' + res.status);
+    } else if (!w4r.ok) {
+      const nn = document.getElementById('engine-saved-' + kind); if (nn) nn.textContent = w4r.relogin ? w4r.message : 'Could not save, try again.';
+      return;
+    }
     const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = 'Saved. ' + where.charAt(0).toUpperCase() + where.slice(1) + ' now use ' + engineModelName(id) + (kind === 'call' ? ' (from the next call).' : ' (from the next message).');
   } catch (e) { const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = 'Could not save, try again.'; }
 };
