@@ -18924,12 +18924,12 @@ const W1_SW_PAUSE_MS = 30000;
 const W1_SW = { pausedUntil: 0 };
 function w1SwErr(text) { const e = new Error(text); e.w1Door = true; return e; }
 // Door first: the answer, or null when the older direct path must run (door down or not available, or paused). Throws an Error with plain words for
-// a refusal, a login problem and a 429.
+// a refusal by the door and a 429 (no login on this device is the older path, like a door that is down).
 async function w1SwTry(action, extra) {
   if (Date.now() < W1_SW.pausedUntil) return null;
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw w1SwErr(W1_SW_TEXT.relogin);
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older path runs
   let r;
   try {
     r = await fetch(SELLER_SMALL_WRITES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });

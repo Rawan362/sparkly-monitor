@@ -165,7 +165,7 @@ test('a 429: the screen says "try again in a moment", nothing is sent the older 
   await e.page.close();
 });
 
-test('a door refusal and a login problem never fall back: the door words show, nothing is written the older way', { skip }, async () => {
+test('a door refusal (including a refused login) never falls back: the door words show, nothing is written the older way; no login on this device runs the older write', { skip }, async () => {
   const { page, door, direct, alerts } = await open({ door: () => ({ status: 200, json: { ok: false, error: 'bad_input', message: 'The group name is too long.' } }) });
   await page.evaluate(() => agentNewGroup());
   assert.ok(alerts.includes('Something went wrong: The group name is too long.')); assert.deepEqual(direct, []);
@@ -173,8 +173,8 @@ test('a door refusal and a login problem never fall back: the door words show, n
   const n = await open();
   await n.page.evaluate(() => { window.getValidAuthToken = async () => null; });
   await n.page.evaluate(() => agentNewGroup());
-  assert.equal(n.door.length, 0); assert.deepEqual(n.direct, []);
-  assert.ok(n.alerts.includes('Something went wrong: Please sign out and sign in again, then try once more.'));
+  assert.equal(n.door.length, 0); assert.equal(n.direct.length, 1, 'no login on this device: the older write runs');
+  assert.deepEqual(n.alerts, []);
   await n.page.close();
   const f = await open({ door: () => ({ status: 200, json: { ok: false, error: 'not_logged_in', message: 'x' } }) });
   await f.page.evaluate(() => agentNewGroup());
