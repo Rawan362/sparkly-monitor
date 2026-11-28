@@ -9243,7 +9243,10 @@ async function renderAhmadChatPanel(silent) {
   debugLog('renderAhmadChatPanel called, silent=' + silent + ', SELLER_CHAT_ID=' + SELLER_CHAT_ID);
   let rows;
   try {
-    rows = await sb(
+    // Door first (Business Read: assistantLog, newest first, as the direct read); the older direct read when the door cannot answer.
+    const w4r = await w4BizRead('assistantLog');
+    if (!w4r.fallback && !(w4r.ok && Array.isArray(w4r.body.rows))) throw new Error('the door refused (' + w4r.code + ')');
+    rows = !w4r.fallback ? w4r.body.rows : await sb(
       // Fetch the NEWEST 300 (descending + limit), not the oldest — with
       // ascending+limit, once total messages exceed 300, every message
       // after that point becomes permanently invisible no matter how many
@@ -9363,7 +9366,10 @@ window.loadOlderAhmadMessages = async function() {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
 
   try {
-    const older = await sb(
+    // Door first (Business Read: assistantOlder, 100 rows before the oldest loaded time); the older direct read when the door cannot answer.
+    const w4r = await w4BizRead('assistantOlder', { before: oldest });
+    if (!w4r.fallback && !(w4r.ok && Array.isArray(w4r.body.rows))) throw new Error('the door refused (' + w4r.code + ')');
+    const older = !w4r.fallback ? w4r.body.rows : await sb(
       'seller_web_chat_log?seller_id=eq.' + SELLER_CHAT_ID + '&created_at=lt.' + encodeURIComponent(oldest) +
       '&select=id,role,message,created_at,starred,pinned&order=created_at.desc&limit=100'
     );
@@ -14135,6 +14141,40 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// <w4-business-read-door:js:start>
+// The Business chat (Sparkly Closer) and the Sparkly assistant chat READS go through the Seller Business Read door
+// (POST /webhook/seller-business-read) with the person's own login instead of reading with the public key:
+//   conversations (the list), messages (one chat, by conversationId), assistantLog (newest 300), assistantOlder (100 before a time).
+// The seller is never sent: the login decides it. w4BizRead answers one of three things:
+//   { fallback: true }                    the door cannot answer (no login on this device, a refused connection or a network problem, 503/404/502,
+//                                         the door's "not_available", or a 429): the caller runs the older direct read.
+//   { ok: true, body }                    the door answered.
+//   { ok: false, code, message, relogin } the door refused (a login problem or any other refusal). NEVER falls back.
+// After a 429 or a 503 the door is left alone for 30 seconds (the older direct read is used meanwhile).
+const SELLER_BUSINESS_READ_URL = 'https://sparklly.site/webhook/seller-business-read';
+const W4_BIZ_READ_PAUSE_MS = 30000;
+let w4BizReadPausedUntil = 0;
+async function w4BizRead(action, extra) {
+  if (Date.now() < w4BizReadPausedUntil) return { fallback: true };
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return { fallback: true };
+  let r;
+  try {
+    r = await fetch(SELLER_BUSINESS_READ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return { fallback: true }; }
+  if (r.status === 429 || r.status === 503) { w4BizReadPausedUntil = Date.now() + W4_BIZ_READ_PAUSE_MS; return { fallback: true }; }
+  if (r.status === 404 || r.status === 502) return { fallback: true };
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { ok: true, body: j };
+  const code = j && (j.error || j.code);
+  if (code === 'not_available') return { fallback: true };
+  if (code === 'not_logged_in') return { ok: false, code: code, message: 'Please sign out and sign in again, then try once more.', relogin: true };
+  return { ok: false, code: code || 'failed', message: (j && typeof j.message === 'string' && j.message) ? j.message : 'We could not read this right now.' };
+}
+// <w4-business-read-door:js:end>
+
 window.renameBcConversationPrompt = async function() {
   const convId = bcMenuTargetConvId;
   closeBcConvMenu();
@@ -14182,7 +14222,12 @@ window.deleteBcConversationFromMenu = function() {
 async function loadBusinessChatConversationList() {
   const listEl = document.getElementById('bc-conv-list');
   try {
-    const rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');
+    // Door first (Business Read: conversations); the older direct read when the door cannot answer. A refusal keeps the list as it is.
+    let rows;
+    const w4r = await w4BizRead('conversations');
+    if (w4r.fallback) rows = await sb('business_chat_conversations?chat_id=eq.' + SELLER_CHAT_ID + '&select=id,title,updated_at,pinned&order=pinned.desc,updated_at.desc');
+    else if (w4r.ok && Array.isArray(w4r.body.conversations)) rows = w4r.body.conversations;
+    else { debugLog('loadBusinessChatConversationList: the door refused (' + w4r.code + ')'); return; }
     listEl.innerHTML = '';
     (rows || []).forEach(conv => {
       const item = document.createElement('div');
@@ -14270,7 +14315,13 @@ window.openExistingBusinessConversation = async function(conversationId) {
   showBcEmptyState(false);
   messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');
+    // Door first (Business Read: messages); the older direct read when the door cannot answer. "no_conversation" shows the empty state.
+    let rows;
+    const w4r = await w4BizRead('messages', { conversationId: conversationId });
+    if (w4r.fallback) rows = await sb('business_chat_messages?conversation_id=eq.' + conversationId + '&select=role,content,created_at&order=created_at.asc');
+    else if (w4r.ok && Array.isArray(w4r.body.messages)) rows = w4r.body.messages;
+    else if (w4r.code === 'no_conversation') rows = [];
+    else throw new Error('the door refused (' + w4r.code + ')');
     messagesEl.innerHTML = '';
     bcHistory = (rows || []).map(m => ({ role: m.role, content: m.content }));
     if (!rows || rows.length === 0) {
