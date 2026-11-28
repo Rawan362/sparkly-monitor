@@ -20819,7 +20819,7 @@ async function w1PrCall(action, extra) {
   if (W1_PR.fallback) throw w1PrNotAvailable();
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
-  if (!token) throw new Error(W1_PR_TEXT.relogin);
+  if (!token) { const noLogin = new Error(W1_PR_TEXT.relogin); noLogin.w1NoLogin = true; throw noLogin; }   // no login on this device: the older path runs
   let r;
   try {
     r = await fetch(SELLER_PRODUCT_WRITES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
@@ -20838,7 +20838,7 @@ async function w1PrCall(action, extra) {
 // Door first: the answer, or null when the door is not available (the caller then runs the older direct path).
 async function w1PrTry(action, extra) {
   if (W1_PR.fallback) return null;
-  try { return await w1PrCall(action, extra); } catch (e) { if (e && e.w1NotAvailable) { W1_PR.fallback = true; return null; } throw e; }
+  try { return await w1PrCall(action, extra); } catch (e) { if (e && e.w1NoLogin) return null; if (e && e.w1NotAvailable) { W1_PR.fallback = true; return null; } throw e; }
 }
 // Delete: a product that purchases or stock changes point at is refused in plain words (nothing changes); a product that order lines use asks
 // first ("N order lines use this product and will lose the link. Delete anyway?") and only a Yes repeats the call with confirmOrderLines true.
