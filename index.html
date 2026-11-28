@@ -6834,25 +6834,54 @@ function avatarColor(phone) {
 // <w3-chats-read-door:js:start>
 // The chat screens read the Seller Chats Read door (POST /webhook/seller-chats-read, actions chatList, chatPoll, thread, older) with the
 // person's own login instead of reading conversations, client_status, customers and call_recordings with the public key.
-// w3ChatsRead returns the door's answer (an object with ok true) or null when the door cannot answer (no login, 404/502/503/429, a refused
-// call such as not_available, a network problem): the caller then uses its older direct reads, so the chats keep working.
+// w3ChatsRead answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs its older direct reads (no login on this device, HTTP 404/502/503/429, the door
+//     saying not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED: an answer that is an object with ok false and an error word (for example not_logged_in,
+//     no_seller, read_failed). That never falls back: the screen keeps what it shows, and for not_logged_in the person is asked to sign
+//     in again. Any other answer that is not { ok: true } is a CONTRACT MISMATCH (not an object, an object without ok false and an error
+//     word, not JSON, or an unexpected HTTP status without a refusal): it is not a refusal, so the caller falls back (null).
 const SELLER_CHATS_READ_URL = 'https://sparklly.site/webhook/seller-chats-read';
 let w3ChatsPausedUntil = 0;
+let w3ChatsNoticeAt = 0;
 async function w3ChatsRead(action, extra) {
   if (Date.now() < w3ChatsPausedUntil) return null;
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
   if (!token) return null;
+  let r;
   try {
-    const r = await fetch(SELLER_CHATS_READ_URL, {
+    r = await fetch(SELLER_CHATS_READ_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {}))
     });
-    if (!r.ok) { if (r.status === 429 || r.status === 503) w3ChatsPausedUntil = Date.now() + 30000; return null; }
-    const j = await r.json();
-    return j && j.ok === true ? j : null;
   } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3ChatsPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  if (!j || typeof j !== 'object' || Array.isArray(j) || j.ok !== false) return null;   // contract mismatch: fall back
+  const code = j.error || j.code;
+  if (typeof code !== 'string' || !code) return null;   // contract mismatch: fall back
+  if (code === 'not_available') return null;
+  return { ok: false, code: code };
+}
+// A refusal: keep what is on screen. For a login problem, a small note asks the person to sign in again (at most once a minute).
+function w3ChatsRefused(door) {
+  try { debugLog('chats read door refused: ' + (door && door.code)); } catch (e) {}
+  if (!door || door.code !== 'not_logged_in' || Date.now() - w3ChatsNoticeAt < 60000) return;
+  w3ChatsNoticeAt = Date.now();
+  try {
+    const el = document.createElement('div');
+    el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    el.textContent = 'Please sign out and sign in again.';
+    document.body.appendChild(el);
+    setTimeout(function() { try { el.remove(); } catch (e) {} }, 8000);
+  } catch (e) {}
 }
 // The call items of the open chat, from the door's call rows (id, duration_seconds, ended_at): the same cards fetchCallRecordingCards makes.
 function w3CallCardsFromRows(found) {
@@ -6867,7 +6896,9 @@ async function loadConversations() {
   // Seller Chats Read door first. changed === false: the list is as it was, nothing is rebuilt (it is still drawn, so "3m ago" keeps moving).
   // Any other case where the door cannot answer: the four direct reads below run exactly as before (W3-FALLBACK-REMOVE).
   const door = await w3ChatsRead('chatList', w3ChatListCursor ? { since: w3ChatListCursor } : {});
-  const keepList = !!(door && door.changed === false);
+  const refused = !!(door && door.ok === false);   // a refusal never falls back: the list stays as it is
+  if (refused) w3ChatsRefused(door);
+  const keepList = !!(door && (door.changed === false || refused));
   if (!keepList) {
   const useDoor = !!(door && Array.isArray(door.conversations) && Array.isArray(door.clientStatus) && Array.isArray(door.customers));
   w3ChatListCursor = useDoor && typeof door.cursor === 'string' ? door.cursor : null;
@@ -8446,6 +8477,7 @@ window.loadOlderThreadMessages = async function(phone) {
   try {
     // Seller Chats Read door first (action older: the 100 rows before this time and their call items); older direct reads as the fallback.
     const doorOlder = await w3ChatsRead('older', { phone: String(phone), before: String(oldest) });
+    if (doorOlder && doorOlder.ok === false) { w3ChatsRefused(doorOlder); throw new Error('Chat read refused: ' + doorOlder.code); }   // a refusal never falls back
     const useDoorOlder = !!(doorOlder && Array.isArray(doorOlder.rows));
     const older = useDoorOlder ? doorOlder.rows.slice() : await sb(
       'conversations?phone_number=eq.' + phone + '&seller_id=eq.' + SELLER_CHAT_ID +
@@ -8740,6 +8772,7 @@ async function fastPollOpenChat() {
     // older direct reads run as before (W3-FALLBACK-REMOVE).
     const door = await w3ChatsRead('chatPoll', { phone: String(phone) });
     if (phone !== activePhone) return;
+    if (door && door.ok === false) { w3ChatsRefused(door); return; }   // a refusal never falls back: nothing is refreshed
     let newest;
     if (door && typeof door.cursor === 'string') newest = door.cursor;
     else {
@@ -8814,6 +8847,7 @@ async function loadThread(phone, silent) {
   // Seller Chats Read door first (action thread: the newest 200 rows, the typing time and the call items). When the door cannot answer,
   // the three older direct reads below run as before (W3-FALLBACK-REMOVE).
   const doorThread = await w3ChatsRead('thread', { phone: String(phone) });
+  if (doorThread && doorThread.ok === false) { w3ChatsRefused(doorThread); throw new Error('Chat read refused: ' + doorThread.code); }   // a refusal never falls back
   const useDoorThread = !!(doorThread && Array.isArray(doorThread.rows));
   let rows = useDoorThread ? doorThread.rows.slice() : await sb(
     // Same fix as the Ahmad chat: fetch the NEWEST 200 (descending), not
