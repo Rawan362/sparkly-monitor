@@ -166,3 +166,12 @@ test('a door refusal (a login problem or any other) never falls back: no direct 
     assert.equal(run(w, 'w3ChatListCursor'), 'c1', error);
   }
 });
+
+test('a contract mismatch is NOT a refusal and falls back to the four direct reads: an array, an empty object, "ok: false" with no error word, a string or nothing', async () => {
+  for (const body of [[], {}, { ok: false }, { ok: false, error: '' }, 'text', null, { ok: 'yes' }]) {
+    const w = world({ door: () => ({ body }) });
+    await run(w, 'loadConversations()');
+    assert.equal(w.calls.rest.length, 4, JSON.stringify(body));
+    assert.equal(run(w, 'w3ChatListCursor'), null);
+  }
+});

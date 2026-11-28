@@ -231,3 +231,16 @@ test('a refusal does not pause the door, and 404 or 502 do not pause it either; 
     else assert.equal(run(w, 'w3ChatsPausedUntil'), 0);
   }
 });
+
+test('a contract mismatch is NOT a refusal and falls back: an array, an empty object, "ok: false" with no error word, a string or nothing at all', async () => {
+  for (const body of [[], {}, { ok: false }, { ok: false, error: '' }, { ok: false, error: 42 }, 'text', null, { ok: 'yes' }]) {
+    const p = world({ door: () => ({ body }) });
+    stubThread(p);
+    await run(p, 'fastPollOpenChat()');
+    assert.equal(p.calls.rest.length, 2, JSON.stringify(body));
+    const t = world({ door: () => ({ body }) });
+    await run(t, 'loadThread("' + PHONE + '", true)');
+    assert.equal(t.calls.updates.length, 1, JSON.stringify(body));
+    assert.equal(t.calls.rest.length, 2, JSON.stringify(body));
+  }
+});
