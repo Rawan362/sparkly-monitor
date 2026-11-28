@@ -12523,6 +12523,37 @@ function openCallActionMenu(row, x, y) {
 }
 
 // The small window: the call's audio on top and, for "Transcript", what was said under it.
+// <w3-call-detail-door:js:start>
+// The call window reads ONE call from the Seller Call Detail door (POST /webhook/seller-call-detail, action call) with the person's own
+// login instead of reading call_recordings with the public key. The transcript is asked for only in the transcript view.
+// w3CallDetail returns { row } (the call, with its transcript in transcript mode), { noCall: true } when the door says the call is not this
+// seller's or does not exist, or null when the door cannot answer (no login, 404/502/503/429, a refused call, a network problem): the
+// caller then uses its older direct read. After a 429 or 503 the door is left alone for 30 seconds.
+const SELLER_CALL_DETAIL_URL = 'https://sparklly.site/webhook/seller-call-detail';
+let w3CallPausedUntil = 0;
+async function w3CallDetail(callId, mode) {
+  if (Date.now() < w3CallPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  try {
+    const r = await fetch(SELLER_CALL_DETAIL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, action: 'call', callId: String(callId), mode: mode === 'transcript' ? 'transcript' : 'audio' })
+    });
+    if (!r.ok) { if (r.status === 429 || r.status === 503) w3CallPausedUntil = Date.now() + 30000; return null; }
+    const j = await r.json();
+    if (j && j.ok === true && j.call && typeof j.call === 'object') {
+      const row = Object.assign({}, j.call);
+      if (mode === 'transcript') row.transcript = j.transcript;
+      return { row: row };
+    }
+    if (j && j.ok === false && j.error === 'no_call') return { noCall: true };
+    return null;
+  } catch (e) { return null; }
+}
+// <w3-call-detail-door:js:end>
 window.showCallWindow = async function(callId, mode) {
   closeVoiceTranscript();
   if (!callId) return;
@@ -12577,10 +12608,17 @@ window.showCallWindow = async function(callId, mode) {
 
   const fail = (text) => { players.textContent = ''; if (lines) { lines.textContent = text; lines.classList.add('empty'); } else { players.textContent = text; } };
   try {
-    const select = 'audio_url,duration_seconds,ended_at,phone_number,audio_deleted_at' + (mode === 'transcript' ? ',transcript' : '');
-    const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
+    // Seller Call Detail door first; the older direct read only when the door cannot answer (W3-FALLBACK-REMOVE).
+    const door = await w3CallDetail(callId, mode);
+    let r;
+    if (door && door.noCall) r = null;
+    else if (door && door.row) r = door.row;
+    else {
+      const select = 'audio_url,duration_seconds,ended_at,phone_number,audio_deleted_at' + (mode === 'transcript' ? ',transcript' : '');
+      const rows = await sb('call_recordings?id=eq.' + encodeURIComponent(callId) + '&seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=' + select + '&limit=1');
+      r = rows && rows[0];
+    }
     if (!document.body.contains(overlay)) return; // closed while it was loading
-    const r = rows && rows[0];
     if (!r) { fail(T('Recording not found.', 'التسجيل غير موجود.')); return; }
 
     const dur = formatCallDuration(r.duration_seconds);
