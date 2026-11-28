@@ -50,7 +50,7 @@ test('the cache name is bumped and the older direct reads of Alerts and Reports 
 
 test('the cache name is bumped and the four older direct reads of Debts are still in the file', () => {
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 318);
+  assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 320);
   assert.ok(LOAD().includes("'&order_status=neq.CANCELLED&select=phone,order_total,amount_received'"));
   assert.ok(LOAD().includes("'&select=phone,name'"));
   assert.ok(DETAIL().includes("&select=id,order_total,amount_received,created_at,product_name&order=created_at.asc'"));
