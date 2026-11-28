@@ -13094,8 +13094,7 @@ function w1NoticeTap(n) {
 // Marks the notice as read (as the other notice taps do), then shows the chats list.
 window.w1OpenChatsFromNotice = async function(id) {
   try {
-    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w3NtMarkOnOpen(id);   // Seller Notifications door first; the older direct write when it cannot answer
   } catch (e) { /* the list still opens */ }
   try { checkNotificationsDot(); } catch (e) { /* not important */ }
   closeNotificationsPanel();
@@ -13203,8 +13202,7 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
 
 window.openQuestionFromNotification = async function(id, qid) {
   try {
-    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w3NtMarkOnOpen(id);   // Seller Notifications door first; the older direct write when it cannot answer
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
@@ -13219,8 +13217,7 @@ window.openQuestionFromNotification = async function(id, qid) {
 
 window.openEscalationChat = async function(id, phone) {
   try {
-    const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w3NtMarkOnOpen(id);   // Seller Notifications door first; the older direct write when it cannot answer
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
@@ -13240,11 +13237,7 @@ window.discussNotification = async function(id) {
 
     if (!n.is_read) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
-          method: 'PATCH',
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-          body: JSON.stringify({ is_read: true })
-        });
+        await w3NtMarkOnOpen(id);   // Seller Notifications door first; the older direct write when it cannot answer
         checkNotificationsDot();
       } catch (e) {}
     }
@@ -13262,13 +13255,139 @@ window.discussNotification = async function(id) {
   }
 };
 
+// <w3-notifications-door:js:start>
+// The Notifications panel writes (mark read or unread, mark all read, delete one, delete selected) go through the Seller Notifications door
+// (POST /webhook/seller-notifications, actions setRead, markAllRead, deleteOne, deleteSelected, undo) with the person's own login, instead of
+// writing straight to seller_notifications with the public key (by row id alone). w3NtCall answers one of three things:
+//   - the door's answer (an object with ok true);
+//   - null: the door cannot be used, so the caller runs the older direct write exactly as before (no login on this device, HTTP 404/502/503/429,
+//     the door saying not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code, message }: the door REFUSED (not_logged_in, no_notification, ...). That never falls back: the plain words are shown.
+const SELLER_NOTIFICATIONS_URL = 'https://sparklly.site/webhook/seller-notifications';
+const W3_NT_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.',
+  markAllRead: 'All notifications marked as read.', deleteOne: 'Notification deleted.', deleteSelected: 'Notifications deleted.'
+};
+const W3_NT_SHOW_MS = 10000;
+let w3NtPausedUntil = 0;
+const W3_NT = { timer: null, undoIds: [] };
+async function w3NtCall(action, extra) {
+  if (Date.now() < w3NtPausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_NOTIFICATIONS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3NtPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return j;
+  const code = String((j && (j.error || j.code)) || 'bad_answer');
+  if (code === 'not_available') return null;
+  return { ok: false, code: code, message: code === 'not_logged_in' ? W3_NT_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W3_NT_TEXT.failed) };
+}
+// The older direct writes, exactly as the panel sent them before the door (W3-FALLBACK-REMOVE).
+function w3NtHeaders(extra) { return Object.assign({ apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, extra || {}); }
+async function w3NtDirectRead(id, read) {
+  await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers: w3NtHeaders(), body: JSON.stringify({ is_read: read }) });
+}
+async function w3NtDirectMarkAll() {
+  await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', { method: 'PATCH', headers: w3NtHeaders(), body: JSON.stringify({ is_read: true }) });
+}
+async function w3NtDirectDelete(filter) {
+  await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?' + filter, { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' } });
+}
+// A short note, with an Undo button when the door gave something to undo, for about ten seconds.
+function w3NtNote(text, undoIds, isError) {
+  let bar = document.getElementById('w3-nt-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w3-nt-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w3-nt-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w3-nt-undo-btn'; btn.textContent = W3_NT_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w3NtUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  const msgEl = document.getElementById('w3-nt-note-msg');
+  msgEl.textContent = text;
+  msgEl.style.color = isError ? 'var(--danger)' : '';
+  W3_NT.undoIds = Array.isArray(undoIds) ? undoIds.filter(Boolean) : [];
+  document.getElementById('w3-nt-undo-btn').style.display = W3_NT.undoIds.length ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W3_NT.timer);
+  W3_NT.timer = setTimeout(function() { bar.style.display = 'none'; W3_NT.undoIds = []; }, W3_NT_SHOW_MS);
+}
+async function w3NtUndo() {
+  const ids = W3_NT.undoIds.slice().reverse();
+  if (!ids.length) return;
+  W3_NT.undoIds = [];
+  let result = W3_NT_TEXT.undone, bad = false;
+  for (const id of ids) {
+    const r = await w3NtCall('undo', { undoId: id });
+    if (r === null) { result = W3_NT_TEXT.failed; bad = true; break; }
+    if (r.ok === false) { result = r.message; bad = true; break; }
+  }
+  w3NtNote(result, [], bad);
+  try { await loadNotifications(); } catch (e) {}
+  try { await checkNotificationsDot(); } catch (e) {}
+}
+// A refusal: the door's plain words (the sign-in words for a login problem). Nothing was changed.
+function w3NtRefused(door) {
+  try { debugLog('notifications door refused: ' + (door && door.code)); } catch (e) {}
+  w3NtNote(door && door.message ? door.message : W3_NT_TEXT.failed, [], true);
+}
+// Marks one notification read or unread. Answers null when it is done, or the door's refusal object.
+async function w3NtSetRead(id, read) {
+  const r = await w3NtCall('setRead', { id: Number(id), read: !!read });
+  if (r === null) { await w3NtDirectRead(id, !!read); return null; }
+  return r.ok === false ? r : null;
+}
+// The same, for the buttons that open something (open question, open chat, discuss): the screen goes on whatever happens; only a login
+// problem is told to the person.
+async function w3NtMarkOnOpen(id) {
+  const refused = await w3NtSetRead(id, true);
+  if (refused && refused.code === 'not_logged_in') w3NtRefused(refused);
+}
+async function w3NtMarkAll() {
+  let r = await w3NtCall('markAllRead');
+  if (r === null) { await w3NtDirectMarkAll(); return null; }
+  if (r.ok === false) return r;
+  const undoIds = [];
+  if (r.undoId) undoIds.push(r.undoId);
+  for (let i = 0; i < 20 && r.more === true; i++) {
+    r = await w3NtCall('markAllRead');
+    if (r === null || r.ok === false) break;
+    if (r.undoId) undoIds.push(r.undoId);
+  }
+  if (undoIds.length) w3NtNote(W3_NT_TEXT.markAllRead, undoIds, false);
+  return null;
+}
+async function w3NtDeleteOne(id) {
+  const r = await w3NtCall('deleteOne', { id: Number(id) });
+  if (r === null) { await w3NtDirectDelete('id=eq.' + id); return null; }
+  if (r.ok === false) return r.code === 'no_notification' ? null : r;   // already gone: nothing to do, the list is reloaded
+  if (r.undoId) w3NtNote(W3_NT_TEXT.deleteOne, [r.undoId], false);
+  return null;
+}
+async function w3NtDeleteSelected(ids) {
+  const r = await w3NtCall('deleteSelected', { ids: ids.map(Number) });
+  if (r === null) { await w3NtDirectDelete('id=in.(' + ids.join(',') + ')'); return null; }
+  if (r.ok === false) return r;
+  if (r.undoId) w3NtNote(W3_NT_TEXT.deleteSelected, [r.undoId], false);
+  return null;
+}
+// <w3-notifications-door:js:end>
+
 window.toggleNotificationRead = async function(id, markAsRead) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ is_read: markAsRead })
-    });
+    const refused = await w3NtSetRead(id, markAsRead);   // Seller Notifications door first; the older direct write when it cannot answer
+    if (refused) { w3NtRefused(refused); return; }
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13276,11 +13395,8 @@ window.toggleNotificationRead = async function(id, markAsRead) {
 
 window.markAllNotificationsRead = async function() {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
-      method: 'PATCH',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ is_read: true })
-    });
+    const refused = await w3NtMarkAll();   // Seller Notifications door first (again while it says more); the older direct write when it cannot answer
+    if (refused) { w3NtRefused(refused); return; }
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13315,10 +13431,8 @@ function updateDeleteSelectedButtonState() {
 
 window.deleteOneNotification = async function(id) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    const refused = await w3NtDeleteOne(id);   // Seller Notifications door first; the older direct delete when it cannot answer
+    if (refused) { w3NtRefused(refused); return; }
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13328,10 +13442,8 @@ window.deleteSelectedNotifications = async function() {
   const ids = Array.from(document.querySelectorAll('.notification-item-checkbox:checked')).map((cb) => cb.dataset.id);
   if (ids.length === 0) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    const refused = await w3NtDeleteSelected(ids);   // Seller Notifications door first (all or nothing); the older direct delete when it cannot answer
+    if (refused) { w3NtRefused(refused); return; }
     exitNotificationsSelectMode();
     await loadNotifications();
     await checkNotificationsDot();
