@@ -87,7 +87,7 @@ test('the door says no: the older direct check confirms before anyone is treated
 });
 
 test('every way the door cannot answer runs the older direct check as before', async () => {
-  for (const over of [{ status: 503, body: {} }, { status: 404, body: {} }, { status: 502, body: {} }, { status: 429, body: {} }, { body: { ok: false, error: 'not_available' } }, { throws: true }]) {
+  for (const over of [{ status: 503, body: {} }, { status: 404, body: {} }, { status: 502, body: {} }, { status: 429, body: {} }, { body: { ok: false, error: 'not_available' } }, { body: [] }, { body: {} }, { throws: true }]) {
     for (const directAdmin of [true, false]) {
       const w = world({ door: () => over, directAdmin });
       await login(w);

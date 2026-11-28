@@ -10117,7 +10117,8 @@ async function w3AdminCheck(token) {
   if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
   let j = null;
   try { j = await r.json(); } catch (e) { j = null; }
-  if (j && j.ok === true && typeof j.admin === 'boolean') return j.admin;
+  if (!j || typeof j.ok !== 'boolean') return null;   // not an answer of this door at all: treated as "cannot answer", never as a refusal
+  if (j.ok === true && typeof j.admin === 'boolean') return j.admin;
   const code = (j && (j.error || j.code)) || 'bad_answer';
   if (code === 'not_available') return null;
   throw new Error('Admin check refused: ' + code);
