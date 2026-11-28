@@ -38,6 +38,7 @@ function world({ timing = false, hidden = false, online = true, hasBox = true, s
     location: { search: timing ? '?timing=1' : '' },
     localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) },
     requestAnimationFrame: (fn) => frames.push(fn),
+    w3ChatsRead: async () => null,   // the Seller Chats Read door cannot answer here, so the older direct reads below are what is tested
     sb: async (p) => { calls.sb.push(p); return sbImpl ? sbImpl(p) : []; },
     loadThread: async (phone, silent) => { calls.loadThread.push([phone, silent]); }
   });
