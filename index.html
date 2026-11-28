@@ -13133,7 +13133,7 @@ async function loadNotifications() {
   const listEl = document.getElementById('notifications-list');
   listEl.innerHTML = '<div class="spinner"></div>';
   try {
-    const rows = await sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100');
+    const rows = await w1IrRead('notifications', {}, function() { return sb('seller_notifications?seller_id=eq.' + SELLER_CHAT_ID + '&select=*&order=created_at.desc&limit=100'); });
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="notifications-empty-msg">Nothing here yet — updates from your AI (daily summaries, ad performance, strategy suggestions) will show up here.</div>';
       return;
@@ -13211,7 +13211,7 @@ window.openQuestionFromNotification = async function(id, qid) {
   goToChats();
   await openSellerInboxFromChats();
   try {
-    const rows = await sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1');
+    const rows = await w1IrRead('question', { id: qid }, function() { return sb('pending_questions?id=eq.' + qid + '&seller_id=eq.' + SELLER_CHAT_ID + '&select=*&limit=1'); });
     if (rows && rows[0] && (rows[0].status === 'pending' || rows[0].status === 'lesson')) openInboxDetail(rows[0]);
     else if (rows && rows[0]) alert('You already answered this one.');
   } catch (e) {}
@@ -13234,7 +13234,7 @@ window.openEscalationChat = async function(id, phone) {
  * instructions about it — a focused thread just about this one alert. */
 window.discussNotification = async function(id) {
   try {
-    const rows = await sb('seller_notifications?id=eq.' + id + '&select=*&limit=1');
+    const rows = await w1IrRead('notification', { id: id }, function() { return sb('seller_notifications?id=eq.' + id + '&select=*&limit=1'); });
     const n = rows && rows[0];
     if (!n) return;
 
@@ -13381,7 +13381,7 @@ async function loadInboxList() {
   const listEl = document.getElementById('inbox-list');
   listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>';
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc');
+    const rows = await w1IrRead('inboxList', {}, function() { return sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&status=in.(pending,lesson)&select=*&order=created_at.desc'); });
     if (!rows || rows.length === 0) {
       listEl.innerHTML = '<div id="inbox-empty-msg">Nothing waiting — the AI hasn\'t needed to ask you anything.</div>';
       return;
@@ -13518,7 +13518,7 @@ window.agentSelectScope = function(btn) {
 let agentGroups = [];
 async function agentLoadGroups(selectId) {
   try {
-    const rows = await sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc');
+    const rows = await w1IrRead('groups', {}, function() { return sb('customer_groups?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=id,name&order=created_at.asc'); });
     agentGroups = Array.isArray(rows) ? rows : [];
   } catch (e) { agentGroups = []; }
   const sel = document.getElementById('inbox-agent-group-select');
@@ -13686,7 +13686,7 @@ window.submitLesson = async function() {
 // "needs you in the chat" case, ask the seller how it was solved (this customer only, or for everyone).
 async function startLessonIfNeeded(phone) {
   try {
-    const rows = await sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1');
+    const rows = await w1IrRead('chatNeeded', { phone: phone }, function() { return sb('pending_questions?seller_id=eq.' + SELLER_CHAT_ID + '&phone_number=eq.' + encodeURIComponent(phone) + '&kind=eq.chat_needed&status=eq.pending&select=*&limit=1'); });
     const q = rows && rows[0];
     if (!q) return;
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
@@ -13694,7 +13694,7 @@ async function startLessonIfNeeded(phone) {
     try { checkNotificationsDot(); checkInboxDot(); } catch (e) {}
     if (confirm('You turned the AI back on for this customer. Do you want to tell the AI now how you solved the problem, so it can handle it next time?')) {
       await openSellerInboxFromChats();
-      const fresh = await sb('pending_questions?id=eq.' + q.id + '&select=*&limit=1');
+      const fresh = await w1IrRead('question', { id: q.id }, function() { return sb('pending_questions?id=eq.' + q.id + '&select=*&limit=1'); });
       if (fresh && fresh[0]) openInboxDetail(fresh[0]);
     }
   } catch (e) {}
@@ -18901,6 +18901,50 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-inbox-reads:js:start -->
+<script>
+// The notification list and the Inbox / agent card reads go through the Seller Inbox Read door (POST /webhook/seller-inbox-read) instead of reading
+// seller_notifications, pending_questions and customer_groups straight with the public key (some by row id alone). The door answers only the seller of
+// the person's own login, with named columns. A read: door first. The older direct read runs when the door is down or not available (503, 404, 502,
+// "not available", the connection fails, a 429 too many calls, or an answer that is not understood; the door is then left alone for 30 seconds) or
+// when this device has no login. A refusal of the login by the door is not read the older way: the screen's own "could not load" shows. The shape
+// of every answer is the shape the screen already got (a list of rows), so the screens are unchanged.
+const SELLER_INBOX_READ_URL = 'https://sparklly.site/webhook/seller-inbox-read';
+const W1_IR = { pausedUntil: 0 };
+const W1_IR_PAUSE_MS = 30000;
+// The answer rows, or null when the older direct read must run. Throws an Error only for a refused login.
+async function w1IrTry(action, extra) {
+  if (Date.now() < W1_IR.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older read runs
+  let r;
+  try {
+    r = await fetch(SELLER_INBOX_READ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_IR.pausedUntil = Date.now() + W1_IR_PAUSE_MS; return null; }
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) { W1_IR.pausedUntil = Date.now() + W1_IR_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { W1_IR.pausedUntil = Date.now() + W1_IR_PAUSE_MS; return null; }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'no_notification' || code === 'no_question') return [];   // "not found", as the older read answered
+    if (code === 'not_logged_in') throw new Error('Please sign out and sign in again, then try once more.');
+    W1_IR.pausedUntil = Date.now() + W1_IR_PAUSE_MS; return null;
+  }
+  if (action === 'notifications') return Array.isArray(j.notifications) ? j.notifications : null;
+  if (action === 'notification') return j.notification ? [j.notification] : [];
+  if (action === 'inboxList') return Array.isArray(j.questions) ? j.questions : null;
+  if (action === 'question') return j.question ? [j.question] : [];
+  if (action === 'chatNeeded') return j.question ? [j.question] : [];
+  if (action === 'groups') return Array.isArray(j.groups) ? j.groups : null;
+  return null;
+}
+async function w1IrRead(action, extra, direct) {
+  const rows = await w1IrTry(action, extra);
+  return rows === null ? direct() : rows;
+}
+</script>
+<!-- w1-inbox-reads:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
