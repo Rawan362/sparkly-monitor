@@ -15798,13 +15798,59 @@ async function engineLoadModels() {
 }
 function enginePurposeName(id) { return (ENGINE_PURPOSES[id] || [id])[0]; }
 
+// <w3-engine-read-door:js:start>
+// The Engine screen reads the Seller Engine Reads door (POST /webhook/seller-engine-reads, action read, backend PRs 320 and 342 NOTES.md) with the
+// person's own login instead of reading seller_engine, ai_model_prices and ai_usage with the public key. The door finds the seller from the login
+// (no seller id is sent) and never returns the engine key. w3EngineRead answers one of three things:
+//   - the door's answer (an object with ok true and rows);
+//   - null: the door cannot be used, so the caller runs its older direct read (no login on this device, HTTP 429/503/404/502, the door saying
+//     not_available, a network problem). After a 429 or a 503 the door is left alone for 30 seconds;
+//   - { ok: false, code }: the door REFUSED (not_logged_in, bad_column, read_failed, ...). That never falls back.
+const SELLER_ENGINE_READS_URL = 'https://sparklly.site/webhook/seller-engine-reads';
+const W3_ENGINE_RELOGIN = 'Please sign out and sign in again, then try once more.';
+let w3EnginePausedUntil = 0;
+async function w3EngineRead(read) {
+  if (Date.now() < w3EnginePausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;
+  let r;
+  try {
+    r = await fetch(SELLER_ENGINE_READS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ token: token, action: 'read' }, read))
+    });
+  } catch (e) { return null; }
+  if (r.status === 429 || r.status === 503) w3EnginePausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true && Array.isArray(j.rows)) return j;
+  const code = (j && (j.error || j.code)) || 'bad_answer';
+  if (code === 'not_available') return null;
+  return { ok: false, code: String(code) };
+}
+// A refusal ends the read like a failed read: the screen's own error shows (the sign-in words for a login problem).
+function w3EngineRefusal(door) {
+  return new Error(door && door.code === 'not_logged_in' ? W3_ENGINE_RELOGIN : 'the engine data could not be read (' + (door && door.code) + ')');
+}
+// <w3-engine-read-door:js:end>
+
 async function loadEngine() {
   const box = document.getElementById('engine-content');
   box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:30px 4px;color:var(--text-muted);font-size:13.5px;"><div class="spinner"></div>Loading your engine...</div>';
   try {
+    // Seller Engine Reads door first (the seller comes from the login); the older direct reads when it cannot answer; a refusal never falls back.
+    const [doorEng, doorPrices] = await Promise.all([
+      w3EngineRead({ table: 'seller_engine', select: ['chat_model', 'customer_model', 'call_model'], limit: 1 }),
+      w3EngineRead({ table: 'ai_model_prices' })
+    ]);
+    if (doorEng && doorEng.ok === false) throw w3EngineRefusal(doorEng);
+    if (doorPrices && doorPrices.ok === false) throw w3EngineRefusal(doorPrices);
     const [eng, prices] = await Promise.all([
-      sb('seller_engine?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_model,customer_model,call_model&limit=1'),
-      sb('ai_model_prices?select=*')
+      doorEng ? doorEng.rows : sb('seller_engine?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=chat_model,customer_model,call_model&limit=1'),   // W3-FALLBACK-REMOVE
+      doorPrices ? doorPrices.rows : sb('ai_model_prices?select=*')   // W3-FALLBACK-REMOVE
     ]);
     if (eng && eng[0]) {
       if (eng[0].chat_model) engineState.models.chat = eng[0].chat_model;
@@ -15825,7 +15871,10 @@ async function loadEngine() {
 async function engineLoadUsage() {
   const days = engineState.period === 'today' ? 1 : parseInt(engineState.period, 10) || 7;
   const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (days - 1));
-  engineState.rows = await sb('ai_usage?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + encodeURIComponent(start.toISOString()) + '&select=created_at,model,purpose,channel,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens&order=created_at.desc&limit=5000') || [];
+  const doorU = await w3EngineRead({ table: 'ai_usage', select: ['created_at', 'model', 'purpose', 'channel', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens'],
+    filters: [{ column: 'created_at', op: 'gte', value: start.toISOString() }], order: [{ column: 'created_at', dir: 'desc' }], limit: 5000 });   // Seller Engine Reads door first
+  if (doorU && doorU.ok === false) throw w3EngineRefusal(doorU);
+  engineState.rows = doorU ? doorU.rows : await sb('ai_usage?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&created_at=gte.' + encodeURIComponent(start.toISOString()) + '&select=created_at,model,purpose,channel,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens&order=created_at.desc&limit=5000') || [];
 }
 
 
