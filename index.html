@@ -5707,7 +5707,8 @@ async function sb(path) {
 async function logSystemError(source, message, context) {
   debugLog(source + ': ' + message); // also keep in the local session log
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/system_errors', {
+    // The Seller Client Logs door first (the seller is taken from the login when there is one); the older direct insert runs when it is not available.
+    if (!(await w1ClSend('systemError', { source: source, message: String(message).slice(0, 500), context: context || null }))) await fetch(SUPABASE_URL + '/rest/v1/system_errors', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ seller_id: SELLER_CHAT_ID || null, source, error_message: String(message).slice(0, 500), context: context || null })
@@ -9541,9 +9542,12 @@ window.toggleRecording = async function(phone) {
     // Technical note for troubleshooting voice notes: what this device's microphone really records.
     try {
       const ts = stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings ? stream.getAudioTracks()[0].getSettings() : {};
-      fetch(SUPABASE_URL + '/rest/v1/debug_log', { method: 'POST',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({ source: 'mic-settings', data: { channelCount: ts.channelCount, sampleRate: ts.sampleRate, echoCancellation: ts.echoCancellation, noiseSuppression: ts.noiseSuppression, ua: (navigator.userAgent || '').slice(0, 140) } }) }).catch(() => {});
+      const micNote = { channelCount: ts.channelCount, sampleRate: ts.sampleRate, echoCancellation: ts.echoCancellation, noiseSuppression: ts.noiseSuppression, ua: (navigator.userAgent || '').slice(0, 140) };
+      w1ClSend('debugLog', { source: 'mic-settings', data: micNote }).then(function(done) {
+        if (!done) return fetch(SUPABASE_URL + '/rest/v1/debug_log', { method: 'POST',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ source: 'mic-settings', data: micNote }) });
+      }).catch(() => {});
     } catch (e) {}
 
     const candidates = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg'];
@@ -18901,6 +18905,39 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-client-logs:js:start -->
+<script>
+// The two diagnostic inserts the app sends (an error line from logSystemError, and the microphone note of the voice recorder) go through the Seller
+// Client Logs door (POST /webhook/seller-client-logs) instead of writing straight to system_errors and debug_log with the public key (any text, any
+// size, any seller id). The login token is optional: with one the door records that seller, without one the line is still saved (a log line must never
+// be lost to a login problem). Fire and forget: nothing here ever shows a message or breaks the app. The older direct insert runs when the door is down
+// or not available (503, 404, 502, "not available", or the connection fails; the door is then left alone for 30 seconds). A 429 or a "too many lines"
+// answer drops the line on purpose (the limit is the point) and a refused line (too big or odd) is not stored the older way either.
+const SELLER_CLIENT_LOGS_URL = 'https://sparklly.site/webhook/seller-client-logs';
+const W1_CL = { pausedUntil: 0 };
+const W1_CL_PAUSE_MS = 30000;
+// true when the door handled the line (or dropped it on purpose), false when the older direct insert must run. Never throws.
+async function w1ClSend(action, fields) {
+  try {
+    if (Date.now() < W1_CL.pausedUntil) return false;
+    let token = null;
+    try { token = await getValidAuthToken(); } catch (e) { token = null; }
+    const body = Object.assign({ action: action }, fields || {});
+    if (token) body.token = token;
+    let r;
+    try {
+      r = await fetch(SELLER_CLIENT_LOGS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive: true });
+    } catch (e) { W1_CL.pausedUntil = Date.now() + W1_CL_PAUSE_MS; return false; }
+    if (r.status === 429) { W1_CL.pausedUntil = Date.now() + W1_CL_PAUSE_MS; return true; }
+    if (r.status === 503 || r.status === 404 || r.status === 502) { W1_CL.pausedUntil = Date.now() + W1_CL_PAUSE_MS; return false; }
+    let j = null;
+    try { j = await r.json(); } catch (e) { return true; }
+    if (j && j.ok === false && j.error === 'not_available') { W1_CL.pausedUntil = Date.now() + W1_CL_PAUSE_MS; return false; }
+    return true;
+  } catch (e) { return false; }
+}
+</script>
+<!-- w1-client-logs:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
