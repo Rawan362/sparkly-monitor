@@ -9436,7 +9436,8 @@ window.sendAhmadMessage = async function() {
   textarea.focus(); // the old renderAhmadChatPanel() rebuild was destroying and recreating this element, losing focus every time — this fixes that
 
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
+    // The Seller Small Writes door first (the seller comes from the login); the older direct write runs when it is not available.
+    if ((await w1SwTry('assistantMessage', { message: message })) === null) await fetch(SUPABASE_URL + '/rest/v1/seller_web_chat_log', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ seller_id: SELLER_CHAT_ID, role: 'seller', message })
@@ -13530,6 +13531,8 @@ window.agentNewGroup = async function() {
   const name = (prompt('Name of the new group (for example: Wholesale customers):') || '').trim();
   if (!name) return;
   try {
+    const w1Group = await w1SwTry('newGroup', { name: name });
+    if (w1Group !== null) { await agentLoadGroups(w1Group.groupId); return; }
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const r = await fetch(SUPABASE_URL + '/rest/v1/customer_groups', { method: 'POST', headers, body: JSON.stringify({ seller_id: SELLER_CHAT_ID, name }) });
     if (!r.ok) throw new Error('Could not create the group (' + r.status + ')');
@@ -13545,6 +13548,7 @@ async function agentPrepareGroup(q) {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' };
   const extra = String(document.getElementById('inbox-agent-group-numbers').value || '').split(/[\s,;]+/).map(x => x.replace(/\D/g, '')).filter(x => x.length >= 6);
   const phones = Array.from(new Set([String(q.phone_number).replace(/^\+/, '')].concat(extra)));
+  if ((await w1SwTry('addGroupMembers', { groupId: gid, phones: phones })) !== null) return gid;   // the door adds them to this seller's own group; the older direct write below runs when it is not available
   const r = await fetch(SUPABASE_URL + '/rest/v1/customer_group_members?on_conflict=group_id,phone_number', { method: 'POST', headers, body: JSON.stringify(phones.map(p => ({ group_id: gid, seller_id: SELLER_CHAT_ID, phone_number: p }))) });
   if (!r.ok) throw new Error('Could not add customers to the group (' + r.status + ')');
   return gid;
@@ -14908,7 +14912,7 @@ window.recordDebtPayment = async function() {
   try {
     // Log the payment itself as a permanent record — "on this date, this
     // much was paid" — independent of how it gets allocated below.
-    await fetch(SUPABASE_URL + '/rest/v1/debt_payments', {
+    if ((await w1SwTry('logDebtPayment', { phone: phone, amount: amount })) === null) await fetch(SUPABASE_URL + '/rest/v1/debt_payments', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ seller_id: SELLER_CHAT_ID, phone, amount, payment_date: new Date().toISOString() })
@@ -16004,14 +16008,15 @@ window.engineChoose = async function(kind, id) {
   const col = { chat: 'chat_model', customer: 'customer_model', call: 'call_model' }[kind];
   const where = { chat: 'your AI chat', customer: 'customer messages (text, voice notes) and Test Mode', call: 'phone calls' }[kind];
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
+    const w1Engine = await w1SwTry('chooseEngine', { kind: kind, model: id });
+    const res = w1Engine !== null ? { ok: true, status: 200 } : await fetch(SUPABASE_URL + '/rest/v1/seller_engine?on_conflict=seller_id', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ seller_id: SELLER_CHAT_ID, [col]: id, updated_at: new Date().toISOString() })
     });
     if (!res.ok) throw new Error('save failed ' + res.status);
     const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = 'Saved. ' + where.charAt(0).toUpperCase() + where.slice(1) + ' now use ' + engineModelName(id) + (kind === 'call' ? ' (from the next call).' : ' (from the next message).');
-  } catch (e) { const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = 'Could not save, try again.'; }
+  } catch (e) { const n = document.getElementById('engine-saved-' + kind); if (n) n.textContent = (e && e.w1Door) ? e.message : 'Could not save, try again.'; }
 };
 window.engineSetFilter = async function(key, val) {
   engineState[key] = val;
@@ -18901,6 +18906,47 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-small-writes:js:start -->
+<script>
+// Four small writes go through the Seller Small Writes door (POST /webhook/seller-small-writes) instead of writing straight to the tables with the
+// public key: the assistant chat line (assistantMessage), a new customer group (newGroup) and its members (addGroupMembers), the debt payment log row
+// (logDebtPayment) and the engine choice (chooseEngine). The door finds the seller from the login and writes only that seller's rows.
+// Door first. The older direct write runs when the door is down or not available: 503, 404, 502, "not available", or the connection fails; the door is
+// then left alone for 30 seconds. A 429 (too many tries) is NOT sent the older way: the screen says "try again in a moment" (and the door is left
+// alone for 30 seconds). A door refusal or a login problem never falls back. The order allocation of a debt payment stays on the orders door.
+const SELLER_SMALL_WRITES_URL = 'https://sparklly.site/webhook/seller-small-writes';
+const W1_SW_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  busy: 'Too many tries. Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.'
+};
+const W1_SW_PAUSE_MS = 30000;
+const W1_SW = { pausedUntil: 0 };
+function w1SwErr(text) { const e = new Error(text); e.w1Door = true; return e; }
+// Door first: the answer, or null when the older direct path must run (door down or not available, or paused). Throws an Error with plain words for
+// a refusal, a login problem and a 429.
+async function w1SwTry(action, extra) {
+  if (Date.now() < W1_SW.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) throw w1SwErr(W1_SW_TEXT.relogin);
+  let r;
+  try {
+    r = await fetch(SELLER_SMALL_WRITES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_SW.pausedUntil = Date.now() + W1_SW_PAUSE_MS; return null; }
+  if (r.status === 429) { W1_SW.pausedUntil = Date.now() + W1_SW_PAUSE_MS; throw w1SwErr(W1_SW_TEXT.busy); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { W1_SW.pausedUntil = Date.now() + W1_SW_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw w1SwErr(W1_SW_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') { W1_SW.pausedUntil = Date.now() + W1_SW_PAUSE_MS; return null; }
+    throw w1SwErr(code === 'not_logged_in' ? W1_SW_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_SW_TEXT.failed));
+  }
+  return j;
+}
+</script>
+<!-- w1-small-writes:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
