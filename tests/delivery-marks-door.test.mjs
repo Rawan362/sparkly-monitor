@@ -81,10 +81,9 @@ test('the door answers: the ticks use its marks, with the login token, and no di
   assert.ok(w.calls.door[0].url.endsWith('/webhook/seller-delivery-marks'));
 });
 
-test('the door says not available (503), refuses, has no number, or the device has no login: the older direct read runs as before', async () => {
+test('the door says 503 or not available, has no number, or the device has no login: the older direct read runs as before', async () => {
   for (const over of [
     { door: () => ({ status: 503, body: { code: 'not_ready' } }) },
-    { door: () => ({ body: { ok: false, error: 'bad_input' } }) },
     { door: () => ({ body: { ok: false, error: 'not_available' } }) },
     { door: () => ({ body: { ok: true, connected: false, count: 0, marks: [] } }) },
     { noLogin: true }
@@ -113,4 +112,26 @@ test('waitForReceipt reads one message through the door (waMessageId) and falls 
   const f = world({ rest: () => [{ status: 'sent' }] });
   assert.equal(await vm.runInContext('waitForReceipt("wamid.2")', f), 'sent');
   assert.equal(f.calls.rest.length, 1);
+});
+
+test('a REAL refusal never falls back: the read fails like a failed read (the ticks stay as they are) and no direct read is made', async () => {
+  for (const error of ['not_logged_in', 'bad_input', 'no_seller', 'read_failed']) {
+    const w = world({ door: () => ({ body: { ok: false, error } }), rest: () => [MARK] });
+    await assert.rejects(() => vm.runInContext('fetchDeliveryContext("9647700000000")', w), /refused/, error);
+    assert.equal(w.calls.rest.length, 0, error);
+    assert.equal(vm.runInContext('w3MarksPausedUntil', w), 0, 'a refusal does not pause the door');
+    const r = world({ door: () => ({ body: { ok: false, error } }), rest: () => [MARK] });
+    const st = await Promise.race([vm.runInContext('waitForReceipt("wamid.9")', r), new Promise((res) => setTimeout(() => res('still waiting'), 60))]);
+    assert.equal(st, 'still waiting');   // waitForReceipt keeps trying until its own time limit, like for a failed read
+    assert.equal(r.calls.rest.length, 0, error);
+  }
+});
+
+test('a contract mismatch is NOT a refusal and falls back: an array, an empty object, ok false with no error word, a string, nothing', async () => {
+  for (const body of [[], {}, { ok: false }, { ok: false, error: '' }, { ok: false, error: 7 }, 'text', null, { ok: 'yes' }]) {
+    const w = world({ door: () => ({ body }), rest: () => [MARK] });
+    const ctx = await vm.runInContext('fetchDeliveryContext("9647700000000")', w);
+    assert.equal(ctx.byId['wamid.1'].status, 'read', JSON.stringify(body));
+    assert.equal(w.calls.rest.length, 1, JSON.stringify(body));
+  }
 });

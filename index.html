@@ -6348,17 +6348,26 @@ async function w3DeliveryMarks(filters) {
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
   if (!token) return null;
+  let r;
   try {
-    const r = await fetch(SELLER_DELIVERY_MARKS_URL, {
+    r = await fetch(SELLER_DELIVERY_MARKS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign({ token: token, action: 'marks' }, filters || {}))
     });
-    if (!r.ok) { if (r.status === 429 || r.status === 503) w3MarksPausedUntil = Date.now() + 30000; return null; }
-    const j = await r.json();
-    if (j && j.ok === true && j.connected !== false && Array.isArray(j.marks)) return j.marks;
-    return null;
-  } catch (e) { return null; }
+  } catch (e) { return null; }   // a network problem: the older direct read runs
+  if (r.status === 429 || r.status === 503) w3MarksPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true && j.connected !== false && Array.isArray(j.marks)) return j.marks;
+  // Not a mark list. A REAL refusal (an object with ok false and an error word, except not_available) never falls back: it is thrown, and
+  // every caller treats it like a failed read (the ticks stay as they are). Anything else is a contract mismatch, a seller with no connected
+  // number or not_available: the older direct read runs.
+  if (!j || typeof j !== 'object' || Array.isArray(j) || j.ok !== false) return null;
+  const code = j.error || j.code;
+  if (typeof code !== 'string' || !code || code === 'not_available') return null;
+  throw new Error('Delivery marks refused: ' + code);
 }
 // <w3-delivery-marks:js:end>
 
@@ -12176,16 +12185,25 @@ async function w3DotsFetch() {
   let token = null;
   try { token = await getValidAuthToken(); } catch (e) { token = null; }
   if (!token) return null;
+  let r;
   try {
-    const r = await fetch(SELLER_COUNTS_URL, {
+    r = await fetch(SELLER_COUNTS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: token, action: 'dots' })
     });
-    if (!r.ok) { if (r.status === 429 || r.status === 503) w3DotsPausedUntil = Date.now() + 30000; return null; }
-    const j = await r.json();
-    return j && j.ok === true ? { orders: j.orders, inbox: j.inbox, notifications: j.notifications } : null;
-  } catch (e) { return null; }
+  } catch (e) { return null; }   // a network problem: the older direct reads run
+  if (r.status === 429 || r.status === 503) w3DotsPausedUntil = Date.now() + 30000;
+  if (r.status === 429 || r.status === 503 || r.status === 404 || r.status === 502) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (j && j.ok === true) return { orders: j.orders, inbox: j.inbox, notifications: j.notifications };
+  // A REAL refusal (an object with ok false and an error word, except not_available) never falls back: the dots stay as they are this tick.
+  // Anything else is a contract mismatch or not_available: the older direct reads run.
+  if (!j || typeof j !== 'object' || Array.isArray(j) || j.ok !== false) return null;
+  const code = j.error || j.code;
+  if (typeof code !== 'string' || !code || code === 'not_available') return null;
+  return { refused: true, code: code };
 }
 async function w3DotsGet(allowShared) {
   if (Date.now() < w3DotsPausedUntil) return null;
@@ -12202,6 +12220,7 @@ async function checkOrdersBox(allowShared) {
   try {
     let n;
     const d = await w3DotsGet(allowShared === true);
+    if (d && d.refused) return;   // a real refusal never falls back: change nothing this tick
     if (d && typeof d.orders === 'number') n = d.orders;
     else if (d && d.orders === null) return;   // the door could not read this one: change nothing this tick
     else {
@@ -13036,6 +13055,7 @@ async function checkInboxDot(allowShared) {
   try {
     let hasPending;
     const d = await w3DotsGet(allowShared === true);
+    if (d && d.refused) return;   // a real refusal never falls back: change nothing this tick
     if (d && typeof d.inbox === 'boolean') hasPending = d.inbox;
     else if (d && d.inbox === null) return;   // the door could not read this one: change nothing this tick
     else {
@@ -13055,6 +13075,7 @@ async function checkNotificationsDot(allowShared) {
   try {
     let hasUnread;
     const d = await w3DotsGet(allowShared === true);
+    if (d && d.refused) return;   // a real refusal never falls back: change nothing this tick
     if (d && typeof d.notifications === 'boolean') hasUnread = d.notifications;
     else if (d && d.notifications === null) return;   // the door could not read this one: change nothing this tick
     else {
