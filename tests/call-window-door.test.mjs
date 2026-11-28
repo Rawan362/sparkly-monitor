@@ -114,11 +114,11 @@ test('a call whose sound was removed still shows the note', async () => {
   assert.equal(byId(w, 'vn-transcript-players').children[0].textContent, 'sound removed');
 });
 
-test('503, 404, 502, 429, a refusal, a network problem or no login: the older direct read runs as before', async () => {
+test('503, 404, 502, 429, not available, a network problem or no login: the older direct read runs as before', async () => {
   for (const over of [
     { door: () => ({ status: 503, body: {} }) }, { door: () => ({ status: 404, body: {} }) }, { door: () => ({ status: 502, body: {} }) },
     { door: () => ({ status: 429, body: {} }) }, { door: () => ({ body: { ok: false, error: 'not_available' } }) },
-    { door: () => ({ body: { ok: false, error: 'not_logged_in' } }) }, { door: () => ({ throws: true }) }, { noLogin: true }
+    { door: () => ({ throws: true }) }, { noLogin: true }
   ]) {
     const w = world({ ...over, rows: [CALL] });
     await run(w, 'show("77", "audio")');
@@ -141,4 +141,24 @@ test('after a 429 or 503 the door is left alone for a while', async () => {
   await run(w, 'show("2", "audio")');
   assert.equal(w.calls.door.length, 1);
   assert.equal(w.calls.rest.length, 2);
+});
+
+test('a REAL refusal never falls back: no direct read, and the existing "Could not load the call" text is shown', async () => {
+  for (const error of ['not_logged_in', 'no_seller', 'bad_input', 'read_failed']) {
+    const w = world({ door: () => ({ body: { ok: false, error } }), rows: [CALL] });
+    await run(w, 'show("77", "audio")');
+    assert.equal(w.calls.rest.length, 0, error);
+    assert.equal(w.calls.audio.length, 0, error);
+    assert.equal(byId(w, 'vn-transcript-players').textContent, 'Could not load the call. Try again.', error);
+    assert.equal(run(w, 'w3CallPausedUntil'), 0, 'a refusal does not pause the door');
+  }
+});
+
+test('a contract mismatch is NOT a refusal and falls back to the direct read', async () => {
+  for (const body of [[], {}, { ok: false }, { ok: false, error: '' }, { ok: false, error: 9 }, 'text', null, { ok: true }, { ok: 'yes' }]) {
+    const w = world({ door: () => ({ body }), rows: [CALL] });
+    await run(w, 'show("77", "audio")');
+    assert.equal(w.calls.rest.length, 1, JSON.stringify(body));
+    assert.deepEqual(w.calls.audio, ['https://media.test/call.mp3'], JSON.stringify(body));
+  }
 });
