@@ -241,14 +241,14 @@ test('the limits from the door are put on the fields when the seller first uses 
   assert.equal(await page.$eval('#business-tab-content', (e) => e.textContent), before);
 });
 
-test('only read and set are ever sent, and the older reading of the settings is not changed by this screen', { skip }, async () => {
+test('only get, read and set are ever sent (the reading of the settings asks the door first), and the older reading stays as the fallback', { skip }, async () => {
   const calls = [];
   const { page } = await openBusiness(null, calls, []);
   await page.click('#biz-toggle-winback_active');
   await page.waitForFunction(() => document.getElementById('biz-toggle-winback_active').classList.contains('on'));
-  assert.ok(calls.every((c) => ['get', 'set'].includes(c.action)));
+  assert.ok(calls.every((c) => ['get', 'read', 'set'].includes(c.action)));
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.ok(html.includes("fetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {"));
+  assert.ok(html.includes("w1SrFetch(SUPABASE_URL + '/rest/v1/bot_settings?chat_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&select=key,value', {"));
 });
 
 // ---- Fallback: a seller who is not on the door's list gets not_available; the older direct write runs exactly as before. ----
