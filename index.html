@@ -13193,7 +13193,7 @@ function w1NoticeTap(n) {
 window.w1OpenChatsFromNotice = async function(id) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) { /* the list still opens */ }
   try { checkNotificationsDot(); } catch (e) { /* not important */ }
   closeNotificationsPanel();
@@ -13302,7 +13302,7 @@ window.submitShippingPrice = async function(notifId, orderId, free) {
 window.openQuestionFromNotification = async function(id, qid) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
@@ -13318,7 +13318,7 @@ window.openQuestionFromNotification = async function(id, qid) {
 window.openEscalationChat = async function(id, phone) {
   try {
     const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) });
+    await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, { method: 'PATCH', headers, body: JSON.stringify({ is_read: true }) }); });
   } catch (e) {}
   try { checkNotificationsDot(); } catch (e) {}
   closeNotificationsPanel();
@@ -13338,11 +13338,11 @@ window.discussNotification = async function(id) {
 
     if (!n.is_read) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+        await w1NfQuietRead(id, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
           method: 'PATCH',
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
           body: JSON.stringify({ is_read: true })
-        });
+        }); });
         checkNotificationsDot();
       } catch (e) {}
     }
@@ -13362,11 +13362,11 @@ window.discussNotification = async function(id) {
 
 window.toggleNotificationRead = async function(id, markAsRead) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+    await w1NfRun('setRead', { id: w1NfId(id), read: !!markAsRead }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: markAsRead })
-    });
+    }); });
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13374,11 +13374,11 @@ window.toggleNotificationRead = async function(id, markAsRead) {
 
 window.markAllNotificationsRead = async function() {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
+    await w1NfMarkAll(function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?seller_id=eq.' + encodeURIComponent(SELLER_CHAT_ID) + '&is_read=eq.false', {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ is_read: true })
-    });
+    }); });
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13413,10 +13413,10 @@ function updateDeleteSelectedButtonState() {
 
 window.deleteOneNotification = async function(id) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
+    await w1NfRun('deleteOne', { id: w1NfId(id) }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=eq.' + id, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    }); }, 'Notification deleted.');
     await loadNotifications();
     await checkNotificationsDot();
   } catch (e) {}
@@ -13426,10 +13426,10 @@ window.deleteSelectedNotifications = async function() {
   const ids = Array.from(document.querySelectorAll('.notification-item-checkbox:checked')).map((cb) => cb.dataset.id);
   if (ids.length === 0) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
+    await w1NfRun('deleteSelected', { ids: ids.map(w1NfId) }, function() { return fetch(SUPABASE_URL + '/rest/v1/seller_notifications?id=in.(' + ids.join(',') + ')', {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'return=minimal' }
-    });
+    }); }, 'Notifications deleted.');
     exitNotificationsSelectMode();
     await loadNotifications();
     await checkNotificationsDot();
@@ -18999,6 +18999,104 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-notifications-door:js:start -->
+<script>
+// The Notifications panel writes (mark read or unread, mark all read, delete one, delete selected, and the "open" buttons that mark a notice read)
+// go through the Seller Notifications door (POST /webhook/seller-notifications) instead of writing straight to the seller_notifications table with
+// the public key (the web app changed or deleted a notification by its id alone). The door finds the seller from the login, keeps an undo copy first
+// and answers a refusal in plain words. Door first. The older direct write runs when the door is down or not available (503, 404, 502,
+// "not available", or the connection fails; the door is then left alone for 30 seconds) or when this device has no login. A 429 shows "try again in a
+// moment" and is not sent the older way; a door refusal never falls back. An Undo button follows a delete and "mark all read".
+const SELLER_NOTIFICATIONS_URL = 'https://sparklly.site/webhook/seller-notifications';
+const W1_NF_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  busy: 'Too many tries. Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', allRead: 'All notifications marked as read.'
+};
+const W1_NF = { pausedUntil: 0, timer: null, undoIds: [] };
+const W1_NF_PAUSE_MS = 30000;
+function w1NfId(id) { const n = Number(id); return Number.isFinite(n) && String(n) === String(id) ? n : id; }
+// Door first: the answer, or null when the older direct path must run. Throws an Error with plain words for a refusal and a 429.
+async function w1NfTry(action, extra) {
+  if (Date.now() < W1_NF.pausedUntil) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(SELLER_NOTIFICATIONS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+  if (r.status === 429) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; throw new Error(W1_NF_TEXT.busy); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_NF_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') { W1_NF.pausedUntil = Date.now() + W1_NF_PAUSE_MS; return null; }
+    throw new Error(code === 'not_logged_in' ? W1_NF_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_NF_TEXT.failed));
+  }
+  return j;
+}
+// A quiet mark-read before a button navigates: a problem never stops the navigation.
+async function w1NfQuietRead(id, direct) {
+  try { const r = await w1NfTry('setRead', { id: w1NfId(id), read: true }); if (r === null) return direct(); return r; } catch (e) { return null; }
+}
+// One write: the door, or `direct()` when the older path must run. A refusal shows a short note and stops the screen's own reload.
+async function w1NfRun(action, extra, direct, offerText) {
+  let r;
+  try { r = await w1NfTry(action, extra); } catch (e) { w1NfNote(e && e.message ? e.message : W1_NF_TEXT.failed, true); throw e; }
+  if (r === null) return direct();
+  if (offerText && r.undoId && !r.unchanged) w1NfNote(offerText, false, [r.undoId]);
+  return r;
+}
+// Mark all read: the door answers at most 1000 per call and says `more: true` when the screen should call again.
+async function w1NfMarkAll(direct) {
+  const ids = [];
+  for (let i = 0; i < 20; i++) {
+    let r;
+    try { r = await w1NfTry('markAllRead', {}); } catch (e) { w1NfNote(e && e.message ? e.message : W1_NF_TEXT.failed, true); throw e; }
+    if (r === null) return i === 0 ? direct() : undefined;
+    if (r.undoId && !r.unchanged) ids.push(r.undoId);
+    if (r.more !== true) break;
+  }
+  if (ids.length) w1NfNote(W1_NF_TEXT.allRead, false, ids);
+}
+function w1NfNote(text, isError, undoIds) {
+  let bar = document.getElementById('w1-nf-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-nf-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-nf-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-nf-undo-btn'; btn.textContent = W1_NF_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1NfUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-nf-note-msg').textContent = text;
+  document.getElementById('w1-nf-note-msg').style.color = isError ? 'var(--danger)' : '';
+  W1_NF.undoIds = undoIds || [];
+  document.getElementById('w1-nf-undo-btn').style.display = W1_NF.undoIds.length ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W1_NF.timer);
+  W1_NF.timer = setTimeout(function() { bar.style.display = 'none'; W1_NF.undoIds = []; }, isError ? 6000 : 10000);
+}
+async function w1NfUndo() {
+  const ids = W1_NF.undoIds.slice().reverse(); if (!ids.length) return;
+  W1_NF.undoIds = [];
+  document.getElementById('w1-nf-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-nf-note-msg');
+  try {
+    for (const id of ids) { const r = await w1NfTry('undo', { undoId: id }); if (r === null) throw new Error(W1_NF_TEXT.failed); }
+    msg.textContent = W1_NF_TEXT.undone; msg.style.color = '';
+  } catch (e) { msg.textContent = e && e.message ? e.message : W1_NF_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_NF.timer);
+  W1_NF.timer = setTimeout(function() { document.getElementById('w1-nf-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadNotifications === 'function') await loadNotifications(); } catch (e) {}
+  try { if (typeof checkNotificationsDot === 'function') await checkNotificationsDot(); } catch (e) {}
+}
+</script>
+<!-- w1-notifications-door:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
