@@ -38,7 +38,7 @@ test('the cache name is at least v68, the Danger zone row is new, and the old ro
   assert.ok(Number((sw.match(/sparkly-shell-v(\d+)'/) || [])[1]) >= 68);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.ok(html.includes('<div class="settings-row danger" onclick="confirmDeleteAccount()">'));
-  assert.ok(html.includes('<span id="settings-label-delete">Delete my account</span>'));
+  assert.ok(html.includes('<span id="settings-label-delete">Delete my business data</span>'));
   assert.ok(html.includes('onclick="openDeleteScreen()"'));
   assert.ok(html.includes('<div class="settings-row" onclick="openReportsPanel()">'));
 });
