@@ -14144,11 +14144,11 @@ window.renameBcConversationPrompt = async function() {
   const newTitle = prompt('Rename conversation', currentTitle);
   if (!newTitle || !newTitle.trim()) return;
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
+    await w1BcRun('chats', 'rename', { conversationId: convId, title: newTitle.trim() }, function() { return fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ title: newTitle.trim() })
-    });
+    }); }, 'Chat renamed.');
     await loadBusinessChatConversationList();
   } catch (e) {
     debugLog('renameBcConversationPrompt failed: ' + (e && e.message));
@@ -14162,11 +14162,11 @@ window.toggleBcConversationPin = async function() {
   const item = document.querySelector('.bc-conv-item[data-id="' + convId + '"]');
   const currentlyPinned = item && item.dataset.pinned === 'true';
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
+    await w1BcRun('chats', 'setPinned', { conversationId: convId, pinned: !currentlyPinned }, function() { return fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + convId, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ pinned: !currentlyPinned })
-    });
+    }); }, !currentlyPinned ? 'Chat pinned.' : 'Chat unpinned.');
     await loadBusinessChatConversationList();
   } catch (e) {
     debugLog('toggleBcConversationPin failed: ' + (e && e.message));
@@ -14227,13 +14227,19 @@ function closeBcSidebarOnMobile() {
 
 window.startNewBusinessChat = async function() {
   try {
+    // The Seller Business Chats door first (an empty chat for this seller, titled "New Chat"); the older direct insert runs when it is not available.
+    let w1Created;
+    try { w1Created = await w1BcTry('chats', 'create', {}); } catch (e) { w1BcNote(e && e.message ? e.message : W1_BC_TEXT.failed, true); return; }
+    let newConv;
+    if (w1Created !== null) { newConv = w1Created.conversation; } else {
     const res = await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations', {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
       body: JSON.stringify({ chat_id: SELLER_CHAT_ID, title: 'New Chat' })
     });
     const rows = await res.json();
-    const newConv = rows && rows[0];
+    newConv = rows && rows[0];
+    }
     if (!newConv) return;
     activeConversationId = newConv.id;
     bcHistory = [];
@@ -14286,10 +14292,10 @@ window.openExistingBusinessConversation = async function(conversationId) {
 
 window.deleteBusinessConversation = async function(conversationId) {
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + conversationId, {
+    await w1BcDelete(conversationId, function() { return fetch(SUPABASE_URL + '/rest/v1/business_chat_conversations?id=eq.' + conversationId, {
       method: 'DELETE',
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
+    }); });
     if (activeConversationId === conversationId) {
       await loadBusinessChatConversationList();
       const list = document.querySelectorAll('.bc-conv-item');
@@ -14428,10 +14434,10 @@ window.retryAiMessage = async function(wrapEl) {
     // see the old answer and the retry will look like it did nothing.
     if (activeConversationId && staleTimestamp) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(staleTimestamp), {
+        await w1BcDeleteFrom(activeConversationId, staleTimestamp, function() { return fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(staleTimestamp), {
           method: 'DELETE',
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-        });
+        }); });
       } catch (e) {}
     }
     await sendBusinessChatTurn(userText);
@@ -14463,10 +14469,10 @@ window.editUserMessage = async function(wrapEl) {
     // after it from Supabase too, for a saved conversation.
     if (activeConversationId && editedTimestamp) {
       try {
-        await fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(editedTimestamp), {
+        await w1BcDeleteFrom(activeConversationId, editedTimestamp, function() { return fetch(SUPABASE_URL + '/rest/v1/business_chat_messages?conversation_id=eq.' + activeConversationId + '&created_at=gte.' + encodeURIComponent(editedTimestamp), {
           method: 'DELETE',
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-        });
+        }); });
       } catch (e) {}
     }
     document.getElementById('bc-input').value = text;
@@ -18901,6 +18907,110 @@ window.closeAdsScreen = function() {
 };
 </script>
 <!-- w1-ads-screen:js:end -->
+<!-- w1-business-chat-door:js:start -->
+<script>
+// The Business chat writes go through two doors instead of writing straight to business_chat_conversations and business_chat_messages with the
+// public key (a chat or its messages were changed by the chat id alone): the Seller Business Chats door (POST /webhook/seller-business-chats:
+// rename, pin, a new chat, delete a chat) and the Seller Business Messages door (POST /webhook/seller-business-messages: the messages that "Retry"
+// and "Edit" cut away). The doors find the seller from the login, keep an undo copy first, and a delete is checked first (what would go, and a
+// digest) and then applied. Door first. The older direct writes run when a door is down or not available (503, 404, 502, "not available", or the
+// connection fails; that door is then left alone for 30 seconds) or when this device has no login. A 429 shows "try again in a moment" and is not sent
+// the older way; a door refusal never falls back. An Undo button follows a rename, a pin, a delete, and the messages cut by Retry or Edit.
+const SELLER_BUSINESS_CHATS_URL = 'https://sparklly.site/webhook/seller-business-chats';
+const SELLER_BUSINESS_MESSAGES_URL = 'https://sparklly.site/webhook/seller-business-messages';
+const W1_BC_TEXT = {
+  relogin: 'Please sign out and sign in again, then try once more.',
+  busy: 'Too many tries. Please try again in a moment.',
+  failed: 'We could not save the change. Nothing was changed.',
+  undo: 'Undo', undone: 'The change was undone.', deleted: 'Chat deleted.', cut: 'Messages removed.'
+};
+const W1_BC = { paused: { chats: 0, messages: 0 }, timer: null, undoId: '', undoDoor: 'chats' };
+const W1_BC_PAUSE_MS = 30000;
+// Door first: the answer, or null when the older direct path must run. Throws an Error with plain words for a refusal and a 429.
+async function w1BcTry(door, action, extra) {
+  if (Date.now() < W1_BC.paused[door]) return null;
+  let token = null;
+  try { token = await getValidAuthToken(); } catch (e) { token = null; }
+  if (!token) return null;   // no login on this device (for example a device linked with a code the older way): the older path runs
+  let r;
+  try {
+    r = await fetch(door === 'chats' ? SELLER_BUSINESS_CHATS_URL : SELLER_BUSINESS_MESSAGES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: token, action: action }, extra || {})) });
+  } catch (e) { W1_BC.paused[door] = Date.now() + W1_BC_PAUSE_MS; return null; }
+  if (r.status === 429) { W1_BC.paused[door] = Date.now() + W1_BC_PAUSE_MS; throw new Error(W1_BC_TEXT.busy); }
+  if (r.status === 503 || r.status === 404 || r.status === 502) { W1_BC.paused[door] = Date.now() + W1_BC_PAUSE_MS; return null; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(W1_BC_TEXT.failed); }
+  if (!j || j.ok !== true) {
+    const code = j && (j.error || j.code);
+    if (code === 'not_available') { W1_BC.paused[door] = Date.now() + W1_BC_PAUSE_MS; return null; }
+    throw new Error(code === 'not_logged_in' ? W1_BC_TEXT.relogin : (j && typeof j.message === 'string' && j.message ? j.message : W1_BC_TEXT.failed));
+  }
+  return j;
+}
+// One chat-list write: the door, or `direct()`. A refusal shows a short note and stops the screen's own reload.
+async function w1BcRun(door, action, extra, direct, offerText) {
+  let r;
+  try { r = await w1BcTry(door, action, extra); } catch (e) { w1BcNote(e && e.message ? e.message : W1_BC_TEXT.failed, true); throw e; }
+  if (r === null) return direct();
+  if (offerText && r.undoId && !r.unchanged) w1BcNote(offerText, false, r.undoId, door);
+  return r;
+}
+// Delete a chat: check (how many messages, and a digest), then apply with the digest.
+async function w1BcDelete(conversationId, direct) {
+  let chk;
+  try { chk = await w1BcTry('chats', 'deleteCheck', { conversationId: conversationId }); } catch (e) { w1BcNote(e && e.message ? e.message : W1_BC_TEXT.failed, true); throw e; }
+  if (chk === null) return direct();
+  let ap;
+  try { ap = await w1BcTry('chats', 'deleteApply', { conversationId: conversationId, digest: chk.digest }); } catch (e) { w1BcNote(e && e.message ? e.message : W1_BC_TEXT.failed, true); throw e; }
+  if (ap === null) return direct();
+  if (ap.undoId) w1BcNote(W1_BC_TEXT.deleted, false, ap.undoId, 'chats');
+  return ap;
+}
+// The messages from one point in time on (Retry cuts the stale answer and what follows, Edit cuts the message and what follows). The screen has
+// already asked for the retry or the edit, so the check and the apply follow each other. A problem never stops the retry or the edit itself.
+async function w1BcDeleteFrom(conversationId, from, direct) {
+  let chk;
+  try { chk = await w1BcTry('messages', 'deleteFromCheck', { conversationId: conversationId, from: from }); } catch (e) { w1BcNote(e && e.message ? e.message : W1_BC_TEXT.failed, true); return null; }
+  if (chk === null) return direct();
+  let ap;
+  try { ap = await w1BcTry('messages', 'deleteFromApply', { conversationId: conversationId, from: from, digest: chk.digest }); } catch (e) { w1BcNote(e && e.message ? e.message : W1_BC_TEXT.failed, true); return null; }
+  if (ap === null) return direct();
+  if (ap.undoId) w1BcNote(W1_BC_TEXT.cut, false, ap.undoId, 'messages');
+  return ap;
+}
+function w1BcNote(text, isError, undoId, door) {
+  let bar = document.getElementById('w1-bc-note');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'w1-bc-note'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9000;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 14px;display:none;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    const msg = document.createElement('span'); msg.id = 'w1-bc-note-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'w1-bc-undo-btn'; btn.textContent = W1_BC_TEXT.undo;
+    btn.style.cssText = 'border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:14px;padding:5px 12px;font-size:13px;cursor:pointer;';
+    btn.onclick = function() { w1BcUndo(); };
+    bar.appendChild(msg); bar.appendChild(btn); document.body.appendChild(bar);
+  }
+  document.getElementById('w1-bc-note-msg').textContent = text;
+  document.getElementById('w1-bc-note-msg').style.color = isError ? 'var(--danger)' : '';
+  W1_BC.undoId = undoId || ''; W1_BC.undoDoor = door || 'chats';
+  document.getElementById('w1-bc-undo-btn').style.display = undoId ? '' : 'none';
+  bar.style.display = 'flex';
+  clearTimeout(W1_BC.timer);
+  W1_BC.timer = setTimeout(function() { bar.style.display = 'none'; W1_BC.undoId = ''; }, isError ? 6000 : 10000);
+}
+async function w1BcUndo() {
+  const id = W1_BC.undoId, door = W1_BC.undoDoor; if (!id) return;
+  W1_BC.undoId = '';
+  document.getElementById('w1-bc-undo-btn').style.display = 'none';
+  const msg = document.getElementById('w1-bc-note-msg');
+  try { const r = await w1BcTry(door, 'undo', { undoId: id }); if (r === null) throw new Error(W1_BC_TEXT.failed); msg.textContent = W1_BC_TEXT.undone; msg.style.color = ''; }
+  catch (e) { msg.textContent = e && e.message ? e.message : W1_BC_TEXT.failed; msg.style.color = 'var(--danger)'; }
+  clearTimeout(W1_BC.timer);
+  W1_BC.timer = setTimeout(function() { document.getElementById('w1-bc-note').style.display = 'none'; }, 6000);
+  try { if (typeof loadBusinessChatConversationList === 'function') await loadBusinessChatConversationList(); } catch (e) {}
+  try { if (activeConversationId && typeof openExistingBusinessConversation === 'function') await openExistingBusinessConversation(activeConversationId); } catch (e) {}
+}
+</script>
+<!-- w1-business-chat-door:js:end -->
 <!-- w1-delete-screen:js:start -->
 <script>
 // Delete my business screen (build chat W1, screen 3). Door: POST /webhook/seller-delete-business with { token, action, confirmText? }.
